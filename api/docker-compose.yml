@@ -1,0 +1,59 @@
+services:
+  db:
+    image: pgvector/pgvector:pg18-trixie
+    ports:
+      - 5431:5432
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql
+
+
+  vllm:
+      image: vllm/vllm-openai:latest
+      restart: unless-stopped
+      ipc: host
+      ports:
+        - "8080:8080"
+      volumes:
+        - ${HOME}/.cache/huggingface:/root/.cache/huggingface
+      environment:
+        - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+        - HF_TOKEN=${HF_TOKEN}
+        - VLLM_WSL2_ENABLE_PIN_MEMORY=1
+      deploy:
+        resources:
+          reservations:
+            devices:
+              - driver: nvidia
+                count: all
+                capabilities: [gpu]
+      command:
+        - --model
+        - Qwen/Qwen3-8B-AWQ
+        - --quantization
+        - awq_marlin
+        - --host
+        - 0.0.0.0
+        - --port
+        - "8080"
+        - --max-model-len
+        - "16384"
+        - --gpu-memory-utilization
+        - "0.75"
+        - --max-num-seqs
+        - "16"
+        - --dtype
+        - auto
+        - --kv-cache-dtype
+        - fp8_e4m3
+        - --enable-prefix-caching
+        - --enforce-eager
+        - --enable-auto-tool-choice
+        - --tool-call-parser
+        - hermes
+
+volumes:
+  postgres_data:
