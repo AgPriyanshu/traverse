@@ -3,13 +3,22 @@ import { ApiError, NetworkError } from "./errors";
 import type { paths } from "./schema";
 
 /**
- * Empty, so every request is same-origin: the API serves no CORS headers, and
- * `/api` is proxied by Vite in dev and by nginx in the container.
- * `VITE_API_BASE_URL` names the proxy target, not the browser's origin.
+ * The page's own origin, so every request is same-origin: the API serves no
+ * CORS headers, and `/api` is proxied by Vite in dev and by nginx in the
+ * container. `VITE_API_BASE_URL` names that proxy target, not this.
+ *
+ * Absolute rather than "" because `fetch` outside a browser — a jsdom test,
+ * a prerender — refuses to parse a relative URL.
  */
-export const API_BASE_URL = "";
+export const API_BASE_URL =
+  typeof window === "undefined" ? "" : window.location.origin;
 
-export const client = createClient<paths>({ baseUrl: API_BASE_URL });
+export const client = createClient<paths>({
+  baseUrl: API_BASE_URL,
+  // Resolved per call rather than captured at module load, so a test (or a
+  // future instrumentation wrapper) can replace globalThis.fetch.
+  fetch: (request) => globalThis.fetch(request),
+});
 
 type FetchResult<T> = {
   data?: T;
