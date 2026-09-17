@@ -68,3 +68,47 @@ re-discovered by each agent.
 **Proposed:** orchestrator owns `api/pyproject.toml` from Sprint 2 on, the same
 way it owns `api/config/settings.py`; test-runner dependencies land at the
 freeze.
+
+---
+
+### SCR-4 · be1 → do1 · 2026-09-17 · **BLOCKING (do1's S1.11/S1.12)**
+
+**Need:** RabbitMQ configured to permit `transient_nonexcl_queues`, or pinned to
+`rabbitmq:3.13-management`.
+
+**Why:** the broker now running as `traverse-rabbitmq` is `rabbitmq:4-management`,
+which resolves to **4.3.6**. In 4.x `transient_nonexcl_queues` is
+`denied_by_default`, and Celery's remote-control pidbox queue is exactly a
+transient non-exclusive queue. The result is not a degraded feature — the worker
+cannot start at all:
+
+```
+amqp.exceptions.InternalError: Queue.declare: (541) INTERNAL_ERROR -
+Feature `transient_nonexcl_queues` is deprecated.
+billiard.exceptions.RestartFreqExceeded: 5 in 1s
+```
+
+and `celery -A api.workers.app inspect registered` fails with the same error.
+That command is DO1's own `celery-worker` healthcheck (devops-1.md S1.12) and
+the S1.1 acceptance criterion, so neither can pass until the broker is
+configured. It is not fixable from the application side: Celery has no setting
+for pidbox queue durability, and disabling remote control
+(`worker_enable_remote_control=False`) would remove `inspect` itself.
+
+Confirmed with `rabbitmqctl list_deprecated_features` — `transient_nonexcl_queues`
+is `denied`. It cannot be flipped at runtime; it needs config plus a restart.
+
+**Blocking:** yes, for the acceptance check. Not blocking the code: task
+registration is asserted in-process against `celery_app.tasks`, which is the
+same registry `inspect registered` reports
+(`api/tests/workers/test_registry.py`), and all six `pipeline.*` names are
+present.
+
+**Proposed:** in the `rabbitmq` service, mount a `rabbitmq.conf` containing
+
+```
+deprecated_features.permit.transient_nonexcl_queues = true
+```
+
+or pin `image: rabbitmq:3.13-management` until Celery ships quorum-queue pidbox
+support. Prefer the config line — it keeps the 4.x image and is one line.
