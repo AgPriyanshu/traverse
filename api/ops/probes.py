@@ -74,7 +74,9 @@ async def probe_neo4j() -> DependencyHealth:
     except Exception as exc:
         return DependencyHealth(name="neo4j", ok=False, detail=_detail(exc))
     if not records or records[0]["ok"] != 1:
-        return DependencyHealth(name="neo4j", ok=False, detail="unexpected query result")
+        return DependencyHealth(
+            name="neo4j", ok=False, detail="unexpected query result"
+        )
     return DependencyHealth(name="neo4j", ok=True, detail=settings.neo4j_database)
 
 
@@ -110,7 +112,9 @@ async def probe_llm() -> DependencyHealth:
     """Never gating: the default profile ships without a GPU (PRD NFR-deploy)."""
     if settings.inference_mode is not InferenceMode.LOCAL:
         return DependencyHealth(
-            name="llm", ok=True, detail=f"inference_mode={settings.inference_mode.value}"
+            name="llm",
+            ok=True,
+            detail=f"inference_mode={settings.inference_mode.value}",
         )
     url = settings.vllm_base_url.rstrip("/") + "/models"
     try:

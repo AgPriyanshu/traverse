@@ -38,7 +38,10 @@ jobs:
         run: uv sync --frozen --only-group dev
       - run: uv run ruff check .
         working-directory: api
-      - run: uv run ruff format --check .
+      # Alembic writes the migrations and they are applied history; restyling
+      # one hides what actually changed, so they are excluded from format the
+      # same way api/pyproject.toml already excludes them from lint.
+      - run: uv run ruff format --check . --exclude db/migrations
         working-directory: api
 
   test-api:

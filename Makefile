@@ -135,13 +135,13 @@ test-integration: ## The merge-train gate: cold stack, healthy, /health is ok
 
 lint: ## ruff + oxlint
 	$(COMPOSE) --profile test run --rm --no-deps --entrypoint sh test -c \
-		"ruff check api && ruff format --check api"
+		"cd api && ruff check . && ruff format --check . --exclude db/migrations"
 	$(COMPOSE) --profile test run --rm --entrypoint sh test-web -c \
 		"corepack enable && pnpm install --frozen-lockfile && pnpm lint"
 
 fmt: ## ruff format
 	$(COMPOSE) --profile test run --rm --no-deps --entrypoint sh test -c \
-		"ruff format api && ruff check --fix api"
+		"cd api && ruff format . --exclude db/migrations && ruff check --fix ."
 
 openapi: ## Regenerate web/src/api/schema.d.ts from the live contract
 	$(COMPOSE) run --rm --no-deps api python /app/scripts/dump_openapi.py /tmp/openapi.json
