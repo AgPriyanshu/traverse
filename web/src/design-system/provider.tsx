@@ -5,10 +5,13 @@ import { system } from "./theme";
 
 export const DesignSystemProvider = ({ children }: PropsWithChildren) => {
   return (
-    <ChakraProvider value={system}>
-      <ThemeProvider attribute="class" disableTransitionOnChange>
-        {children}
-      </ThemeProvider>
-    </ChakraProvider>
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="system"
+      enableSystem
+      disableTransitionOnChange
+    >
+      <ChakraProvider value={system}>{children}</ChakraProvider>
+    </ThemeProvider>
   );
 };
