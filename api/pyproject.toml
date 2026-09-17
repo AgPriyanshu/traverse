@@ -13,11 +13,13 @@ dependencies = [
     "langchain-openai>=1.6.0",
     "langfuse>=4.15.1",
     "langgraph>=1.2.11",
+    "langgraph-checkpoint-postgres>=3.1.2",
     "neo4j>=6.3.0",
     "pgvector>=0.5.0",
     "psycopg[binary,pool]>=3.3.4",
     "python-dotenv>=1.2.3",
     "python-multipart>=0.0.32",
+    "pyyaml>=6.0.3",
     "sentence-transformers>=6.0.1",
     "sqlmodel>=0.0.39",
     "transformers>=5.8.1",
@@ -29,8 +31,8 @@ dependencies = [
 dev = [
     "celery-types>=0.26.0",
     "ipykernel>=7.3.0",
-    "pytest>=8.4.0",
-    "pytest-asyncio>=1.0.0",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
     "ruff>=0.14.0",
 ]
 
@@ -58,6 +60,11 @@ extend-immutable-calls = [
     "fastapi.Query",
 ]
 
+[tool.ruff.format]
+# `ruff format .` would otherwise restyle applied migrations, which hides what
+# actually changed. The lint ignores below say the same thing for `ruff check`.
+exclude = ["db/migrations/versions/*.py"]
+
 [tool.ruff.lint.per-file-ignores]
 # Alembic writes these and they are applied history — restyling one hides what
 # actually changed, so they are not style-checked at all.
@@ -66,14 +73,19 @@ extend-immutable-calls = [
 "db/migrations/env.py" = ["E402"]
 
 [tool.pytest.ini_options]
+# Tests run against real backing services (Postgres, and for graph tests, the
+# live Neo4j); the interesting failures are constraint, transaction and
+# connectivity failures, not mock mismatches.
+asyncio_mode = "auto"
+# One event loop for the whole session: the Neo4j driver and the SQLAlchemy
+# engine are process singletons, and a per-test loop rebinds their pools,
+# leaving asyncpg connections bound to a closed loop.
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
 testpaths = ["tests"]
 # Alembic and the app share one import root, the repo root, so `api.x` resolves
 # the same way in a test as in a migration.
 pythonpath = [".."]
-asyncio_mode = "auto"
-# Every async test shares one event loop and therefore one engine connection
-# pool; a per-test loop leaves asyncpg connections bound to a closed loop.
-asyncio_default_fixture_loop_scope = "session"
 markers = [
     "models: needs the Docling or BGE-M3 model cache on disk",
 ]

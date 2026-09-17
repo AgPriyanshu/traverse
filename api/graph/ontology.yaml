@@ -1,0 +1,86 @@
+# PRD F3.1 as data, not code (PRD §5.4). Adding a predicate here makes it valid
+# in the enum, the API and the extraction prompt with no Python change — which
+# is what keeps the prompt and the validator from drifting apart.
+#
+# Every `inverse` must name a predicate declared in this file. A predicate with
+# `symmetric: true` must be its own inverse; the loader refuses anything else.
+
+version: 1
+
+families:
+  kinship:
+    description: Blood, marriage-derived and guardianship ties.
+    predicates:
+      parent_of: {inverse: child_of, symmetric: false}
+      child_of: {inverse: parent_of, symmetric: false}
+      sibling_of: {inverse: sibling_of, symmetric: true}
+      grandparent_of: {inverse: grandchild_of, symmetric: false}
+      grandchild_of: {inverse: grandparent_of, symmetric: false}
+      in_law_of: {inverse: in_law_of, symmetric: true}
+      guardian_of: {inverse: ward_of, symmetric: false}
+      ward_of: {inverse: guardian_of, symmetric: false}
+      adopted_by: {inverse: adoptive_parent_of, symmetric: false}
+      adoptive_parent_of: {inverse: adopted_by, symmetric: false}
+
+  romantic:
+    description: Courtship, marriage and its aftermath.
+    predicates:
+      married_to: {inverse: married_to, symmetric: true}
+      engaged_to: {inverse: engaged_to, symmetric: true}
+      lover_of: {inverse: lover_of, symmetric: true}
+      former_partner_of: {inverse: former_partner_of, symmetric: true}
+      # Asymmetric by definition — the whole point is that it is not returned.
+      unrequited_love_for: {inverse: null, symmetric: false}
+
+  social:
+    description: Acquaintance, household, work and mentorship ties.
+    predicates:
+      friend_of: {inverse: friend_of, symmetric: true}
+      acquaintance_of: {inverse: acquaintance_of, symmetric: true}
+      neighbour_of: {inverse: neighbour_of, symmetric: true}
+      colleague_of: {inverse: colleague_of, symmetric: true}
+      employer_of: {inverse: employee_of, symmetric: false}
+      employee_of: {inverse: employer_of, symmetric: false}
+      mentor_of: {inverse: student_of, symmetric: false}
+      student_of: {inverse: mentor_of, symmetric: false}
+      customer_of: {inverse: serves, symmetric: false}
+      serves: {inverse: customer_of, symmetric: false}
+
+  adversarial:
+    description: Rivalry, enmity and betrayal.
+    predicates:
+      rival_of: {inverse: rival_of, symmetric: true}
+      enemy_of: {inverse: enemy_of, symmetric: true}
+      betrayed: {inverse: betrayed_by, symmetric: false}
+      betrayed_by: {inverse: betrayed, symmetric: false}
+      deceives: {inverse: deceived_by, symmetric: false}
+      deceived_by: {inverse: deceives, symmetric: false}
+
+  structural:
+    description: Derived, never LLM-extracted.
+    predicates:
+      # Weighted co-presence, computed from scene participation. Listed here so
+      # filters and colour mapping treat it like any other family.
+      co_occurs_with: {inverse: co_occurs_with, symmetric: true, extracted: false}
+
+# F3.3 — the supersessions that are a temporal transition rather than a
+# contradiction. Anything not listed here routes to `resolve_conflict` review
+# instead of closing the earlier edge.
+transitions:
+  - {from: engaged_to, to: married_to}
+  - {from: married_to, to: former_partner_of}
+  - {from: lover_of, to: married_to}
+  - {from: lover_of, to: former_partner_of}
+  - {from: engaged_to, to: former_partner_of}
+  - {from: unrequited_love_for, to: lover_of}
+  - {from: unrequited_love_for, to: married_to}
+  - {from: acquaintance_of, to: friend_of}
+  - {from: friend_of, to: enemy_of}
+  - {from: friend_of, to: rival_of}
+  - {from: rival_of, to: friend_of}
+  - {from: enemy_of, to: friend_of}
+  - {from: rival_of, to: enemy_of}
+  - {from: colleague_of, to: friend_of}
+  - {from: student_of, to: colleague_of}
+  - {from: ward_of, to: adopted_by}
+  - {from: guardian_of, to: adoptive_parent_of}
