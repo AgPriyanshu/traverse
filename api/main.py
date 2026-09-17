@@ -1,11 +1,11 @@
+from pathlib import Path
+
 from fastapi import FastAPI, UploadFile, WebSocket, status
+from fastapi.logger import logger
 from fastapi.responses import JSONResponse
 from langchain_core.messages import HumanMessage
-from sqlmodel import select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
-from .db.engine import engine
-from .db.models.document_model import Document
+from .document_pipeline.chunking import DocumentChunker
 from .llm import get_agent
 
 app = FastAPI()
@@ -13,10 +13,12 @@ app = FastAPI()
 
 @app.get("/ping")
 async def pong():
-    async with AsyncSession(engine) as session:
-        statement = select(Document)
-        results = await session.exec(statement)
-        print(results.fetchall())
+    documentChunker = DocumentChunker()
+    docling_document = documentChunker.load_document(
+        Path("./sample_docs/before_the_coffee_gets_cold.pdf")
+    )
+    chunks = documentChunker.generate_chunks(docling_document)
+    logger.debug(chunks)
 
     return {"message": "pong"}
 

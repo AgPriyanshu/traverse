@@ -2,7 +2,7 @@ services:
   db:
     image: pgvector/pgvector:pg18-trixie
     ports:
-      - 5431:5432
+      - 5433:5432
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -10,6 +10,16 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql
 
+  neo4j:
+    image: neo4j:5-community-trixie
+    container_name: neo4j
+    ports:
+      - 7474:7474
+      - 7687:7687
+    volumes:
+      - neo4j_data:/data
+    environment:
+      - NEO4J_AUTH=neo4j/very_safe_password
 
   vllm:
       image: vllm/vllm-openai:latest
@@ -57,3 +67,4 @@ services:
 
 volumes:
   postgres_data:
+  neo4j_data:

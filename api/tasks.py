@@ -16,7 +16,9 @@ from sentence_transformers import SentenceTransformer
 from sqlmodel import insert
 from transformers import AutoTokenizer
 
-from .db.engine import session_context
+from db.graph_db import graph_db_session
+
+from .db.engine import db_session
 from .db.models.document_model import Document, DocumentChunk
 
 celery_app = Celery(
@@ -28,27 +30,11 @@ logger = logging.getLogger(__name__)
 
 
 @celery_app.task
-def embed_file(file: bytes):
+def embed_file(document_path: ):
     return asyncio.run(async_embed_file(file))
 
 
-async def async_embed_file(file: bytes):
-    EMBEDDING_MODEL_ID = "BAAI/bge-m3"
-    CACHE_DIR = Path("/home/prinzz/main/my-projects/traverse/api/.cache/")
-
-    download_models(output_dir=CACHE_DIR)
-
-    tokenizer = HuggingFaceTokenizer(
-        tokenizer=AutoTokenizer.from_pretrained(EMBEDDING_MODEL_ID), max_tokens=1024
-    )
-    bytes_io = BytesIO(file)
-    doc_stream = DocumentStream(name="document.pdf", stream=bytes_io)
-    pipeline_options = PdfPipelineOptions(artifacts_path=CACHE_DIR)
-    converter = DocumentConverter(
-        format_options={
-            InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
-        }
-    )
+async def async_embed_file():
 
     document = converter.convert(doc_stream).document
     chunker = HybridChunker(tokenizer=tokenizer)
@@ -64,7 +50,7 @@ async def async_embed_file(file: bytes):
     )
 
     records = []
-    async with session_context() as session:
+    async with db_session() as session:
         doc = Document(name="Random")
         session.add(doc)
         await session.commit()
@@ -85,8 +71,12 @@ async def async_embed_file(file: bytes):
             }
         )
 
-    async with session_context() as session:
+    async with db_session() as session:
         await session.exec(insert(DocumentChunk).values(records))
         await session.commit()
 
+    async with graph_db_session() as session:
+        await session.execute_query("")
+
+    # TODO:
     return

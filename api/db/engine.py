@@ -23,6 +23,6 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
 
 
 @asynccontextmanager
-async def session_context():
+async def db_session():
     async with SQLModelAsyncSession(engine) as session:
         yield session
