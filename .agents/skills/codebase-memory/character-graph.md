@@ -7,9 +7,10 @@ Symbols over line numbers.
 
 | Symbol | Location | Status |
 | --- | --- | --- |
-| `graph_db_session`, `create_nodes` | `api/db/graph_db.py` | Stub — `create_nodes` raises `NotImplementedError`; credentials still hardcoded. Replaced by `api/graph/client.py` in S1.4 |
-| Neo4j `AsyncDriver` singleton, `healthcheck`, `graph.reset(book_id)` | `api/graph/client.py` | S1 |
-| Ontology (`Predicate`, `family_of`, `inverse_of`, `is_symmetric`, `is_legal_transition`, `prompt_fragment`) | `api/graph/ontology.py` + `ontology.yaml` | S1 |
+| Neo4j `AsyncDriver` singleton, `connect`, `close`, `session`, `execute`, `apply_schema`, `healthcheck` | `api/graph/client.py` | **Built** — `api/db/graph_db.py` is gone |
+| `reset(book_id)`, `reset_project(project_id)` | `api/graph/projection.py` | **Built** |
+| Ontology (`load`, `Ontology`, `Predicate`, `family_of`, `inverse_of`, `is_symmetric`, `is_extracted`, `is_legal_transition`, `prompt_fragment`, `to_contract`) | `api/graph/ontology.py` + `ontology.yaml` | **Built** |
+| Roster and graph reads (`project_exists`, `list_characters`, `get_character`, `get_graph`) | `api/graph/repository.py` | **Built** — Postgres-backed; S4.7 moves `get_graph` to Neo4j |
 | `pipeline.extract_characters` (pass 1) | `api/extraction/` | S3 |
 | Alias cascade, `honorifics.yaml`, nickname tables | `api/extraction/` | S3 |
 | `cluster_contexts` (embedding similarity) | `api/graph/` | S3 |
@@ -131,20 +132,59 @@ filter differs.
 ## Neo4j shape
 
 ```cypher
-(:Character {id, project_id, canonical_name, importance_tier,
+(:Book      {id, project_id, series_order, title})
+(:Character {id, project_id, canonical_name, importance_tier, mention_count,
              first_book_order, first_chapter, appears_in_books: [1,2,5]})
-(:Character)-[:RELATED {predicate, family, confidence, status, assertion_type,
+(:Character)-[:APPEARS_IN {book_id, first_page, first_chapter,
+                           mention_count, tier}]->(:Book)
+(:Character)-[:RELATED {id, predicate, family, confidence, status, assertion_type,
                         hearsay, evidence_count, page_refs, book_refs,
                         first_book_order, first_chapter,
                         last_book_order, last_chapter}]->(:Character)
 ```
 
+**The projection is book-attributed, and that is load-bearing.** Characters and
+relations are project-scoped, so "delete what this book contributed" is only
+answerable if provenance is on the node and the edge: `APPEARS_IN` per book,
+`book_refs` (book UUIDs as strings) per edge. Without it, re-ingesting one
+volume of a series means dropping the whole project's graph.
+
+`page_refs` entries are `"<book_order>:<page>"` strings, not bare ints — in a
+series a page number without its volume is not a citation, and `reset` needs to
+drop one book's pages without touching another's. The API contract
+(`GraphEdgeOut.page_refs`) is still `list[int]`; the hydration splits them.
+
 `page_refs` is denormalised so a traversal answers "which pages" without a
 Postgres round trip; full quotes hydrate on click. Batch writes with `UNWIND` —
 one Cypher per edge on a 900-edge graph is minutes of round trips.
 
+### `reset(book_id)` — Built, S1
+
 Neo4j Community supports **one database**. BE2 has exclusive write access during
-sprints; `graph.reset(book_id)` exists from S1 so integration can rebuild.
+sprints; `reset` exists from S1 so integration can rebuild from Postgres.
+
+- Edges whose `book_refs` name **only** this book are deleted.
+- Edges shared with another volume are **trimmed, not deleted**: the book is
+  removed from `book_refs`, its `page_refs` are dropped, and `stale = true` is
+  set. **S4's `graph.upsert` must clear `stale` and recompute `evidence_count`
+  and `confidence` from Postgres** — Neo4j cannot recompute them itself.
+- `APPEARS_IN` edges to the book go, then characters left with no appearance are
+  `DETACH DELETE`d. A character who also appears elsewhere survives with the
+  book's `series_order` removed from `appears_in_books`.
+- `reset_project(project_id)` drops a whole project for a full rebuild.
+
+### LangGraph checkpointer — Built, S1
+
+`api/graph/checkpoint.py` — `checkpointer()` and `setup_checkpointer()` wrap
+`AsyncPostgresSaver` against the **application** database, so a review task row
+and the paused run it belongs to commit together. `connection_string()` strips
+SQLAlchemy's `+psycopg` suffix, which psycopg refuses.
+
+**A SIGKILLed process resumes from its checkpoint with state intact** —
+verified by `api/tests/graph/test_checkpointer.py`, which spawns a real
+subprocess, kills it at the interrupt, and resumes from a fresh one. This is
+PRD F5.1's acceptance criterion and the whole of Sprint 7 rests on it; do not
+weaken that test into an in-process cancellation.
 
 ## Related
 
