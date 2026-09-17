@@ -1,5 +1,16 @@
-import { Box } from "@chakra-ui/react";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { useState } from "react";
+import { RouterProvider } from "react-router";
+import { createQueryClient } from "@/lib/api";
+import { router } from "@/routes/router";
 
 export const App = () => {
-  return <Box className="app">App</Box>;
+  // States.
+  const [queryClient] = useState(createQueryClient);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>
+  );
 };
