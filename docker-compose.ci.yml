@@ -1,0 +1,45 @@
+# CI overlay. The "ci profile" in the sprint plan is an explicit service subset
+# rather than a compose profile: a compose profile only *adds* services, so
+# `--profile ci` could never mean "Postgres and RabbitMQ only". `make ci-up`
+# names the subset; this file makes it behave.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.ci.yml \
+#     up -d db rabbitmq rabbitmq-init migrate api
+
+services:
+  api:
+    environment:
+      ENV: ci
+      INFERENCE_MODE: api
+      MODELS_OFFLINE: "1"
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+      # Neo4j and MinIO are not in the CI subset, so they must not gate /health.
+      HEALTH_REQUIRED_DEPS: db,broker
+    depends_on: !override
+      migrate:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  celery-worker:
+    environment:
+      ENV: ci
+      MODELS_OFFLINE: "1"
+      HEALTH_REQUIRED_DEPS: db,broker
+      # CI has no stage implementations; the strict check is a runtime gate.
+      CELERY_REQUIRE_STAGES: "0"
+    depends_on: !override
+      migrate:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+
+  web:
+    depends_on: !override
+      api:
+        condition: service_started
