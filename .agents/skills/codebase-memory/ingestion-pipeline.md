@@ -5,19 +5,26 @@ editing.
 
 ## Key symbols
 
+`api/document_pipeline/` is **gone** — it moved to `api/pipeline/` in S1.2. Do
+not grep for it.
+
 | Symbol | Location | Status |
 | --- | --- | --- |
-| `DocumentChunker.load_document` | `api/document_pipeline/chunking.py` | Built → moves to `api/pipeline/chunking.py` (S1) |
-| `DocumentChunker.generate_chunks` | same | Built |
+| `DocumentChunker` (`load_document`, `generate_chunks`, `detect_chapters`, `embed_texts`, `warm`) | `api/pipeline/chunking.py` | Built |
 | `DocumentChunker._prepare_chapters` | same | Built — **has bugs, see below** |
 | `DocumentChunker._parse_chapter_heading` | same | Built |
-| `DocumentChunker._llm_classify_chapter_heading` | same | Built — one call per heading, batch it (S2) |
-| `CHAPTER_RE`, `ChapterInfo`, `Chunk` | `api/document_pipeline/constants.py` | Built |
+| `DocumentChunker._classify_chapter_heading` | same | Built — LLM fallback, opt-out via `llm_classify=False`; one call per heading, batch it (S2.3) |
+| `resolve_device`, `_document_converter`, `_tokenizer`, `_embedding_model` | same | Built — process-scoped `lru_cache`, **not** per call |
+| `CHAPTER_RE`, `CHUNK_MAX_TOKENS`, `ChapterInfoStructuredOutput` | `api/pipeline/constants.py` | Built |
 | `_roman_to_int`, `_normalize_chapter_number` | `api/pipeline/chunking.py` | Built |
+| `DocumentParseError`, `MissingProvenanceError` | `api/pipeline/errors.py` | Built — both `PermanentError` |
 | `celery_app`, `STAGES`, `ingestion_chain()` | `api/tasks.py` | **Built — frozen, orchestrator-owned** |
-| `stage()` status recorder | `api/workers/` | S1 |
-| repository (`create_book`, `bulk_insert_chunks`, `upsert_chapters`) | `api/pipeline/repository.py` | S1 |
-| `pipeline.parse_and_chunk` / `segment_chapters` / `embed_chunks` | `api/pipeline/tasks.py` | S2 |
+| `TransientError` / `PermanentError`, `RETRY_POLICY` | `api/workers/errors.py`, `api/workers/policy.py` | Built — the retry contract for every agent's tasks |
+| `stage()`, `StageRecord`, `open_run`, `finish_run` | `api/workers/stages.py` | Built |
+| `celery_app` re-export, `import_task_modules`, `missing_stage_tasks`, `warm_models` | `api/workers/app.py` | Built — worker entry point |
+| repository (`create_book`, `get_book_by_hash`, `bulk_insert_chunks`, `upsert_chapters`, `set_book_status`, `get_stage_statuses`) | `api/pipeline/repository.py` | Built |
+| `pipeline.*` task registrations (6) | `api/pipeline/tasks.py` | Built — registered; bodies raise `NotImplementedError` until S2/S3 |
+| `pipeline.parse_and_chunk` / `segment_chapters` / `embed_chunks` bodies | `api/pipeline/tasks.py` | S2 |
 | page render service | `api/pipeline/render.py` | S2 |
 | `pass2_candidates` prefilter | `api/pipeline/` | S4 |
 | scene segmentation, speaker attribution | `api/pipeline/` | S4 |
@@ -28,16 +35,23 @@ editing.
    Celery app, the frozen `STAGES` tuple and `ingestion_chain(book_id,
    from_stage=…)`. It is orchestrator-owned: register your tasks under the
    frozen names in your own module, never edit this file.
-2. **`CACHE_DIR` is an absolute host path** (`/home/prinzz/...`) in
-   `chunking.py`. Breaks in every container. Fixed in S1.2; no new absolute path
-   may be introduced ([AGENTS.md](../../../AGENTS.md)).
+2. ~~`CACHE_DIR` is an absolute host path in `chunking.py`.~~ **Fixed in S1.2.**
+   Docling's artifacts path now comes from `settings.docling_artifacts_dir` /
+   `settings.models_cache_dir`. One absolute host path survives, in
+   `api/llm.py` — the Sprint 1 LLM prototype, replaced wholesale by `api/llm/`
+   in S2.7 (see SCR-2). No new absolute path may be introduced
+   ([AGENTS.md](../../../AGENTS.md)).
 3. **`_prepare_chapters` breaks after the first item per page**
    (`if count >= 1: break`), so a chapter heading that is not first on its page
    is missed. Fixed in S2.3.
 4. **Chapter matching is by heading text equality**, which collides when two
    chapters share a title. Fixed in S2.3.
-5. `SentenceTransformer` and the Docling converter are constructed **per call**
-   in `generate_chunks`. Move to worker scope (S1.2) or every task pays the load.
+5. ~~`SentenceTransformer` and the Docling converter are constructed per call.~~
+   **Fixed in S1.2** — both are `lru_cache`d at module scope and pre-loaded by
+   the `worker_process_init` handler in `api/workers/app.py`.
+6. **`chapter` has no `human_verified` column**, so the repository cannot honour
+   the never-overwrite rule for chapters that a human corrected (S7
+   `confirm_chapter_split`). Raised as SCR-1; not blocking before S7.
 
 ## Stage chain
 
