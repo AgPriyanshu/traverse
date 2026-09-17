@@ -2,7 +2,8 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, Query, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
+from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
 from ..contracts.api import (
     BookOrderUpdate,
@@ -15,6 +16,8 @@ from ..contracts.api import (
     ProjectDetailOut,
     ProjectOut,
 )
+from ..db.engine import get_session
+from ..pipeline import repository
 from ._stub import not_implemented
 
 router = APIRouter(tags=["books"])
@@ -22,8 +25,13 @@ OWNER = "be1"
 
 
 @router.get("/projects", response_model=list[ProjectOut])
-async def list_projects() -> list[ProjectOut]:
-    not_implemented(OWNER, "S1.4")
+async def list_projects(
+    session: SQLModelAsyncSession = Depends(get_session),
+) -> list[ProjectOut]:
+    """List every project with its book, character and relation counts."""
+    projects = await repository.list_projects(session)
+
+    return projects
 
 
 @router.post(
@@ -34,8 +42,18 @@ async def create_project(body: ProjectCreate) -> ProjectOut:
 
 
 @router.get("/projects/{project_id}", response_model=ProjectDetailOut)
-async def get_project(project_id: UUID) -> ProjectDetailOut:
-    not_implemented(OWNER, "S1.4")
+async def get_project(
+    project_id: UUID, session: SQLModelAsyncSession = Depends(get_session)
+) -> ProjectDetailOut:
+    """Return one project and the books it contains, in series order."""
+    project = await repository.get_project_detail(session, project_id)
+
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="project not found"
+        )
+
+    return project
 
 
 @router.patch("/projects/{project_id}/order", response_model=ProjectDetailOut)
@@ -55,13 +73,45 @@ async def upload_book(
 
 
 @router.get("/books/{book_id}", response_model=BookOut)
-async def get_book(book_id: UUID) -> BookOut:
-    not_implemented(OWNER, "S1.4")
+async def get_book(
+    book_id: UUID, session: SQLModelAsyncSession = Depends(get_session)
+) -> BookOut:
+    """Return one book."""
+    book = await repository.get_book_out(session, book_id)
+
+    if book is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="book not found"
+        )
+
+    return book
 
 
 @router.get("/books/{book_id}/status", response_model=BookStatusOut)
-async def get_book_status(book_id: UUID) -> BookStatusOut:
-    not_implemented(OWNER, "S1.4")
+async def get_book_status(
+    book_id: UUID, session: SQLModelAsyncSession = Depends(get_session)
+) -> BookStatusOut:
+    """Return a book's ingestion progress, stage by stage.
+
+    The stages come from the latest ingestion run, so a re-process reports its
+    own attempt rather than a merge of every run the book has ever had.
+    """
+    book = await repository.get_book(session, book_id)
+
+    if book is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="book not found"
+        )
+
+    stages = await repository.get_stage_statuses(session, book_id)
+    run = await repository.get_latest_run(session, book_id)
+
+    return BookStatusOut(
+        book_id=book_id,
+        status=book.status,
+        stages=stages,
+        trace_url=run.trace_url if run else None,
+    )
 
 
 @router.post("/books/{book_id}/reprocess", response_model=BookStatusOut)

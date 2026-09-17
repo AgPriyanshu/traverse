@@ -12,9 +12,20 @@ from sqlalchemy import delete, func, insert, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
+from ..contracts.api import BookOut, ProjectDetailOut, ProjectOut
 from ..contracts.enums import BookStatus, StageName, StageState
 from ..contracts.pipeline import ChapterInfo, ChunkPayload, StageStatus
-from ..db.models import Book, Chapter, DocumentChunk, IngestionRun, IngestionStage
+from ..db.models import (
+    Book,
+    Chapter,
+    Character,
+    CharacterAppearance,
+    DocumentChunk,
+    IngestionRun,
+    IngestionStage,
+    Project,
+    Relation,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -463,3 +474,151 @@ def derive_book_status(statuses: list[StageStatus]) -> BookStatus:
         return BookStatus.READY
 
     return BookStatus.PROCESSING
+
+
+# ── Read models for the HTTP layer ──────────────────────────────────────────
+
+
+def _book_out(book: Book, *, character_count: int = 0) -> BookOut:
+    return BookOut(
+        id=book.id,
+        project_id=book.project_id,
+        series_order=book.series_order,
+        title=book.title,
+        author=book.author,
+        page_count=book.page_count,
+        chapter_count=book.chapter_count,
+        character_count=character_count,
+        status=book.status,
+        ingested_at=book.updated_at if book.status is BookStatus.READY else None,
+    )
+
+
+async def get_book_out(session: SQLModelAsyncSession, book_id: UUID) -> BookOut | None:
+    """Return one book as its HTTP contract, or ``None`` if it does not exist."""
+    book = await session.get(Book, book_id)
+
+    if book is None:
+        return None
+
+    counts = await _character_counts_by_book(session, [book_id])
+
+    return _book_out(book, character_count=counts.get(book_id, 0))
+
+
+async def list_books(
+    session: SQLModelAsyncSession, project_id: UUID | None = None
+) -> list[BookOut]:
+    """Return books, optionally restricted to one project, in series order.
+
+    Args:
+        session: Open session.
+        project_id: Restrict to this project when given.
+
+    Returns:
+        Books ordered by ``series_order`` then title; a standalone book has a
+        null order and sorts last.
+    """
+    statement = select(Book).order_by(
+        Book.series_order.is_(None),  # type: ignore[union-attr]
+        Book.series_order,  # type: ignore[arg-type]
+        Book.title,  # type: ignore[arg-type]
+    )
+
+    if project_id is not None:
+        statement = statement.where(Book.project_id == project_id)  # type: ignore[arg-type]
+
+    books = list((await session.execute(statement)).scalars().all())
+    counts = await _character_counts_by_book(session, [book.id for book in books])
+    out = [_book_out(book, character_count=counts.get(book.id, 0)) for book in books]
+
+    return out
+
+
+async def list_projects(session: SQLModelAsyncSession) -> list[ProjectOut]:
+    """Return every project with its book, character and relation counts."""
+    statement = select(Project).order_by(Project.name)  # type: ignore[arg-type]
+    projects = list((await session.execute(statement)).scalars().all())
+    ids = [project.id for project in projects]
+    books = await _counts_by_project(session, Book, ids)
+    characters = await _counts_by_project(session, Character, ids)
+    relations = await _counts_by_project(session, Relation, ids)
+
+    out = [
+        ProjectOut(
+            id=project.id,
+            name=project.name,
+            slug=project.slug,
+            kind=project.kind,
+            book_count=books.get(project.id, 0),
+            character_count=characters.get(project.id, 0),
+            relation_count=relations.get(project.id, 0),
+            updated_at=project.updated_at,
+        )
+        for project in projects
+    ]
+
+    return out
+
+
+async def get_project_detail(
+    session: SQLModelAsyncSession, project_id: UUID
+) -> ProjectDetailOut | None:
+    """Return one project with its books, or ``None`` if it does not exist."""
+    project = await session.get(Project, project_id)
+
+    if project is None:
+        return None
+
+    books = await list_books(session, project_id)
+    characters = await _counts_by_project(session, Character, [project_id])
+    relations = await _counts_by_project(session, Relation, [project_id])
+
+    return ProjectDetailOut(
+        id=project.id,
+        name=project.name,
+        slug=project.slug,
+        kind=project.kind,
+        book_count=len(books),
+        character_count=characters.get(project_id, 0),
+        relation_count=relations.get(project_id, 0),
+        updated_at=project.updated_at,
+        books=books,
+    )
+
+
+async def _counts_by_project(
+    session: SQLModelAsyncSession, model: type, project_ids: list[UUID]
+) -> dict[UUID, int]:
+    if not project_ids:
+        return {}
+
+    statement = (
+        select(model.project_id, func.count())
+        .where(model.project_id.in_(project_ids))
+        .group_by(model.project_id)
+    )
+    counts = {
+        project_id: total
+        for project_id, total in (await session.execute(statement)).all()
+    }
+
+    return counts
+
+
+async def _character_counts_by_book(
+    session: SQLModelAsyncSession, book_ids: list[UUID]
+) -> dict[UUID, int]:
+    if not book_ids:
+        return {}
+
+    statement = (
+        select(CharacterAppearance.book_id, func.count())
+        .where(CharacterAppearance.book_id.in_(book_ids))  # type: ignore[union-attr]
+        .group_by(CharacterAppearance.book_id)  # type: ignore[arg-type]
+    )
+    counts = {
+        book_id: total for book_id, total in (await session.execute(statement)).all()
+    }
+
+    return counts
