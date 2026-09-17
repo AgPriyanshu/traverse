@@ -9,6 +9,7 @@ page. Symbols over line numbers.
 | --- | --- | --- |
 | `GraphState`, `responder`, `get_agent` | `api/llm.py` | Built — **prototype; a single node doing raw cosine-distance top-5. Replaced in S6.** |
 | WebSocket `/ws` echo + agent invoke | `api/main.py` | Built — prototype |
+| Route stubs, all 33 paths with real response models | `api/routes/*.py` | **Built — frozen** |
 | Hybrid retrieval (pgvector + `ts_rank_cd` + RRF) | `api/retrieval/hybrid.py` | S2 |
 | Cross-encoder reranker (flagged) | `api/retrieval/` | S2 |
 | Query router | `api/query/router.py` | S6 |

@@ -5,13 +5,14 @@ line numbers — `Grep` before editing.
 
 ## Current state
 
-**Built:** `api/db/models/user_model.py` (`User`), `api/db/models/document_model.py`
-(`Document`, `DocumentChunk`). Migrations `0001`–`0005` in
-`api/db/migrations/versions/`.
+**Built — the Sprint 1 contract freeze has landed.** All 18 tables exist in
+`api/db/models/` and are created by migration `0006`. `Document` is gone;
+`Book` replaces it and `DocumentChunk` survives with `book_id`, `chapter_id`,
+`token_count` and a generated `tsv`.
 
-The v1 `Document`/`DocumentChunk` pair is **replaced** by the v2 schema in
-migration `0006` (S1). `DocumentChunk` survives with new columns; `Document`
-becomes `Book`.
+Enums live in `api/contracts/enums.py` and are stored as **native Postgres enum
+types**. Adding a value is `ALTER TYPE … ADD VALUE` in a migration, not a code
+change — worth knowing before you add a stage or a task type.
 
 ## Tables
 
@@ -74,7 +75,11 @@ becomes `Book`.
 freeze.** Agents never write migrations — two agents writing `0006` produces a
 branch Alembic refuses to run. Need a column? File an SCR (BRANCH.md §8).
 
-Current head: `0005`. Planned: `0006` project-scoped v2 schema (S1), `0007`
-ingestion/storage (S2), `0008` characters + appearances (S3), `0009` relations
-(S4), `0010` reconciliation audit (S5), `0011` query log (S6), `0012` review
-(S7), `0013` eval (S8), `0014` ops (S9).
+**Current head: `0006`** — the full v2 schema in one migration, so Sprints 2–4
+need no migration of their own unless something is discovered. Later sprints
+add only what their behaviour needs: `0007` reconciliation audit and
+`character_death` (S5), then one per sprint as required.
+
+`0006` is verified reversible: `head → 0005 → head → base → head` all pass. Its
+downgrade restores **structure, not data** — it truncates v1 chunks and drops
+`document`, and says so.

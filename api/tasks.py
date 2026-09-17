@@ -1,82 +1,77 @@
-import asyncio
-import logging
-from io import BytesIO
-from pathlib import Path
-from typing import cast
+"""The Celery application and the frozen ingestion chain.
 
-from celery import Celery
-from docling.datamodel.base_models import DocumentStream, InputFormat
-from docling.datamodel.pipeline_options import PdfPipelineOptions
-from docling.document_converter import DocumentConverter, PdfFormatOption
-from docling.utils.model_downloader import download_models
-from docling_core.transforms.chunker.doc_chunk import DocChunk
-from docling_core.transforms.chunker.hybrid_chunker import HybridChunker
-from docling_core.transforms.chunker.tokenizer.huggingface import HuggingFaceTokenizer
-from sentence_transformers import SentenceTransformer
-from sqlmodel import insert
-from transformers import AutoTokenizer
+ORCHESTRATOR-OWNED. Agents register their own tasks in their own modules under
+the names in :class:`StageName` and never edit this file.
 
-from db.graph_db import graph_db_session
+The chain is built from *string* signatures on purpose: it lets backend
+engineer 1 and backend engineer 2 own different stages of one pipeline without
+either importing the other's code, which is the single decoupling that makes
+the parallel sprint work possible.
+"""
 
-from .db.engine import db_session
-from .db.models.document_model import Document, DocumentChunk
+from uuid import UUID
+
+from celery import Celery, chain
+from celery.canvas import Signature
+
+from .config import settings
+from .contracts.enums import StageName
 
 celery_app = Celery(
-    "tasks", broker="pyamqp://user:password@localhost:5672//", backend="rpc://"
+    "traverse",
+    broker=settings.rabbitmq_url,
+    backend=settings.celery_result_backend,
+)
+
+celery_app.conf.update(
+    task_acks_late=True,
+    worker_prefetch_multiplier=1,
+    task_track_started=True,
+    task_serializer="json",
+    result_serializer="json",
+    accept_content=["json"],
+    timezone="UTC",
+    enable_utc=True,
+    broker_connection_retry_on_startup=True,
+)
+
+# Order matters: each stage depends on everything before it.
+STAGES: tuple[StageName, ...] = (
+    StageName.PARSE_AND_CHUNK,
+    StageName.SEGMENT_CHAPTERS,
+    StageName.EMBED_CHUNKS,
+    StageName.EXTRACT_CHARACTERS,
+    StageName.RESOLVE_ALIASES,
+    StageName.RECONCILE_CHARACTERS,
+    StageName.EXTRACT_RELATIONS,
+    StageName.AGGREGATE_RELATIONS,
+    StageName.UPSERT_GRAPH,
 )
 
 
-logger = logging.getLogger(__name__)
+def ingestion_chain(book_id: UUID, *, from_stage: StageName | None = None) -> Signature:
+    """Build the ingestion chain for one book.
 
+    Args:
+        book_id: The book to ingest.
+        from_stage: Resume point. Everything before it is assumed already done
+            and is not re-run, which is what makes a failed stage cheap to retry.
 
-@celery_app.task
-def embed_file(document_path: ):
-    return asyncio.run(async_embed_file(file))
+    Returns:
+        A chain of immutable signatures, one per remaining stage.
 
+    Raises:
+        ValueError: If ``from_stage`` is not a known stage.
+    """
+    stages = list(STAGES)
+    if from_stage is not None:
+        if from_stage not in stages:
+            raise ValueError(f"unknown stage: {from_stage}")
+        stages = stages[stages.index(from_stage) :]
 
-async def async_embed_file():
+    signatures = [
+        celery_app.signature(stage.value, args=(str(book_id),), immutable=True)
+        for stage in stages
+    ]
 
-    document = converter.convert(doc_stream).document
-    chunker = HybridChunker(tokenizer=tokenizer)
-    chunks: list[DocChunk] = cast(list[DocChunk], list(chunker.chunk(dl_doc=document)))
-
-    model = SentenceTransformer(EMBEDDING_MODEL_ID, device="cuda")
-    texts = [chunker.contextualize(chunk=chunk) for chunk in chunks]
-    vectors = model.encode(
-        texts,
-        batch_size=16,
-        normalize_embeddings=True,
-        show_progress_bar=True,
-    )
-
-    records = []
-    async with db_session() as session:
-        doc = Document(name="Random")
-        session.add(doc)
-        await session.commit()
-        await session.refresh(doc)
-
-    for chunk, vector in zip(chunks, vectors, strict=False):
-        prov = [p for it in chunk.meta.doc_items for p in it.prov]
-        pages = sorted({p.page_no for p in prov})
-        records.append(
-            {
-                "text": chunk.text,
-                "headings": chunk.meta.headings,
-                "pages": pages,
-                "page_start": pages[0] if pages else None,
-                "page_end": pages[-1] if pages else None,
-                "text_embedding": vector,
-                "document_id": doc.id,
-            }
-        )
-
-    async with db_session() as session:
-        await session.exec(insert(DocumentChunk).values(records))
-        await session.commit()
-
-    async with graph_db_session() as session:
-        await session.execute_query("")
-
-    # TODO:
-    return
+    return chain(*signatures)

@@ -55,11 +55,9 @@ Raises:
 - `ruff` enforces the rest: line length 88, `E`, `F`, `I`, `UP`, `B`, `SIM`.
   Run `ruff check --fix` and `ruff format` before committing.
 
-> **Known config bug:** `pyproject.toml` has
-> `[tool.ruff.lint.isort] known-first-party = ["app"]`, but this package is
-> `api`. Import sorting is therefore wrong. Fix it to `["api"]` — orchestrator
-> lands it at the next contract freeze; do not fix it in a worktree, it touches
-> a shared file.
+Ruff config also carries `flake8-bugbear.extend-immutable-calls` for FastAPI's
+`Query`/`Depends` markers, and ignores line length in generated migrations —
+reformatting one hides what actually changed.
 
 ## Imports
 

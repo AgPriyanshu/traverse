@@ -7,7 +7,7 @@ Symbols over line numbers.
 
 | Symbol | Location | Status |
 | --- | --- | --- |
-| `graph_db_session`, `create_nodes` | `api/db/graph_db.py` | Built — **stub, incomplete `CREATE` query, hardcoded credentials** |
+| `graph_db_session`, `create_nodes` | `api/db/graph_db.py` | Stub — `create_nodes` raises `NotImplementedError`; credentials still hardcoded. Replaced by `api/graph/client.py` in S1.4 |
 | Neo4j `AsyncDriver` singleton, `healthcheck`, `graph.reset(book_id)` | `api/graph/client.py` | S1 |
 | Ontology (`Predicate`, `family_of`, `inverse_of`, `is_symmetric`, `is_legal_transition`, `prompt_fragment`) | `api/graph/ontology.py` + `ontology.yaml` | S1 |
 | `pipeline.extract_characters` (pass 1) | `api/extraction/` | S3 |

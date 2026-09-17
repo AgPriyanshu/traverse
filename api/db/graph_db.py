@@ -12,9 +12,12 @@ async def graph_db_session():
         yield driver
 
 
-async def create_nodes():
+async def create_nodes() -> None:
+    """Not implemented.
 
-    async with graph_db_session() as session:
-        create_query = """
-            CREATE
-        """
+    Superseded by ``api/graph/client.py`` in S1.4, which owns the driver
+    lifecycle, the schema constraints and ``graph.reset(book_id)``.
+    """
+    raise NotImplementedError(
+        "Graph writes land in S1.4 — see plans/sprint-1/backend-2.md"
+    )

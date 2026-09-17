@@ -6,7 +6,7 @@ Every model call in the system. Symbols over line numbers.
 
 | Symbol | Location | Status |
 | --- | --- | --- |
-| `llm` (`ChatOpenAI` → vLLM), `langfuse`, `langfuse_handler` | `api/llm.py` | Built — **module mixes client, retrieval, and a LangGraph definition; split in S2** |
+| `llm` (`ChatOpenAI` → vLLM), `langfuse`, `langfuse_handler` | `api/llm.py` | Prototype — mixes client, retrieval and a LangGraph definition; Langfuse is now guarded by `settings.langfuse_enabled` so import has no side effects. Split in S2.7 |
 | `get_llm(purpose)` | `api/llm/client.py` | S2 |
 | `structured_call(prompt, schema, *, purpose)` | `api/llm/structured.py` | S2 |
 | Routing policy (purpose → model) | `api/llm/routing.py` | S2, live-switchable S9 |

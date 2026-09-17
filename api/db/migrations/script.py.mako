@@ -9,7 +9,8 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-import sqlmodel  # noqa: F401 (used by generated column types, e.g. sqlmodel.sql.sqltypes.AutoString)
+import sqlmodel  # noqa: F401
+import pgvector.sqlalchemy  # noqa: F401 (used by generated column types, e.g. sqlmodel.sql.sqltypes.AutoString)
 ${imports if imports else ""}
 
 # revision identifiers, used by Alembic.

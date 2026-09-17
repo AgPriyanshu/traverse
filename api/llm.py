@@ -13,15 +13,19 @@ from sqlmodel import select
 
 from .config import settings
 from .db.engine import db_session
-from .db.models.document_model import DocumentChunk
+from .db.models.chunk_model import DocumentChunk
 
-langfuse = Langfuse(
-    public_key=settings.langfuse_public_key,
-    secret_key=settings.langfuse_secret_key,
-    host=settings.langfuse_base_url,
+langfuse = (
+    Langfuse(
+        public_key=settings.langfuse_public_key,
+        secret_key=settings.langfuse_secret_key,
+        host=settings.langfuse_base_url,
+    )
+    if settings.langfuse_enabled
+    else None
 )
 
-langfuse_handler = CallbackHandler()
+langfuse_handler = CallbackHandler() if settings.langfuse_enabled else None
 
 llm = ChatOpenAI(
     model="Qwen/Qwen3-8B-AWQ",
@@ -30,14 +34,8 @@ llm = ChatOpenAI(
 )
 
 
-# Verify connection
-try:
-    if langfuse.auth_check():
-        print("Langfuse client is authenticated and ready!")
-    else:
-        print("Authentication failed. Please check your credentials and host.")
-except Exception as e:
-    print(e)
+# NOTE: this module is the Sprint 1 prototype. Backend engineer 2 replaces it
+# with the api/llm/ package in S2.7; nothing new should import it.
 
 
 class GraphState(TypedDict):
@@ -73,13 +71,11 @@ async def responder(state: GraphState):
         document_chunks = await session.exec(db_statement)
         document_chunks = [document[0].text for document in document_chunks.all()]
 
-    llm_prompt = (
-        f"context: {','.join(document_chunks)}, User Question - {user_query.content}"
-    )
+    joined = ",".join(document_chunks)
+    llm_prompt = f"context: {joined}, User Question - {user_query.content}"
 
-    response = await llm.ainvoke(
-        input=[llm_prompt], config={"callbacks": [langfuse_handler]}
-    )
+    callbacks = [langfuse_handler] if langfuse_handler else []
+    response = await llm.ainvoke(input=[llm_prompt], config={"callbacks": callbacks})
 
     return {"messages": [response]}
 

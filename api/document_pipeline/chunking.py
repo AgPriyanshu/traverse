@@ -122,7 +122,7 @@ class DocumentChunker:
         chapters_map = {}
 
         for page_no in document.pages:
-            for count, (doc_item, level) in enumerate(
+            for count, (doc_item, _level) in enumerate(
                 document.iterate_items(page_no=page_no)
             ):
                 if count >= 1:

@@ -1,45 +1,30 @@
-from pathlib import Path
+from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, UploadFile, WebSocket, status
-from fastapi.logger import logger
-from fastapi.responses import JSONResponse
-from langchain_core.messages import HumanMessage
+from fastapi import FastAPI
 
-from .document_pipeline.chunking import DocumentChunker
-from .llm import get_agent
-
-app = FastAPI()
+from .contracts.api import HealthOut
+from .routes import api_router
+from .routes.ops import health as _health
 
 
-@app.get("/ping")
-async def pong():
-    documentChunker = DocumentChunker()
-    docling_document = documentChunker.load_document(
-        Path("./sample_docs/before_the_coffee_gets_cold.pdf")
-    )
-    chunks = documentChunker.generate_chunks(docling_document)
-    logger.debug(chunks)
-
-    return {"message": "pong"}
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Dependency clients (Neo4j driver, embedding model, MinIO) are opened here
+    # by their owning agents in Sprint 1. Nothing to start at the freeze.
+    yield
 
 
-@app.post("/generate-embeddings")
-async def generate_embeddings(file: UploadFile):
-    from .tasks import embed_file
+app = FastAPI(
+    title="Traverse",
+    version="0.2.0",
+    summary="Character knowledge graphs for novels and series.",
+    lifespan=lifespan,
+)
 
-    embed_file.delay(await file.read())
-    return JSONResponse(
-        {"message": "File accepted for embedding"}, status_code=status.HTTP_202_ACCEPTED
-    )
+app.include_router(api_router)
 
 
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-
-    while True:
-        data = await websocket.receive_text()
-        await websocket.send_text(f"Message text was: {data}")
-        agent = get_agent()
-        answer = await agent.ainvoke({"messages": [HumanMessage(content=data)]})
-        await websocket.send_text(f"LLM response: {answer['messages'][-1].content}")
+@app.get("/health", response_model=HealthOut, tags=["ops"])
+async def health() -> HealthOut:
+    """Root-level alias so container healthchecks do not depend on the API prefix."""
+    return await _health()

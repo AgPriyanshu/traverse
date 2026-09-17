@@ -14,8 +14,7 @@ editing.
 | `DocumentChunker._llm_classify_chapter_heading` | same | Built — one call per heading, batch it (S2) |
 | `CHAPTER_RE`, `ChapterInfo`, `Chunk` | `api/document_pipeline/constants.py` | Built |
 | `_roman_to_int`, `_normalize_chapter_number` | `api/pipeline/chunking.py` | Built |
-| `embed_file` / `async_embed_file` | `api/tasks.py` | **Broken — see below** |
-| `celery_app` | `api/tasks.py` → moves to `api/workers/app.py` | Built (partially) |
+| `celery_app`, `STAGES`, `ingestion_chain()` | `api/tasks.py` | **Built — frozen, orchestrator-owned** |
 | `stage()` status recorder | `api/workers/` | S1 |
 | repository (`create_book`, `bulk_insert_chunks`, `upsert_chapters`) | `api/pipeline/repository.py` | S1 |
 | `pipeline.parse_and_chunk` / `segment_chapters` / `embed_chunks` | `api/pipeline/tasks.py` | S2 |
@@ -25,10 +24,10 @@ editing.
 
 ## Known defects — do not rediscover these
 
-1. **`api/tasks.py` does not parse.** `def embed_file(document_path: ):` is a
-   syntax error, and `async_embed_file()` references `converter`, `tokenizer`,
-   and `doc_stream` that are never defined. The module is a sketch. Rewritten in
-   S1/S2 — do not try to import it before then.
+1. ~~`api/tasks.py` does not parse.~~ **Fixed at the freeze.** It now holds the
+   Celery app, the frozen `STAGES` tuple and `ingestion_chain(book_id,
+   from_stage=…)`. It is orchestrator-owned: register your tasks under the
+   frozen names in your own module, never edit this file.
 2. **`CACHE_DIR` is an absolute host path** (`/home/prinzz/...`) in
    `chunking.py`. Breaks in every container. Fixed in S1.2; no new absolute path
    may be introduced ([AGENTS.md](../../../AGENTS.md)).
