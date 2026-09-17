@@ -134,3 +134,37 @@ freeze:** promote them to `Settings` fields.
    "best effort, deliberately not gated on merge"; `plans/sprint-9/frontend-1.md`
    DoD says "axe audit in CI, passing". Per the brief, CI does **not** gate
    accessibility this sprint. Needs a human decision before Sprint 9.
+
+## do1 → orchestrator · two small blockers outside do1 paths
+
+4. **`api/llm.py:49` hardcodes `/home/prinzz/main/my-projects/traverse/api/.cache/`.**
+   `plans/sprint-1/README.md` §6 calls this a Sprint 1 blocker and points at
+   `chunking.py`; it actually lives in `llm.py` now. It breaks inside every
+   container. It should read `settings.models_cache_dir`. Not a do1 path.
+5. **`api/pyproject.toml` has no test runner.** `AGENTS.md` tells every agent to
+   run `docker compose --profile test run --rm test`, and `pytest`,
+   `pytest-asyncio` are missing from `[dependency-groups] dev`. The `test` stage
+   of `api/Dockerfile` installs them as a stopgap this sprint — please move them
+   into the dev group at the Sprint 2 freeze and delete that layer.
+
+## do1 → everyone · make targets you will use
+
+| Target | What it does |
+| --- | --- |
+| `make env` | `.env` from `.env.example`, generating the three Langfuse secrets locally |
+| `make up` / `make down` | the stack without GPU or Langfuse, waiting for healthy |
+| `make up-dev` | hot-reload uvicorn, watchfiles worker, Vite on 5173, Flower on 5555 |
+| `make up-gpu` | adds vLLM and flips `INFERENCE_MODE=local` |
+| `make up-obs` | adds Langfuse on 3000 |
+| `make bootstrap` | per-agent databases, vhosts and buckets — idempotent, create-only |
+| `make migrate` | `alembic upgrade head` in the api image |
+| `make test` / `make test-api` / `make test-web` | the containers that match CI |
+| `make test-integration` | the merge-train gate: cold stack, healthy, `/health`, tests |
+| `make warm-models` | fill the shared `/models` volume once |
+| `make health` | pretty-print `/health` |
+| `make logs S=api` | tail one service |
+| `make worktrees SPRINT=3 SLUG=characters` | cut the four branches |
+| `make revision m="…"` | **orchestrator only** — demands a typed confirmation |
+
+`make down-hard` and `make reset-db` also demand a typed confirmation: they
+delete volumes every agent is sharing.
