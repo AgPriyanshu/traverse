@@ -27,7 +27,7 @@ roster design below is load-bearing rather than an optimisation.
 | Migration `0009` | `relation`, `relation_evidence` tables; unique `(subject_id, predicate, object_id, first_chapter)`; FK cascade on evidence; indexes on `(book_id, predicate)` and `(subject_id)`/`(object_id)` |
 | `contracts/graph.py` | `ExtractedRelation`, `AggregatedRelation`, `EvidenceItem`, `Predicate`, `RelationFamily`, `AssertionType` |
 | `contracts/api.py` | `GraphOut {nodes, edges}`, `RelationOut`, `EvidenceOut`, `RelationArcOut` (the temporal sequence) |
-| Routes | `GET /books/{id}/graph`, `GET /characters/{id}/neighbourhood`, `GET /relations/{id}/evidence`, `GET /graph/path`, `GET /graph/ontology` |
+| Routes | `GET /projects/{id}/graph`, `GET /characters/{id}/neighbourhood`, `GET /relations/{id}/evidence`, `GET /relations/arc`, `GET /graph/path`, `GET /graph/ontology` |
 
 ---
 

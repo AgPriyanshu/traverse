@@ -126,9 +126,9 @@ in week 1.
 Implement against Postgres (empty, but real — no fixtures):
 
 ```
-GET /api/books/{id}/characters      → []          CharacterOut
+GET /api/projects/{id}/characters   → []          CharacterOut
 GET /api/characters/{id}            → 404
-GET /api/books/{id}/graph           → {nodes: [], edges: []}
+GET /api/projects/{id}/graph        → {nodes: [], edges: []}
 GET /api/graph/ontology             → the full predicate registry from S1.5
 ```
 

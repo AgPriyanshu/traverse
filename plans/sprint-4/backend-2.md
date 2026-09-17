@@ -141,7 +141,7 @@ returns 0, always. `make graph-rebuild` produces a byte-identical projection.
 ## S4.7 — Graph read APIs
 
 ```
-GET /books/{id}/graph          ?families=&tiers=&chapter_lte=&min_confidence=
+GET /projects/{id}/graph       ?book_id=&families=&min_confidence=&limit_book_order=&limit_chapter=
 GET /characters/{id}/neighbourhood   ?depth=1|2
 GET /relations/{id}/evidence   full quotes + pages, paginated
 GET /graph/path?from=&to=&max_hops=4

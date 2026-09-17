@@ -18,7 +18,7 @@ plumbing; from here on, every story has a number attached.
 | Migration `0008` | `character`, `character_mention`, `rejected_candidate` tables; unique `(book_id, canonical_name)`; GIN index on `character.aliases` |
 | `contracts/extraction.py` | `CharacterCandidate`, `ResolvedCharacter`, `MergeDecision`, `RejectionReason` finalised |
 | `contracts/api.py` | `CharacterOut`, `CharacterDetailOut`, `MentionOut`, `AliasOut` |
-| Routes | `GET /books/{id}/characters`, `GET /characters/{id}`, `GET /characters/{id}/mentions`, `PATCH /characters/{id}`, `POST /characters/merge` |
+| Routes | `GET /projects/{id}/characters`, `GET /characters/{id}`, `GET /characters/{id}/mentions`, `PATCH /characters/{id}`, `POST /characters/merge` |
 
 **Frozen decision — importance tiering (PRD §12.5).** Resolve it this sprint
 with measurement, not intuition. be1 implements two methods behind a flag

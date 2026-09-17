@@ -19,7 +19,7 @@ and **de-risk Sprint 4 by prototyping relation extraction a week early**. Sprint
 ## S3.6 — Character read APIs
 
 ```
-GET  /api/books/{id}/characters      ?tier=&q=&sort=mentions|first_page|name
+GET  /api/projects/{id}/characters   ?tier=&q=&book_id=&sort=mentions|first_page|name
 GET  /api/characters/{id}            record + aliases + attributes + evidence
 GET  /api/characters/{id}/mentions   ?chapter_lte= , paginated, page-ordered
 ```
