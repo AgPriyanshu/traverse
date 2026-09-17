@@ -29,8 +29,14 @@ TABLES_TOUCHED_BY_TESTS = (
 
 @pytest_asyncio.fixture
 async def session() -> AsyncIterator[SQLModelAsyncSession]:
-    """An async session against the real database, truncated after each test."""
-    async with SQLModelAsyncSession(engine) as db_session:
+    """An async session against the real database, truncated after each test.
+
+    ``expire_on_commit=False`` because the repository commits inside its own
+    calls: with the default, every ORM object a test is holding is expired the
+    moment a repository function commits, and the next attribute read attempts
+    lazy IO outside the greenlet. A request-scoped session never sees this.
+    """
+    async with SQLModelAsyncSession(engine, expire_on_commit=False) as db_session:
         yield db_session
 
     tables = ", ".join(TABLES_TOUCHED_BY_TESTS)

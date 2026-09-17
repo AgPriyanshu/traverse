@@ -118,10 +118,20 @@ async def set_book_status(
         book_id: Book to update.
         status: New status.
     """
-    await session.execute(
-        update(Book).where(Book.id == book_id).values(status=status)  # type: ignore[arg-type]
-    )
+    book = await session.get(Book, book_id)
+
+    if book is None:
+        raise ValueError(f"no such book: {book_id}")
+
+    # Mutated through the ORM rather than as a bulk UPDATE: a bulk statement
+    # expires the attribute on any instance the caller is still holding, and
+    # the next read of it attempts lazy IO outside the async context.
+    book.status = status
+    session.add(book)
     await session.commit()
+    # ``updated_at`` is server-generated on update, so the instance is left
+    # with an expired attribute unless it is refetched here.
+    await session.refresh(book)
 
 
 async def upsert_chapters(
@@ -181,12 +191,16 @@ async def upsert_chapters(
         )
 
     await session.execute(insert(Chapter), rows)
-    await session.execute(
-        update(Book)
-        .where(Book.id == book_id)  # type: ignore[arg-type]
-        .values(chapter_count=len(rows))
-    )
+    book = await session.get(Book, book_id)
+
+    if book is not None:
+        book.chapter_count = len(rows)
+        session.add(book)
+
     await session.commit()
+
+    if book is not None:
+        await session.refresh(book)
 
     persisted = await list_chapters(session, book_id)
 
@@ -344,6 +358,7 @@ async def assign_chunk_chapters(session: SQLModelAsyncSession, book_id: UUID) ->
             .where(DocumentChunk.page_start >= chapter.page_start)  # type: ignore[arg-type]
             .where(DocumentChunk.page_start <= chapter.page_end)  # type: ignore[arg-type]
             .values(chapter_id=chapter.id)
+            .execution_options(synchronize_session=False)
         )
         updated += result.rowcount or 0
 
@@ -480,7 +495,7 @@ def derive_book_status(statuses: list[StageStatus]) -> BookStatus:
 
 
 def _book_out(book: Book, *, character_count: int = 0) -> BookOut:
-    return BookOut(
+    out = BookOut(
         id=book.id,
         project_id=book.project_id,
         series_order=book.series_order,
@@ -492,6 +507,8 @@ def _book_out(book: Book, *, character_count: int = 0) -> BookOut:
         status=book.status,
         ingested_at=book.updated_at if book.status is BookStatus.READY else None,
     )
+
+    return out
 
 
 async def get_book_out(session: SQLModelAsyncSession, book_id: UUID) -> BookOut | None:
@@ -622,3 +639,10 @@ async def _character_counts_by_book(
     }
 
     return counts
+
+
+async def count_books(session: SQLModelAsyncSession) -> int:
+    """Return how many books exist. Used by tests and the ops dashboard."""
+    total = (await session.execute(select(func.count()).select_from(Book))).scalar_one()
+
+    return total
