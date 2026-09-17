@@ -20,12 +20,12 @@ The workflow therefore splits into two modes:
 
 | Mode | Who | When | What |
 |---|---|---|---|
-| **Contract freeze** | Orchestrator only, on `master` | Day 1 of every sprint | Models, the sprint's single migration, Pydantic contracts, route stubs, task-name registry, settings keys |
+| **Contract freeze** | Orchestrator only, on `ai-master` | Day 1 of every sprint | Models, the sprint's single migration, Pydantic contracts, route stubs, task-name registry, settings keys |
 | **Parallel build** | 4 agents, in worktrees | Days 2–4 | Implementation only, inside owned directories |
 
 **No agent ever writes a migration or edits a shared file.** If an agent needs a
 schema change mid-sprint it files a Schema Change Request (§8) and the
-orchestrator lands it on `master`; everyone rebases.
+orchestrator lands it on `ai-master`; everyone rebases.
 
 ---
 
@@ -105,7 +105,7 @@ sprint wastes 10+ minutes per agent. **Branches are per-sprint** and deleted
 after merge.
 
 ```
-/home/prinzz/main/my-projects/traverse/          ← master, integration, orchestrator
+/home/prinzz/main/my-projects/traverse/          ← ai-master, integration, orchestrator
 /home/prinzz/main/my-projects/traverse-wt/
     be1/    ← ai/be1/sprint-N-<slug>
     be2/    ← ai/be2/sprint-N-<slug>
@@ -122,7 +122,7 @@ nested worktrees confuse Docker build contexts, `uv`, and Vite's file watcher.
 cd /home/prinzz/main/my-projects/traverse
 mkdir -p ../traverse-wt
 for a in be1 be2 fe1 do1; do
-  git worktree add -b ai/$a/sprint-1-foundations ../traverse-wt/$a master
+  git worktree add -b ai/$a/sprint-1-foundations ../traverse-wt/$a ai-master
 done
 git worktree list
 ```
@@ -134,8 +134,8 @@ cd /home/prinzz/main/my-projects/traverse
 SPRINT=3; SLUG=characters
 for a in be1 be2 fe1 do1; do
   git -C ../traverse-wt/$a fetch origin 2>/dev/null || true
-  git -C ../traverse-wt/$a checkout master
-  git -C ../traverse-wt/$a merge --ff-only master
+  git -C ../traverse-wt/$a checkout ai-master
+  git -C ../traverse-wt/$a merge --ff-only ai-master
   git -C ../traverse-wt/$a checkout -b ai/$a/sprint-$SPRINT-$SLUG
 done
 ```
@@ -187,6 +187,26 @@ done
 
 ---
 
+## 4a. `master` is human. `ai-master` is ours.
+
+**No agent work reaches `master` — not a commit, not a merge, not a tag.**
+Everything written by an agent lands on **`ai-master`**, so the provenance of
+every line is legible from the branch graph alone.
+
+```
+master      ← human-authored only. Untouched by this workflow.
+ai-master   ← the integration branch. Contract freezes, merge trains, tags.
+ai/<agent>/…← per-sprint agent branches, cut from and merged into ai-master.
+```
+
+The merge train (§7) targets `ai-master`. Worktrees are cut from `ai-master`.
+Agents rebase onto `ai-master`. The contract freeze lands on `ai-master`.
+
+Promoting `ai-master` into `master` is a **human decision**, made by opening a
+pull request and reviewing it — never by an agent, and never as a step in a
+sprint. If you are an agent reading this: you do not merge to `master`, and you
+do not push to it.
+
 ## 5. Branch naming and commits
 
 ```
@@ -230,7 +250,7 @@ has not committed by end of Day 3 is blocked and must escalate.
 
 | Day | Activity | Who |
 |---|---|---|
-| **1** | **Contract freeze.** Orchestrator lands models, the sprint's single Alembic migration, Pydantic contracts, route stubs, task-name registry, settings keys on `master`. Sprint plans reviewed. Worktree branches cut from the frozen `master`. | Orchestrator |
+| **1** | **Contract freeze.** Orchestrator lands models, the sprint's single Alembic migration, Pydantic contracts, route stubs, task-name registry, settings keys on `ai-master`. Sprint plans reviewed. Worktree branches cut from the frozen `ai-master`. | Orchestrator |
 | **2–4** | **Parallel build.** Four agents work in their worktrees against the frozen contracts. Daily async standup written to `plans/sprint-N/STANDUP.md`. | 4 agents |
 | **5 am** | **Merge train** (§7), then integration run on the seeded corpus. | Orchestrator + agents on call |
 | **5 pm** | **Demo** against the sprint's demo script, then **RETRO.md**. | All |
@@ -256,18 +276,18 @@ Protocol per agent, in order:
 
 ```bash
 cd ../traverse-wt/be1
-git fetch origin && git rebase master        # agent resolves its own conflicts
+git fetch origin && git rebase ai-master     # agent resolves its own conflicts
 uv run pytest api/tests -q                   # must be green post-rebase
 git push -u origin ai/be1/sprint-3-characters
 
-cd /home/prinzz/main/my-projects/traverse
+cd /home/prinzz/main/my-projects/traverse   # on ai-master
 git merge --no-ff ai/be1/sprint-3-characters
 make test-integration                        # must be green before next merge
 ```
 
 Rules:
 
-- **Rebase onto `master`, never merge `master` into your branch.** Keeps history
+- **Rebase onto `ai-master`, never merge `ai-master` into your branch.** Keeps history
   linear and makes the conflict surface visible.
 - **The agent resolves its own conflicts.** The orchestrator never guesses at
   another agent's intent.
@@ -292,8 +312,8 @@ An agent that needs a column, table, index, or contract field mid-sprint:
 **Proposed:** `ALTER TABLE relation ADD COLUMN inferred_from integer NOT NULL DEFAULT 1`
 ```
 
-3. Orchestrator lands it on `master` as migration `NNNN`, announces it.
-4. All four agents `git rebase master` at their next natural break.
+3. Orchestrator lands it on `ai-master` as migration `NNNN`, announces it.
+4. All four agents `git rebase ai-master` at their next natural break.
 
 Non-blocking SCRs are batched into the next sprint's freeze. Blocking SCRs are
 landed within the hour. **Two blocking SCRs from the same agent in one sprint is
@@ -320,7 +340,7 @@ token changed in a worktree is a divergence nobody sees until it ships.
 
 A story is done when **all** hold:
 
-- [ ] Code merged to `master` via the merge train
+- [ ] Code merged to `ai-master` via the merge train
 - [ ] Unit tests for the new path, passing
 - [ ] The PRD acceptance criterion it maps to is demonstrably met, with the
       command or URL that shows it written into the sprint README

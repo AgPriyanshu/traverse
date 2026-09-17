@@ -57,7 +57,7 @@ Runs nightly on the GPU host (full novels) and on PRs touching
 `api/extraction/**` using a **one-novel reduced set**, so the PR loop stays
 under 10 minutes.
 
-Report as a PR comment table with the delta against `master`. A number that
+Report as a PR comment table with the delta against `ai-master`. A number that
 moves silently is a number nobody defends.
 
 **Regression gate ships in Sprint 8 (F6.4), not now** — this sprint the numbers

@@ -14,14 +14,14 @@ ownership, and the merge train. Nothing in this folder works without it.
 ## How to run a sprint
 
 ```
-Day 1  Orchestrator: contract freeze on master, cut four branches
+Day 1  Orchestrator: contract freeze on ai-master, cut four branches
 Day 2  Agents: build       ──┐
 Day 3  Agents: build         ├─ four worktrees, zero shared files
 Day 4  Agents: build       ──┘
 Day 5  Merge train → integration run → demo → RETRO.md
 ```
 
-**Day 1, orchestrator, on `master`:**
+**Day 1, orchestrator, on `ai-master`:**
 
 ```bash
 cd /home/prinzz/main/my-projects/traverse
@@ -32,7 +32,7 @@ cd api && uv run alembic upgrade head && uv run pytest tests/contracts -q
 git commit -am "chore(orchestrator): sprint-N contract freeze"
 SPRINT=N SLUG=<slug>
 for a in be1 be2 fe1 do1; do
-  git -C ../traverse-wt/$a checkout master && git -C ../traverse-wt/$a merge --ff-only master
+  git -C ../traverse-wt/$a checkout ai-master && git -C ../traverse-wt/$a merge --ff-only ai-master
   git -C ../traverse-wt/$a checkout -b ai/$a/sprint-$SPRINT-$SLUG
 done
 ```

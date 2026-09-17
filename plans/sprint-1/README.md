@@ -13,7 +13,7 @@ Every hour skipped here is repaid with interest in merge conflicts.
 
 ---
 
-## Contract freeze (Day 1, orchestrator, on `master`) — ✅ LANDED
+## Contract freeze (Day 1, orchestrator, on `ai-master`) — ✅ LANDED
 
 Delivered on `ai/orchestrator/sprint-1-freeze`: 18 tables, migration `0006`
 (verified reversible), `api/contracts/` with 65 models, 33 frozen route stubs
@@ -251,6 +251,6 @@ and it is here because discovering it broken in Sprint 7 is expensive.
 - [ ] Demo script runs clean on a machine that has never built the project
 - [ ] `/openapi.json` complete — every Sprint 2–8 endpoint present as a stub
 - [ ] Zero hardcoded absolute paths anywhere in `api/`
-- [ ] CI green on `master`
+- [ ] CI green on `ai-master`
 - [ ] `HANDOFF.md` records the frozen task names and contract module paths
 - [ ] `RETRO.md` written

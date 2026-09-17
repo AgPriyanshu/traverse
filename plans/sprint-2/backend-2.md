@@ -80,7 +80,7 @@ split is reported in the plan so callers can stitch results.
 
 *Acceptance:* Property test over randomly-sized inputs — no plan exceeds the
 budget, no item is lost or duplicated, and a single oversized item is split.
-Ship to `master` by **Day 4** or be1's Sprint 3 starts blocked.
+Ship to `ai-master` by **Day 4** or be1's Sprint 3 starts blocked.
 
 ## S2.9 — Hybrid retrieval
 

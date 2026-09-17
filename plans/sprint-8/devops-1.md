@@ -27,7 +27,7 @@ more than 2 points fails. Extend it to relation F1 and citation precision, which
 are equally load-bearing.
 
 Use the reduced one-novel set on PRs to keep the loop under 10 minutes; the full
-set runs nightly and on `master`.
+set runs nightly and on `ai-master`.
 
 Two things make a gate survive contact with reality: a **documented override**
 (a label plus a written justification recorded in the PR, for a deliberate

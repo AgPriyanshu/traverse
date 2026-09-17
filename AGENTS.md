@@ -51,6 +51,9 @@ The rules that matter most for not breaking other agents:
   `web/src/design-system/tokens.ts`.** These are frozen; changing one in a
   worktree is a divergence nobody sees until it ships.
 - Branch names start with `ai/` — `ai/<agent>/sprint-<N>-<slug>`.
+- **Never commit, merge, push or tag on `master`.** It is human-authored only.
+  All agent work integrates on **`ai-master`**; promoting that into `master` is
+  a human decision made through a reviewed pull request.
 
 ## Comments
 
