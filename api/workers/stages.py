@@ -82,12 +82,15 @@ async def finish_run(
 async def _begin(book_id: UUID, stage_name: StageName) -> StageRecord:
     async with db_session() as session:
         run = await open_run(session, book_id)
+        # Read before the commit: committing expires the instance, and reading
+        # an expired attribute afterwards is a lazy load from sync context.
+        run_id = run.id
 
         table = IngestionStage.__table__
         statement = (
             insert(table)
             .values(
-                run_id=run.id,
+                run_id=run_id,
                 stage=stage_name,
                 state=StageState.RUNNING,
                 attempt=1,
@@ -113,7 +116,7 @@ async def _begin(book_id: UUID, stage_name: StageName) -> StageRecord:
         await session.commit()
 
         return StageRecord(
-            run_id=run.id, stage_id=stage_id, stage=stage_name, attempt=attempt
+            run_id=run_id, stage_id=stage_id, stage=stage_name, attempt=attempt
         )
 
 
