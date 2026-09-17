@@ -1,0 +1,143 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,500;0,7..72,600;1,7..72,400&display=swap">
+  <style>
+*{box-sizing:border-box}
+body{margin:0}
+a{color:var(--accent);text-decoration:none}
+a:hover{color:var(--accent);text-decoration:underline}
+.rt{
+  --paper:#FAF7F2;--surface:#FFFDFA;--sunken:#F2EDE4;--line:#E2DACD;
+  --ink:#2B2622;--ink2:#6B6157;--ink3:#756A5C;
+  --accent:#A8502A;--accentSoft:#F4E7DF;--accentInk:#FFF9F5;
+  --kin:#2C6E6A;--rom:#A6385C;--soc:#8A6A12;--adv:#5D4A96;
+  --ok:#3F6D45;--warn:#8A5A12;--err:#9E3B30;
+  --shadow:0 2px 3px -1px rgba(43,38,34,.07),0 7px 14px -10px rgba(43,38,34,.20);
+  background:var(--paper);color:var(--ink);
+  font-family:'IBM Plex Sans',ui-sans-serif,system-ui,sans-serif;
+  font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;
+}
+.rt.dark{
+  --paper:#1C1815;--surface:#24201C;--sunken:#161311;--line:#3A342E;
+  --ink:#EDE6DC;--ink2:#B3A899;--ink3:#9C9183;
+  --accent:#D98357;--accentSoft:#33251D;--accentInk:#1C1815;
+  --kin:#63B5AE;--rom:#E08098;--soc:#C9A23C;--adv:#A493DB;
+  --ok:#7FB98A;--warn:#D2A44E;--err:#E08A7E;
+  --shadow:0 2px 3px -1px rgba(0,0,0,.4),0 7px 14px -10px rgba(0,0,0,.65);
+}
+.serif{font-family:Literata,Georgia,'Times New Roman',serif}
+.mono{font-family:'IBM Plex Mono',ui-monospace,SFMono-Regular,monospace}
+.pref{display:inline-flex;align-items:baseline;gap:3px;color:var(--accent);
+ font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:500;
+ font-variant-numeric:tabular-nums oldstyle-nums;letter-spacing:-.01em;
+ text-decoration:none;white-space:nowrap;cursor:pointer;
+ border-bottom:1px dotted currentColor;padding-bottom:1px}
+.pref:hover{border-bottom-style:solid;text-decoration:none}
+.pref.focus{outline:2px solid var(--accent);outline-offset:3px;border-radius:2px}
+/* a standalone reference at the end of a line, set like an index entry */
+.pref.trail{margin-left:auto}
+.aliases{display:flex;flex-wrap:wrap;align-items:baseline;gap:0;
+ font-family:Literata,Georgia,serif;font-size:13.5px;font-style:italic;color:var(--ink2)}
+.aliases > span:not(:last-child)::after{content:'·';margin:0 .5em;font-style:normal;color:var(--ink3)}
+.state{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;letter-spacing:.005em}
+.state i{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none;font-style:normal}
+.navit{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:7px;
+ color:var(--ink2);font-size:13.5px;font-weight:500;cursor:pointer}
+.navit.on{background:var(--accentSoft);color:var(--accent)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px}
+.lbl{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3)}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:2px 7px;border-radius:3px;
+ border:1px solid var(--line);color:var(--ink2);font-size:12.5px;background:transparent}
+/* browser surfaces — themed, not left to the browser */
+.rt ::selection{background:var(--accentSoft);color:var(--accent)}
+.rt{accent-color:var(--accent);caret-color:var(--accent);scrollbar-color:var(--line) transparent;scrollbar-width:thin}
+.rt a{text-underline-offset:2px;text-decoration-thickness:1px}
+.rt :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mono,.num{font-variant-numeric:tabular-nums}
+.rt ::placeholder{color:var(--ink3);opacity:1}
+
+.lbl.long{text-transform:none;letter-spacing:0;font-size:13px;color:var(--ink2);font-weight:600}
+
+
+  </style>
+</helmet>
+<div class="rt {{theme}}" style="width:1440px;display:flex;flex-direction:column">
+<header style="display:flex;align-items:center;gap:18px;height:56px;padding:0 20px;border-bottom:1px solid var(--line);background:var(--surface);flex:none">
+  <div style="display:flex;align-items:center;gap:9px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="6" r="2.2"/><circle cx="19" cy="6" r="2.2"/><circle cx="12" cy="18.5" r="2.2"/><path d="M7.2 6h9.6"/><path d="M6.4 8.1 10.6 16.6"/><path d="M17.6 8.1 13.4 16.6"/></svg><span class="serif" style="font-size:17px;font-weight:600;letter-spacing:-.01em">Traverse</span></div>
+  <div style="width:1px;height:22px;background:var(--line)"></div>
+  <div style="display:flex;align-items:center;gap:8px;padding:5px 10px;border:1px solid var(--line);border-radius:7px;background:var(--sunken)">
+    <span class="serif" style="font-size:14px">Frankenstein</span><span style="color:var(--ink3);display:flex"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span></div>
+  <div style="flex-grow:1"></div>
+  <div style="display:flex;align-items:center;gap:8px;width:250px;padding:6px 11px;border:1px solid var(--line);border-radius:7px;background:var(--sunken);color:var(--ink3)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><span style="font-size:13px">Search characters, passages…</span></div>
+  <div style="width:29px;height:29px;border-radius:50%;background:var(--accentSoft);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600">AR</div>
+</header>
+<div style="display:flex;min-height:1024px">
+<nav style="width:212px;flex:none;border-right:1px solid var(--line);background:var(--surface);padding:16px 12px;display:flex;flex-direction:column;gap:2px">
+  <div class="lbl" style="padding:4px 12px 8px">Project</div><div class="navit on"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg><span>Library</span></div><div class="navit"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>Characters</span></div><div class="navit"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="6" r="2.2"/><circle cx="19" cy="6" r="2.2"/><circle cx="12" cy="18.5" r="2.2"/><path d="M7.2 6h9.6"/><path d="M6.4 8.1 10.6 16.6"/><path d="M17.6 8.1 13.4 16.6"/></svg><span>Graph</span></div><div class="navit"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>Ask</span></div><div class="navit"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11.5l2.5 2.5L21 4.5"/><path d="M21 12.5V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>Review</span><span style="margin-left:auto;font-size:12px;font-weight:600;padding:1px 6px;border-radius:999px;background:var(--accent);color:var(--accentInk)">7</span></div><div class="navit"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg><span>Ops</span></div>
+  <div style="flex-grow:1"></div>
+  <div style="padding:10px 12px;border-top:1px solid var(--line);color:var(--ink3);font-size:12.5px;line-height:1.5">Running locally<br>Qwen3-8B · no data leaves this machine</div>
+</nav>
+<main style="flex-grow:1;padding:26px 40px 40px;display:flex;flex-direction:column;gap:26px">
+
+  <div style="display:flex;align-items:flex-end;gap:20px;padding-bottom:18px;border-bottom:1px solid var(--line)">
+    <div style="flex-grow:1">
+      <h1 class="serif" style="margin:0;font-size:27px;font-weight:600;letter-spacing:-.015em">Frankenstein</h1>
+      <p style="margin:7px 0 0;color:var(--ink2);font-size:14px">Mary Shelley · 1818 · 280 pages · added 14 minutes ago</p>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;border:1px solid var(--err);border-radius:8px;color:var(--err);font-size:13px;font-weight:600"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>Paused — one stage needs you</div>
+  </div>
+
+  <div style="display:flex;gap:30px;align-items:flex-start">
+    <div class="card" style="flex-grow:1;padding:28px 30px;display:flex;flex-direction:column;gap:20px">
+      <div style="display:flex;align-items:baseline;gap:14px;padding-bottom:16px;border-bottom:1px solid var(--line)">
+        <span class="serif" style="font-size:18px;font-weight:600">Reading the book</span>
+        <span class="mono" style="font-size:12px;color:var(--ink3);margin-left:auto">3 of 5 done · 5m 06s so far</span>
+      </div>
+      <div style="display:flex;gap:14px"><div style="display:flex;flex-direction:column;align-items:center;flex:none;width:22px"><div style="width:22px;height:22px;border-radius:50%;background:var(--ok);color:#fff;display:flex;align-items:center;justify-content:center;flex:none"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div><div style="flex-grow:1;width:2px;background:var(--ok);margin:4px 0"></div></div><div style="flex-grow:1;padding-bottom:22px"><div style="display:flex;align-items:baseline;gap:12px"><span style="font-size:14.5px;font-weight:600;color:var(--ink)">Reading the PDF</span><span class="mono" style="font-size:12.5px;color:var(--ink3);margin-left:auto">1m 12s</span></div><div style="margin-top:3px;font-size:12.5px;color:var(--ink2);line-height:1.55">432 pages parsed. 1,107 passages, every one carrying the page it came from.</div></div></div><div style="display:flex;gap:14px"><div style="display:flex;flex-direction:column;align-items:center;flex:none;width:22px"><div style="width:22px;height:22px;border-radius:50%;background:var(--ok);color:#fff;display:flex;align-items:center;justify-content:center;flex:none"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div><div style="flex-grow:1;width:2px;background:var(--ok);margin:4px 0"></div></div><div style="flex-grow:1;padding-bottom:22px"><div style="display:flex;align-items:baseline;gap:12px"><span style="font-size:14.5px;font-weight:600;color:var(--ink)">Finding chapters</span><span class="mono" style="font-size:12.5px;color:var(--ink3);margin-left:auto">48s</span></div><div style="margin-top:3px;font-size:12.5px;color:var(--ink2);line-height:1.55">24 chapters found — 21 by pattern, 3 read by the model.</div></div></div><div style="display:flex;gap:14px"><div style="display:flex;flex-direction:column;align-items:center;flex:none;width:22px"><div style="width:22px;height:22px;border-radius:50%;background:var(--ok);color:#fff;display:flex;align-items:center;justify-content:center;flex:none"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div><div style="flex-grow:1;width:2px;background:var(--ok);margin:4px 0"></div></div><div style="flex-grow:1;padding-bottom:22px"><div style="display:flex;align-items:baseline;gap:12px"><span style="font-size:14.5px;font-weight:600;color:var(--ink)">Embedding passages</span><span class="mono" style="font-size:12.5px;color:var(--ink3);margin-left:auto">3m 06s</span></div><div style="margin-top:3px;font-size:12.5px;color:var(--ink2);line-height:1.55">1,107 passages embedded locally with BGE-M3. Nothing left this machine.</div></div></div><div style="display:flex;gap:14px"><div style="display:flex;flex-direction:column;align-items:center;flex:none;width:22px"><div style="width:22px;height:22px;border-radius:50%;background:var(--err);color:#fff;display:flex;align-items:center;justify-content:center;flex:none"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></div><div style="flex-grow:1;width:2px;background:var(--line);margin:4px 0"></div></div><div style="flex-grow:1;padding-bottom:22px"><div style="display:flex;align-items:baseline;gap:12px"><span style="font-size:14.5px;font-weight:600;color:var(--err)">Discovering characters</span><span class="mono" style="font-size:12.5px;color:var(--ink3);margin-left:auto">failed</span></div><div style="margin-top:3px;font-size:12.5px;color:var(--ink2);line-height:1.55">The model returned an unreadable response for batch 14 of 31, four times running. The 13 batches before it are saved and will not be redone.</div><div style="margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><div style="display:flex;align-items:center;gap:7px;padding:7px 13px;border-radius:7px;background:var(--accent);color:var(--accentInk);font-size:12.5px;font-weight:600"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>Retry from this stage</div><span style="font-size:12px;color:var(--ink3)">or <a href="#">send batch 14 to a stronger model</a></span></div></div></div><div style="display:flex;gap:14px"><div style="display:flex;flex-direction:column;align-items:center;flex:none;width:22px"><div style="width:22px;height:22px;border-radius:50%;border:2px dashed var(--line);flex:none"></div></div><div style="flex-grow:1;padding-bottom:0"><div style="display:flex;align-items:baseline;gap:12px"><span style="font-size:14.5px;font-weight:600;color:var(--ink3)">Mapping relationships</span><span class="mono" style="font-size:12.5px;color:var(--ink3);margin-left:auto">—</span></div><div style="margin-top:3px;font-size:12.5px;color:var(--ink2);line-height:1.55">Waits for the cast. Roughly 9 minutes once it starts.</div></div></div>
+    </div>
+
+    <div style="width:320px;flex:none;display:flex;flex-direction:column;gap:18px">
+      <div class="card" style="padding:20px 22px;display:flex;flex-direction:column;gap:13px">
+        <span class="lbl">This file</span>
+        <div style="display:flex;flex-direction:column;gap:9px;font-size:12.5px">
+          <div style="display:flex;gap:10px"><span style="color:var(--ink3);width:84px;flex:none">Pages</span><span class="mono">280</span></div>
+          <div style="display:flex;gap:10px"><span style="color:var(--ink3);width:84px;flex:none">Passages</span><span class="mono">1,107</span></div>
+          <div style="display:flex;gap:10px"><span style="color:var(--ink3);width:84px;flex:none">Chapters</span><span class="mono">24</span></div>
+          <div style="display:flex;gap:10px"><span style="color:var(--ink3);width:84px;flex:none">Fingerprint</span><span class="mono" style="color:var(--ink2)">b2a9…41c7</span></div>
+          <div style="display:flex;gap:10px"><span style="color:var(--ink3);width:84px;flex:none">Inference</span><span style="color:var(--ok);font-weight:600">local only</span></div>
+        </div>
+      </div>
+      <div class="card" style="padding:20px 22px;background:var(--sunken);display:flex;flex-direction:column;gap:9px">
+        <span class="lbl">Nothing is lost</span>
+        <p style="margin:0;font-size:12.5px;line-height:1.65;color:var(--ink2)">Each stage is saved as it finishes. Retrying picks up where it stopped — the parse, the chapters and the embeddings above are already on disk and will not be recomputed.</p>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:6px;display:flex;flex-direction:column;gap:12px">
+    <div class="lbl long">Before any of that — dropping the file in</div>
+    <div class="card" style="padding:52px 40px;display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center;border-style:dashed;border-color:var(--accent);background:var(--accentSoft)">
+      <div style="color:var(--accent)"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></svg></div>
+      <div class="serif" style="font-size:19px;font-weight:600;color:var(--accent)">Drop <em>Frankenstein.pdf</em> to add it to this project</div>
+      <p style="margin:0;max-width:52ch;color:var(--ink2);font-size:13.5px;line-height:1.6">PDF, up to 1,000 pages. Reading it takes about twenty minutes, and you can close the tab — it keeps going.</p>
+    </div>
+  </div>
+
+</main></div></div>
+</x-dc>
+<script data-dc-script data-props='{"$preview": {"width": 1440, "height": 1080}, "dark": {"editor": "boolean", "default": false, "section": "Theme"}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { theme: this.props.dark ? 'dark' : '' };
+  }
+}
+</script>
+</body>
+</html>

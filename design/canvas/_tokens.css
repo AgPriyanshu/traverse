@@ -1,0 +1,55 @@
+*{box-sizing:border-box}
+body{margin:0}
+a{color:var(--accent);text-decoration:none}
+a:hover{color:var(--accent);text-decoration:underline}
+.rt{
+  --paper:#FAF7F2;--surface:#FFFDFA;--sunken:#F2EDE4;--line:#E2DACD;
+  --ink:#2B2622;--ink2:#6B6157;--ink3:#756A5C;
+  --accent:#A8502A;--accentSoft:#F4E7DF;--accentInk:#FFF9F5;
+  --kin:#2C6E6A;--rom:#A6385C;--soc:#8A6A12;--adv:#5D4A96;
+  --ok:#3F6D45;--warn:#8A5A12;--err:#9E3B30;
+  --shadow:0 2px 3px -1px rgba(43,38,34,.07),0 7px 14px -10px rgba(43,38,34,.20);
+  background:var(--paper);color:var(--ink);
+  font-family:'IBM Plex Sans',ui-sans-serif,system-ui,sans-serif;
+  font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;
+}
+.rt.dark{
+  --paper:#1C1815;--surface:#24201C;--sunken:#161311;--line:#3A342E;
+  --ink:#EDE6DC;--ink2:#B3A899;--ink3:#9C9183;
+  --accent:#D98357;--accentSoft:#33251D;--accentInk:#1C1815;
+  --kin:#63B5AE;--rom:#E08098;--soc:#C9A23C;--adv:#A493DB;
+  --ok:#7FB98A;--warn:#D2A44E;--err:#E08A7E;
+  --shadow:0 2px 3px -1px rgba(0,0,0,.4),0 7px 14px -10px rgba(0,0,0,.65);
+}
+.serif{font-family:Literata,Georgia,'Times New Roman',serif}
+.mono{font-family:'IBM Plex Mono',ui-monospace,SFMono-Regular,monospace}
+.pref{display:inline-flex;align-items:baseline;gap:3px;color:var(--accent);
+ font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:500;
+ font-variant-numeric:tabular-nums oldstyle-nums;letter-spacing:-.01em;
+ text-decoration:none;white-space:nowrap;cursor:pointer;
+ border-bottom:1px dotted currentColor;padding-bottom:1px}
+.pref:hover{border-bottom-style:solid;text-decoration:none}
+.pref.focus{outline:2px solid var(--accent);outline-offset:3px;border-radius:2px}
+/* a standalone reference at the end of a line, set like an index entry */
+.pref.trail{margin-left:auto}
+.aliases{display:flex;flex-wrap:wrap;align-items:baseline;gap:0;
+ font-family:Literata,Georgia,serif;font-size:13.5px;font-style:italic;color:var(--ink2)}
+.aliases > span:not(:last-child)::after{content:'·';margin:0 .5em;font-style:normal;color:var(--ink3)}
+.state{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;letter-spacing:.005em}
+.state i{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none;font-style:normal}
+.navit{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:7px;
+ color:var(--ink2);font-size:13.5px;font-weight:500;cursor:pointer}
+.navit.on{background:var(--accentSoft);color:var(--accent)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px}
+.lbl{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3)}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:2px 7px;border-radius:3px;
+ border:1px solid var(--line);color:var(--ink2);font-size:12.5px;background:transparent}
+/* browser surfaces — themed, not left to the browser */
+.rt ::selection{background:var(--accentSoft);color:var(--accent)}
+.rt{accent-color:var(--accent);caret-color:var(--accent);scrollbar-color:var(--line) transparent;scrollbar-width:thin}
+.rt a{text-underline-offset:2px;text-decoration-thickness:1px}
+.rt :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mono,.num{font-variant-numeric:tabular-nums}
+.rt ::placeholder{color:var(--ink3);opacity:1}
+
+.lbl.long{text-transform:none;letter-spacing:0;font-size:13px;color:var(--ink2);font-weight:600}

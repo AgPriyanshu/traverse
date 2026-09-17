@@ -1,0 +1,94 @@
+{
+  "artboards": [
+    {
+      "file": "Main.dc.html",
+      "title": "Shell & foundations",
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 1500
+    },
+    {
+      "file": "Library.dc.html",
+      "title": "Library",
+      "x": 1580,
+      "y": 0,
+      "w": 1440,
+      "h": 1080
+    },
+    {
+      "file": "UploadProgress.dc.html",
+      "title": "Adding a book",
+      "x": 3160,
+      "y": 0,
+      "w": 1440,
+      "h": 1080
+    },
+    {
+      "file": "CharacterList.dc.html",
+      "title": "Everyone in the book",
+      "x": 0,
+      "y": 1660,
+      "w": 1440,
+      "h": 1190
+    },
+    {
+      "file": "CharacterDetail.dc.html",
+      "title": "One character",
+      "x": 1580,
+      "y": 1660,
+      "w": 1440,
+      "h": 1240
+    },
+    {
+      "file": "GraphExplorer.dc.html",
+      "title": "Who knows whom",
+      "x": 3160,
+      "y": 1660,
+      "w": 1440,
+      "h": 900
+    },
+    {
+      "file": "EvidencePanel.dc.html",
+      "title": "The evidence",
+      "x": 0,
+      "y": 3060,
+      "w": 760,
+      "h": 1080
+    },
+    {
+      "file": "Ask.dc.html",
+      "title": "Ask",
+      "x": 900,
+      "y": 3060,
+      "w": 1440,
+      "h": 1120
+    }
+  ],
+  "annotations": [
+    {
+      "id": "note-direction",
+      "x": 0,
+      "y": -190,
+      "w": 640,
+      "text": "Traverse \u2014 literary / warm.\nParchment grounds, Literata for anything a reader reads (names, titles, quoted passages), IBM Plex Sans for chrome, IBM Plex Mono for pages and counts. One terracotta accent.\nThe graph is the only screen allowed to be loud."
+    },
+    {
+      "id": "note-pageref",
+      "x": 1580,
+      "y": -190,
+      "w": 560,
+      "text": "The citation chip is the product.\nEvery stated fact carries one, it is a link rather than a button, and a fact the system cannot anchor to a page is not rendered at all."
+    },
+    {
+      "id": "note-evidence",
+      "x": 3160,
+      "y": -190,
+      "w": 560,
+      "text": "Two things most tools get wrong, designed for here: a relationship is an arc across the book rather than one flat label, and something a character asserts in dialogue is attributed, never stated as fact."
+    }
+  ],
+  "launch": {
+    "view": "canvas"
+  }
+}

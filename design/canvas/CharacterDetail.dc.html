@@ -1,0 +1,155 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,500;0,7..72,600;1,7..72,400&display=swap">
+  <style>
+*{box-sizing:border-box}
+body{margin:0}
+a{color:var(--accent);text-decoration:none}
+a:hover{color:var(--accent);text-decoration:underline}
+.rt{
+  --paper:#FAF7F2;--surface:#FFFDFA;--sunken:#F2EDE4;--line:#E2DACD;
+  --ink:#2B2622;--ink2:#6B6157;--ink3:#756A5C;
+  --accent:#A8502A;--accentSoft:#F4E7DF;--accentInk:#FFF9F5;
+  --kin:#2C6E6A;--rom:#A6385C;--soc:#8A6A12;--adv:#5D4A96;
+  --ok:#3F6D45;--warn:#8A5A12;--err:#9E3B30;
+  --shadow:0 2px 3px -1px rgba(43,38,34,.07),0 7px 14px -10px rgba(43,38,34,.20);
+  background:var(--paper);color:var(--ink);
+  font-family:'IBM Plex Sans',ui-sans-serif,system-ui,sans-serif;
+  font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;
+}
+.rt.dark{
+  --paper:#1C1815;--surface:#24201C;--sunken:#161311;--line:#3A342E;
+  --ink:#EDE6DC;--ink2:#B3A899;--ink3:#9C9183;
+  --accent:#D98357;--accentSoft:#33251D;--accentInk:#1C1815;
+  --kin:#63B5AE;--rom:#E08098;--soc:#C9A23C;--adv:#A493DB;
+  --ok:#7FB98A;--warn:#D2A44E;--err:#E08A7E;
+  --shadow:0 2px 3px -1px rgba(0,0,0,.4),0 7px 14px -10px rgba(0,0,0,.65);
+}
+.serif{font-family:Literata,Georgia,'Times New Roman',serif}
+.mono{font-family:'IBM Plex Mono',ui-monospace,SFMono-Regular,monospace}
+.pref{display:inline-flex;align-items:baseline;gap:3px;color:var(--accent);
+ font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:500;
+ font-variant-numeric:tabular-nums oldstyle-nums;letter-spacing:-.01em;
+ text-decoration:none;white-space:nowrap;cursor:pointer;
+ border-bottom:1px dotted currentColor;padding-bottom:1px}
+.pref:hover{border-bottom-style:solid;text-decoration:none}
+.pref.focus{outline:2px solid var(--accent);outline-offset:3px;border-radius:2px}
+/* a standalone reference at the end of a line, set like an index entry */
+.pref.trail{margin-left:auto}
+.aliases{display:flex;flex-wrap:wrap;align-items:baseline;gap:0;
+ font-family:Literata,Georgia,serif;font-size:13.5px;font-style:italic;color:var(--ink2)}
+.aliases > span:not(:last-child)::after{content:'·';margin:0 .5em;font-style:normal;color:var(--ink3)}
+.state{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;letter-spacing:.005em}
+.state i{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none;font-style:normal}
+.navit{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:7px;
+ color:var(--ink2);font-size:13.5px;font-weight:500;cursor:pointer}
+.navit.on{background:var(--accentSoft);color:var(--accent)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px}
+.lbl{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3)}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:2px 7px;border-radius:3px;
+ border:1px solid var(--line);color:var(--ink2);font-size:12.5px;background:transparent}
+/* browser surfaces — themed, not left to the browser */
+.rt ::selection{background:var(--accentSoft);color:var(--accent)}
+.rt{accent-color:var(--accent);caret-color:var(--accent);scrollbar-color:var(--line) transparent;scrollbar-width:thin}
+.rt a{text-underline-offset:2px;text-decoration-thickness:1px}
+.rt :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mono,.num{font-variant-numeric:tabular-nums}
+.rt ::placeholder{color:var(--ink3);opacity:1}
+
+.lbl.long{text-transform:none;letter-spacing:0;font-size:13px;color:var(--ink2);font-weight:600}
+
+
+  </style>
+</helmet>
+<div class="rt {{theme}}" style="width:1440px;display:flex;flex-direction:column">
+<header style="display:flex;align-items:center;gap:18px;height:56px;padding:0 20px;border-bottom:1px solid var(--line);background:var(--surface);flex:none">
+  <div style="display:flex;align-items:center;gap:9px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="6" r="2.2"/><circle cx="19" cy="6" r="2.2"/><circle cx="12" cy="18.5" r="2.2"/><path d="M7.2 6h9.6"/><path d="M6.4 8.1 10.6 16.6"/><path d="M17.6 8.1 13.4 16.6"/></svg><span class="serif" style="font-size:17px;font-weight:600;letter-spacing:-.01em">Traverse</span></div>
+  <div style="width:1px;height:22px;background:var(--line)"></div>
+  <div style="display:flex;align-items:center;gap:8px;padding:5px 10px;border:1px solid var(--line);border-radius:7px;background:var(--sunken)">
+    <span class="serif" style="font-size:14px">Pride and Prejudice</span><span style="color:var(--ink3);display:flex"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span></div>
+  <div style="flex-grow:1"></div>
+  <div style="display:flex;align-items:center;gap:8px;width:250px;padding:6px 11px;border:1px solid var(--line);border-radius:7px;background:var(--sunken);color:var(--ink3)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><span style="font-size:13px">Search characters, passages…</span></div>
+  <div style="width:29px;height:29px;border-radius:50%;background:var(--accentSoft);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600">AR</div>
+</header>
+<div style="display:flex;min-height:1180px">
+<nav style="width:212px;flex:none;border-right:1px solid var(--line);background:var(--surface);padding:16px 12px;display:flex;flex-direction:column;gap:2px">
+  <div class="lbl" style="padding:4px 12px 8px">Project</div><div class="navit"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg><span>Library</span></div><div class="navit on"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>Characters</span></div><div class="navit"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="6" r="2.2"/><circle cx="19" cy="6" r="2.2"/><circle cx="12" cy="18.5" r="2.2"/><path d="M7.2 6h9.6"/><path d="M6.4 8.1 10.6 16.6"/><path d="M17.6 8.1 13.4 16.6"/></svg><span>Graph</span></div><div class="navit"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>Ask</span></div><div class="navit"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11.5l2.5 2.5L21 4.5"/><path d="M21 12.5V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>Review</span><span style="margin-left:auto;font-size:12px;font-weight:600;padding:1px 6px;border-radius:999px;background:var(--accent);color:var(--accentInk)">7</span></div><div class="navit"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg><span>Ops</span></div>
+  <div style="flex-grow:1"></div>
+  <div style="padding:10px 12px;border-top:1px solid var(--line);color:var(--ink3);font-size:12.5px;line-height:1.5">Running locally<br>Qwen3-8B · no data leaves this machine</div>
+</nav>
+<main style="flex-grow:1;padding:26px 40px 40px;display:flex;flex-direction:column;gap:24px">
+
+  <div style="display:flex;align-items:flex-end;gap:24px;padding-bottom:20px;border-bottom:1px solid var(--line)">
+    <div style="flex-grow:1">
+      <div style="display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--ink3)">
+        <a href="#">Characters</a><span>/</span><span>Elizabeth Bennet</span></div>
+      <h1 class="serif" style="margin:8px 0 0;font-size:34px;font-weight:600;letter-spacing:-.02em;line-height:1.1">Elizabeth Bennet</h1>
+      <div style="display:flex;align-items:center;gap:9px;margin-top:11px">
+        <span class="chip" style="border-color:var(--accent);color:var(--accent);background:var(--accentSoft);font-weight:600">Protagonist</span>
+        <span class="mono" style="font-size:12px;color:var(--ink2)">1,142 mentions · chapters 1–61</span>
+        <span style="color:var(--ink3)">·</span><span style="font-size:12.5px;color:var(--ink2)">first seen</span><span class="pref ">p. 3</span>
+      </div>
+    </div>
+    <div style="display:flex;gap:9px">
+      <div style="display:flex;align-items:center;gap:7px;padding:8px 13px;border:1px solid var(--line);border-radius:8px;background:var(--surface);font-size:13px;font-weight:500"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="6" r="2.2"/><circle cx="19" cy="6" r="2.2"/><circle cx="12" cy="18.5" r="2.2"/><path d="M7.2 6h9.6"/><path d="M6.4 8.1 10.6 16.6"/><path d="M17.6 8.1 13.4 16.6"/></svg>See in the graph</div>
+      <div style="display:flex;align-items:center;gap:7px;padding:8px 13px;border-radius:8px;background:var(--accent);color:var(--accentInk);font-size:13px;font-weight:600"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Ask about her</div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:30px;align-items:flex-start">
+    <div style="flex-grow:1;display:flex;flex-direction:column;gap:24px;min-width:0">
+
+      <section class="card" style="padding:24px 26px;display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;align-items:baseline;gap:12px;padding-bottom:12px">
+          <h2 class="serif" style="margin:0;font-size:17px;font-weight:600">Why these are all one person</h2>
+          <span style="font-size:12.5px;color:var(--ink3);margin-left:auto">7 forms · 1,142 mentions</span></div>
+        <div style="display:flex;align-items:center;gap:14px;padding:9px 0;border-top:1px solid var(--line)"><span class="serif" style="width:210px;flex:none;font-size:14.5px">Elizabeth</span><span class="mono" style="width:56px;flex:none;font-size:12px;color:var(--ink2);text-align:right">604</span><span style="flex-grow:1;font-size:12px;color:var(--ink3)">exact match</span></div><div style="display:flex;align-items:center;gap:14px;padding:9px 0;border-top:1px solid var(--line)"><span class="serif" style="width:210px;flex:none;font-size:14.5px">Lizzy</span><span class="mono" style="width:56px;flex:none;font-size:12px;color:var(--ink2);text-align:right">231</span><span style="flex-grow:1;font-size:12px;color:var(--ink3)">nickname table</span></div><div style="display:flex;align-items:center;gap:14px;padding:9px 0;border-top:1px solid var(--line)"><span class="serif" style="width:210px;flex:none;font-size:14.5px">Eliza</span><span class="mono" style="width:56px;flex:none;font-size:12px;color:var(--ink2);text-align:right">46</span><span style="flex-grow:1;font-size:12px;color:var(--ink3)">nickname table</span></div><div style="display:flex;align-items:center;gap:14px;padding:9px 0;border-top:1px solid var(--line)"><span class="serif" style="width:210px;flex:none;font-size:14.5px">Miss Elizabeth Bennet</span><span class="mono" style="width:56px;flex:none;font-size:12px;color:var(--ink2);text-align:right">118</span><span style="flex-grow:1;font-size:12px;color:var(--ink3)">honorific stripped</span></div><div style="display:flex;align-items:center;gap:14px;padding:9px 0;border-top:1px solid var(--line)"><span class="serif" style="width:210px;flex:none;font-size:14.5px">Miss Eliza Bennet</span><span class="mono" style="width:56px;flex:none;font-size:12px;color:var(--ink2);text-align:right">39</span><span style="flex-grow:1;font-size:12px;color:var(--ink3)">honorific stripped + nickname</span></div><div style="display:flex;align-items:center;gap:14px;padding:9px 0;border-top:1px solid var(--line)"><span class="serif" style="width:210px;flex:none;font-size:14.5px">Miss Bennet</span><span class="mono" style="width:56px;flex:none;font-size:12px;color:var(--ink2);text-align:right">12</span><span style="flex-grow:1;font-size:12px;color:var(--ink3)">context — 74 other uses mean Jane<span style="margin-left:8px;font-size:12.5px;color:var(--warn)">ambiguous form</span></span></div><div style="display:flex;align-items:center;gap:14px;padding:9px 0;border-top:1px solid var(--line)"><span class="serif" style="width:210px;flex:none;font-size:14.5px">my dearest Lizzy</span><span class="mono" style="width:56px;flex:none;font-size:12px;color:var(--ink2);text-align:right">92</span><span style="flex-grow:1;font-size:12px;color:var(--ink3)">context, in Jane’s letters</span></div>
+        <p style="margin:14px 0 0;padding-top:14px;border-top:1px solid var(--line);font-size:12.5px;line-height:1.65;color:var(--ink2);max-width:70ch">“Miss Bennet” is the difficult one: unqualified it usually means Jane, the eldest. The 12 uses folded in here sit in passages where Jane is absent or already named. <a href="#">Check each one</a>.</p>
+      </section>
+
+      <section class="card" style="padding:24px 26px;display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;align-items:baseline;gap:12px;padding-bottom:12px">
+          <h2 class="serif" style="margin:0;font-size:17px;font-weight:600">What the book says about her</h2>
+          <span style="font-size:12.5px;color:var(--ink3);margin-left:auto">nothing here without a page</span></div>
+        <div style="display:flex;align-items:baseline;gap:14px;padding:9px 0;border-top:1px solid var(--line)"><span class="lbl" style="width:120px;flex:none">Family</span><span style="flex-grow:1;font-size:13.5px;color:var(--ink)">Second of five daughters of Mr and Mrs Bennet</span><span class="pref ">p. 3</span></div><div style="display:flex;align-items:baseline;gap:14px;padding:9px 0;border-top:1px solid var(--line)"><span class="lbl" style="width:120px;flex:none">Home</span><span style="flex-grow:1;font-size:13.5px;color:var(--ink)">Longbourn, Hertfordshire</span><span class="pref ">p. 1</span></div><div style="display:flex;align-items:baseline;gap:14px;padding:9px 0;border-top:1px solid var(--line)"><span class="lbl" style="width:120px;flex:none">Age</span><span style="flex-grow:1;font-size:13.5px;color:var(--ink)">Not yet one-and-twenty</span><span class="pref ">p. 149</span></div><div style="display:flex;align-items:baseline;gap:14px;padding:9px 0;border-top:1px solid var(--line)"><span class="lbl" style="width:120px;flex:none">Described as</span><span style="flex-grow:1;font-size:13.5px;color:var(--ink)">“She has fine eyes” — <em>Mr Darcy, in dialogue</em></span><span class="pref ">p. 27</span></div><div style="display:flex;align-items:baseline;gap:14px;padding:9px 0;border-top:1px solid var(--line)"><span class="lbl" style="width:120px;flex:none">Habit</span><span style="flex-grow:1;font-size:13.5px;color:var(--ink)">Walks three miles alone across the fields</span><span class="pref ">p. 32</span></div>
+      </section>
+
+      <section class="card" style="padding:24px 26px;display:flex;flex-direction:column;gap:16px">
+        <div style="display:flex;align-items:baseline;gap:12px">
+          <h2 class="serif" style="margin:0;font-size:17px;font-weight:600">Where she appears</h2>
+          <span style="font-size:12.5px;color:var(--ink3);margin-left:auto">mentions per chapter</span></div>
+        <div style="display:flex;align-items:flex-end;gap:2px"><svg width="1040" height="92" viewBox="0 0 1040 92" role="img" aria-label="mentions per chapter"><rect x="0.00" y="34.33" width="16.15" height="57.67" rx="0.6" fill="var(--accent)" opacity="0.75"/><rect x="17.05" y="31.17" width="16.15" height="60.83" rx="0.6" fill="var(--accent)" opacity="0.78"/><rect x="34.10" y="31.33" width="16.15" height="60.67" rx="0.6" fill="var(--accent)" opacity="0.78"/><rect x="51.15" y="28.24" width="16.15" height="63.76" rx="0.6" fill="var(--accent)" opacity="0.80"/><rect x="68.20" y="26.91" width="16.15" height="65.09" rx="0.6" fill="var(--accent)" opacity="0.81"/><rect x="85.25" y="25.23" width="16.15" height="66.77" rx="0.6" fill="var(--accent)" opacity="0.83"/><rect x="102.30" y="21.72" width="16.15" height="70.28" rx="0.6" fill="var(--accent)" opacity="0.85"/><rect x="119.34" y="22.39" width="16.15" height="69.61" rx="0.6" fill="var(--accent)" opacity="0.85"/><rect x="136.39" y="21.10" width="16.15" height="70.90" rx="0.6" fill="var(--accent)" opacity="0.86"/><rect x="153.44" y="23.06" width="16.15" height="68.94" rx="0.6" fill="var(--accent)" opacity="0.84"/><rect x="170.49" y="21.93" width="16.15" height="70.07" rx="0.6" fill="var(--accent)" opacity="0.85"/><rect x="187.54" y="23.90" width="16.15" height="68.10" rx="0.6" fill="var(--accent)" opacity="0.84"/><rect x="204.59" y="25.24" width="16.15" height="66.76" rx="0.6" fill="var(--accent)" opacity="0.83"/><rect x="221.64" y="24.33" width="16.15" height="67.67" rx="0.6" fill="var(--accent)" opacity="0.83"/><rect x="238.69" y="24.45" width="16.15" height="67.55" rx="0.6" fill="var(--accent)" opacity="0.83"/><rect x="255.74" y="27.61" width="16.15" height="64.39" rx="0.6" fill="var(--accent)" opacity="0.81"/><rect x="272.79" y="26.29" width="16.15" height="65.71" rx="0.6" fill="var(--accent)" opacity="0.82"/><rect x="289.84" y="26.18" width="16.15" height="65.82" rx="0.6" fill="var(--accent)" opacity="0.82"/><rect x="306.89" y="27.12" width="16.15" height="64.88" rx="0.6" fill="var(--accent)" opacity="0.81"/><rect x="323.93" y="25.97" width="16.15" height="66.03" rx="0.6" fill="var(--accent)" opacity="0.82"/><rect x="340.98" y="25.74" width="16.15" height="66.26" rx="0.6" fill="var(--accent)" opacity="0.82"/><rect x="358.03" y="24.33" width="16.15" height="67.67" rx="0.6" fill="var(--accent)" opacity="0.83"/><rect x="375.08" y="22.76" width="16.15" height="69.24" rx="0.6" fill="var(--accent)" opacity="0.84"/><rect x="392.13" y="20.14" width="16.15" height="71.86" rx="0.6" fill="var(--accent)" opacity="0.87"/><rect x="409.18" y="18.41" width="16.15" height="73.59" rx="0.6" fill="var(--accent)" opacity="0.88"/><rect x="426.23" y="18.32" width="16.15" height="73.68" rx="0.6" fill="var(--accent)" opacity="0.88"/><rect x="443.28" y="17.55" width="16.15" height="74.45" rx="0.6" fill="var(--accent)" opacity="0.89"/><rect x="460.33" y="15.36" width="16.15" height="76.64" rx="0.6" fill="var(--accent)" opacity="0.90"/><rect x="477.38" y="13.33" width="16.15" height="78.67" rx="0.6" fill="var(--accent)" opacity="0.92"/><rect x="494.43" y="14.31" width="16.15" height="77.69" rx="0.6" fill="var(--accent)" opacity="0.91"/><rect x="511.48" y="13.64" width="16.15" height="78.36" rx="0.6" fill="var(--accent)" opacity="0.92"/><rect x="528.52" y="14.06" width="16.15" height="77.94" rx="0.6" fill="var(--accent)" opacity="0.91"/><rect x="545.57" y="12.54" width="16.15" height="79.46" rx="0.6" fill="var(--accent)" opacity="0.92"/><rect x="562.62" y="13.95" width="16.15" height="78.05" rx="0.6" fill="var(--accent)" opacity="0.91"/><rect x="579.67" y="16.30" width="16.15" height="75.70" rx="0.6" fill="var(--accent)" opacity="0.90"/><rect x="596.72" y="17.08" width="16.15" height="74.92" rx="0.6" fill="var(--accent)" opacity="0.89"/><rect x="613.77" y="17.02" width="16.15" height="74.98" rx="0.6" fill="var(--accent)" opacity="0.89"/><rect x="630.82" y="17.29" width="16.15" height="74.71" rx="0.6" fill="var(--accent)" opacity="0.89"/><rect x="647.87" y="17.56" width="16.15" height="74.44" rx="0.6" fill="var(--accent)" opacity="0.89"/><rect x="664.92" y="19.56" width="16.15" height="72.44" rx="0.6" fill="var(--accent)" opacity="0.87"/><rect x="681.97" y="19.20" width="16.15" height="72.80" rx="0.6" fill="var(--accent)" opacity="0.87"/><rect x="699.02" y="16.98" width="16.15" height="75.02" rx="0.6" fill="var(--accent)" opacity="0.89"/><rect x="716.07" y="16.95" width="16.15" height="75.05" rx="0.6" fill="var(--accent)" opacity="0.89"/><rect x="733.11" y="16.03" width="16.15" height="75.97" rx="0.6" fill="var(--accent)" opacity="0.90"/><rect x="750.16" y="14.31" width="16.15" height="77.69" rx="0.6" fill="var(--accent)" opacity="0.91"/><rect x="767.21" y="10.40" width="16.15" height="81.60" rx="0.6" fill="var(--accent)" opacity="0.94"/><rect x="784.26" y="10.52" width="16.15" height="81.48" rx="0.6" fill="var(--accent)" opacity="0.94"/><rect x="801.31" y="7.86" width="16.15" height="84.14" rx="0.6" fill="var(--accent)" opacity="0.96"/><rect x="818.36" y="6.92" width="16.15" height="85.08" rx="0.6" fill="var(--accent)" opacity="0.97"/><rect x="835.41" y="5.52" width="16.15" height="86.48" rx="0.6" fill="var(--accent)" opacity="0.98"/><rect x="852.46" y="3.42" width="16.15" height="88.58" rx="0.6" fill="var(--accent)" opacity="1.00"/><rect x="869.51" y="3.00" width="16.15" height="89.00" rx="0.6" fill="var(--accent)" opacity="1.00"/><rect x="886.56" y="5.77" width="16.15" height="86.23" rx="0.6" fill="var(--accent)" opacity="0.98"/><rect x="903.61" y="7.85" width="16.15" height="84.15" rx="0.6" fill="var(--accent)" opacity="0.96"/><rect x="920.66" y="8.50" width="16.15" height="83.50" rx="0.6" fill="var(--accent)" opacity="0.96"/><rect x="937.70" y="13.26" width="16.15" height="78.74" rx="0.6" fill="var(--accent)" opacity="0.92"/><rect x="954.75" y="17.64" width="16.15" height="74.36" rx="0.6" fill="var(--accent)" opacity="0.88"/><rect x="971.80" y="19.07" width="16.15" height="72.93" rx="0.6" fill="var(--accent)" opacity="0.87"/><rect x="988.85" y="25.29" width="16.15" height="66.71" rx="0.6" fill="var(--accent)" opacity="0.82"/><rect x="1005.90" y="28.97" width="16.15" height="63.03" rx="0.6" fill="var(--accent)" opacity="0.80"/><rect x="1022.95" y="35.33" width="16.15" height="56.67" rx="0.6" fill="var(--accent)" opacity="0.75"/><line x1="0" y1="92" x2="1040" y2="92" stroke="var(--line)" stroke-width="1"/></svg></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--ink3)" class="mono">
+          <span>ch. 1</span><span>ch. 15</span><span>ch. 30</span><span>ch. 45</span><span>ch. 61</span></div>
+      </section>
+
+    </div>
+
+    <aside style="width:360px;flex:none;display:flex;flex-direction:column;gap:18px">
+      <div class="card" style="padding:22px 24px;display:flex;flex-direction:column;gap:18px">
+        <div style="display:flex;align-items:baseline;gap:10px">
+          <h2 class="serif" style="margin:0;font-size:17px;font-weight:600">Her people</h2>
+          <span class="mono" style="font-size:12.5px;color:var(--ink3);margin-left:auto">14 relationships</span></div>
+        <div style="display:flex;flex-direction:column"><div style="display:flex;align-items:center;gap:8px;padding-bottom:4px"><span style="font-size:12px;font-weight:600;color:var(--kin)">Kinship</span></div><div style="display:flex;align-items:center;gap:11px;padding:10px 0;border-top:1px solid var(--line)"><svg width="26" height="8" style="flex:none"><line x1="1" y1="4" x2="25" y2="4" stroke="var(--kin)" stroke-width="2.2" stroke-dasharray="0" stroke-linecap="round"/></svg><div style="flex-grow:1;min-width:0"><div class="serif" style="font-size:14px;font-weight:600">Jane Bennet</div><div style="font-size:12.5px;color:var(--ink3);margin-top:1px">sister_of · 41 passages</div></div><span class="pref ">p. 3</span></div><div style="display:flex;align-items:center;gap:11px;padding:10px 0;border-top:1px solid var(--line)"><svg width="26" height="8" style="flex:none"><line x1="1" y1="4" x2="25" y2="4" stroke="var(--kin)" stroke-width="2.2" stroke-dasharray="0" stroke-linecap="round"/></svg><div style="flex-grow:1;min-width:0"><div class="serif" style="font-size:14px;font-weight:600">Mr Bennet</div><div style="font-size:12.5px;color:var(--ink3);margin-top:1px">child_of · 63 passages</div></div><span class="pref ">p. 1</span></div><div style="display:flex;align-items:center;gap:11px;padding:10px 0;border-top:1px solid var(--line)"><svg width="26" height="8" style="flex:none"><line x1="1" y1="4" x2="25" y2="4" stroke="var(--kin)" stroke-width="2.2" stroke-dasharray="0" stroke-linecap="round"/></svg><div style="flex-grow:1;min-width:0"><div class="serif" style="font-size:14px;font-weight:600">Mrs Bennet</div><div style="font-size:12.5px;color:var(--ink3);margin-top:1px">child_of · 58 passages</div></div><span class="pref ">p. 1</span></div><div style="display:flex;align-items:center;gap:11px;padding:10px 0;border-top:1px solid var(--line)"><svg width="26" height="8" style="flex:none"><line x1="1" y1="4" x2="25" y2="4" stroke="var(--kin)" stroke-width="2.2" stroke-dasharray="0" stroke-linecap="round"/></svg><div style="flex-grow:1;min-width:0"><div class="serif" style="font-size:14px;font-weight:600">Lydia Bennet</div><div style="font-size:12.5px;color:var(--ink3);margin-top:1px">sister_of · 27 passages</div></div><span class="pref ">p. 4</span></div></div><div style="display:flex;flex-direction:column"><div style="display:flex;align-items:center;gap:8px;padding-bottom:4px"><span style="font-size:12px;font-weight:600;color:var(--rom)">Romantic</span></div><div style="display:flex;align-items:center;gap:11px;padding:10px 0;border-top:1px solid var(--line)"><svg width="26" height="8" style="flex:none"><line x1="1" y1="4" x2="25" y2="4" stroke="var(--rom)" stroke-width="2.2" stroke-dasharray="7 5" stroke-linecap="round"/></svg><div style="flex-grow:1;min-width:0"><div class="serif" style="font-size:14px;font-weight:600">Fitzwilliam Darcy</div><div style="font-size:12.5px;color:var(--ink3);margin-top:1px">married_to · from ch. 58 · 84 passages</div></div><span class="pref ">p. 376</span></div><div style="display:flex;align-items:center;gap:11px;padding:10px 0;border-top:1px solid var(--line)"><svg width="26" height="8" style="flex:none"><line x1="1" y1="4" x2="25" y2="4" stroke="var(--rom)" stroke-width="2.2" stroke-dasharray="7 5" stroke-linecap="round"/></svg><div style="flex-grow:1;min-width:0"><div class="serif" style="font-size:14px;font-weight:600">Mr Collins</div><div style="font-size:12.5px;color:var(--ink3);margin-top:1px">refused · ch. 19 · 11 passages</div></div><span class="pref ">p. 104</span></div></div><div style="display:flex;flex-direction:column"><div style="display:flex;align-items:center;gap:8px;padding-bottom:4px"><span style="font-size:12px;font-weight:600;color:var(--soc)">Social</span></div><div style="display:flex;align-items:center;gap:11px;padding:10px 0;border-top:1px solid var(--line)"><svg width="26" height="8" style="flex:none"><line x1="1" y1="4" x2="25" y2="4" stroke="var(--soc)" stroke-width="2.2" stroke-dasharray="2 4" stroke-linecap="round"/></svg><div style="flex-grow:1;min-width:0"><div class="serif" style="font-size:14px;font-weight:600">Charlotte Lucas</div><div style="font-size:12.5px;color:var(--ink3);margin-top:1px">friend_of · 34 passages</div></div><span class="pref ">p. 18</span></div><div style="display:flex;align-items:center;gap:11px;padding:10px 0;border-top:1px solid var(--line)"><svg width="26" height="8" style="flex:none"><line x1="1" y1="4" x2="25" y2="4" stroke="var(--soc)" stroke-width="2.2" stroke-dasharray="2 4" stroke-linecap="round"/></svg><div style="flex-grow:1;min-width:0"><div class="serif" style="font-size:14px;font-weight:600">Mrs Gardiner</div><div style="font-size:12.5px;color:var(--ink3);margin-top:1px">niece_of · 22 passages</div></div><span class="pref ">p. 129</span></div></div><div style="display:flex;flex-direction:column"><div style="display:flex;align-items:center;gap:8px;padding-bottom:4px"><span style="font-size:12px;font-weight:600;color:var(--adv)">Adversarial</span></div><div style="display:flex;align-items:center;gap:11px;padding:10px 0;border-top:1px solid var(--line)"><svg width="26" height="8" style="flex:none"><line x1="1" y1="4" x2="25" y2="4" stroke="var(--adv)" stroke-width="2.2" stroke-dasharray="9 4 2 4" stroke-linecap="round"/></svg><div style="flex-grow:1;min-width:0"><div class="serif" style="font-size:14px;font-weight:600">Lady Catherine de Bourgh</div><div style="font-size:12.5px;color:var(--ink3);margin-top:1px">rival_of · from ch. 56 · 16 passages</div></div><span class="pref ">p. 337</span></div><div style="display:flex;align-items:center;gap:11px;padding:10px 0;border-top:1px solid var(--line)"><svg width="26" height="8" style="flex:none"><line x1="1" y1="4" x2="25" y2="4" stroke="var(--adv)" stroke-width="2.2" stroke-dasharray="9 4 2 4" stroke-linecap="round"/></svg><div style="flex-grow:1;min-width:0"><div class="serif" style="font-size:14px;font-weight:600">George Wickham</div><div style="font-size:12.5px;color:var(--ink3);margin-top:1px">deceived_by · ch. 16–36 · 19 passages</div></div><span class="pref ">p. 78</span></div></div>
+      </div>
+    </aside>
+  </div>
+
+</main></div></div>
+</x-dc>
+<script data-dc-script data-props='{"$preview": {"width": 1440, "height": 1240}, "dark": {"editor": "boolean", "default": false, "section": "Theme"}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { theme: this.props.dark ? 'dark' : '' };
+  }
+}
+</script>
+</body>
+</html>

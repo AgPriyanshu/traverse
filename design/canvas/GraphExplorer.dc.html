@@ -1,0 +1,157 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,500;0,7..72,600;1,7..72,400&display=swap">
+  <style>
+*{box-sizing:border-box}
+body{margin:0}
+a{color:var(--accent);text-decoration:none}
+a:hover{color:var(--accent);text-decoration:underline}
+.rt{
+  --paper:#FAF7F2;--surface:#FFFDFA;--sunken:#F2EDE4;--line:#E2DACD;
+  --ink:#2B2622;--ink2:#6B6157;--ink3:#756A5C;
+  --accent:#A8502A;--accentSoft:#F4E7DF;--accentInk:#FFF9F5;
+  --kin:#2C6E6A;--rom:#A6385C;--soc:#8A6A12;--adv:#5D4A96;
+  --ok:#3F6D45;--warn:#8A5A12;--err:#9E3B30;
+  --shadow:0 2px 3px -1px rgba(43,38,34,.07),0 7px 14px -10px rgba(43,38,34,.20);
+  background:var(--paper);color:var(--ink);
+  font-family:'IBM Plex Sans',ui-sans-serif,system-ui,sans-serif;
+  font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;
+}
+.rt.dark{
+  --paper:#1C1815;--surface:#24201C;--sunken:#161311;--line:#3A342E;
+  --ink:#EDE6DC;--ink2:#B3A899;--ink3:#9C9183;
+  --accent:#D98357;--accentSoft:#33251D;--accentInk:#1C1815;
+  --kin:#63B5AE;--rom:#E08098;--soc:#C9A23C;--adv:#A493DB;
+  --ok:#7FB98A;--warn:#D2A44E;--err:#E08A7E;
+  --shadow:0 2px 3px -1px rgba(0,0,0,.4),0 7px 14px -10px rgba(0,0,0,.65);
+}
+.serif{font-family:Literata,Georgia,'Times New Roman',serif}
+.mono{font-family:'IBM Plex Mono',ui-monospace,SFMono-Regular,monospace}
+.pref{display:inline-flex;align-items:baseline;gap:3px;color:var(--accent);
+ font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:500;
+ font-variant-numeric:tabular-nums oldstyle-nums;letter-spacing:-.01em;
+ text-decoration:none;white-space:nowrap;cursor:pointer;
+ border-bottom:1px dotted currentColor;padding-bottom:1px}
+.pref:hover{border-bottom-style:solid;text-decoration:none}
+.pref.focus{outline:2px solid var(--accent);outline-offset:3px;border-radius:2px}
+/* a standalone reference at the end of a line, set like an index entry */
+.pref.trail{margin-left:auto}
+.aliases{display:flex;flex-wrap:wrap;align-items:baseline;gap:0;
+ font-family:Literata,Georgia,serif;font-size:13.5px;font-style:italic;color:var(--ink2)}
+.aliases > span:not(:last-child)::after{content:'·';margin:0 .5em;font-style:normal;color:var(--ink3)}
+.state{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;letter-spacing:.005em}
+.state i{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none;font-style:normal}
+.navit{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:7px;
+ color:var(--ink2);font-size:13.5px;font-weight:500;cursor:pointer}
+.navit.on{background:var(--accentSoft);color:var(--accent)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px}
+.lbl{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3)}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:2px 7px;border-radius:3px;
+ border:1px solid var(--line);color:var(--ink2);font-size:12.5px;background:transparent}
+/* browser surfaces — themed, not left to the browser */
+.rt ::selection{background:var(--accentSoft);color:var(--accent)}
+.rt{accent-color:var(--accent);caret-color:var(--accent);scrollbar-color:var(--line) transparent;scrollbar-width:thin}
+.rt a{text-underline-offset:2px;text-decoration-thickness:1px}
+.rt :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mono,.num{font-variant-numeric:tabular-nums}
+.rt ::placeholder{color:var(--ink3);opacity:1}
+
+.lbl.long{text-transform:none;letter-spacing:0;font-size:13px;color:var(--ink2);font-weight:600}
+
+
+  </style>
+</helmet>
+<div class="rt {{theme}}" style="width:1440px;display:flex;flex-direction:column">
+<header style="display:flex;align-items:center;gap:18px;height:56px;padding:0 20px;border-bottom:1px solid var(--line);background:var(--surface);flex:none">
+  <div style="display:flex;align-items:center;gap:9px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="6" r="2.2"/><circle cx="19" cy="6" r="2.2"/><circle cx="12" cy="18.5" r="2.2"/><path d="M7.2 6h9.6"/><path d="M6.4 8.1 10.6 16.6"/><path d="M17.6 8.1 13.4 16.6"/></svg><span class="serif" style="font-size:17px;font-weight:600;letter-spacing:-.01em">Traverse</span></div>
+  <div style="width:1px;height:22px;background:var(--line)"></div>
+  <div style="display:flex;align-items:center;gap:8px;padding:5px 10px;border:1px solid var(--line);border-radius:7px;background:var(--sunken)">
+    <span class="serif" style="font-size:14px">Pride and Prejudice</span><span style="color:var(--ink3);display:flex"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span></div>
+  <div style="flex-grow:1"></div>
+  <div style="display:flex;align-items:center;gap:8px;width:250px;padding:6px 11px;border:1px solid var(--line);border-radius:7px;background:var(--sunken);color:var(--ink3)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><span style="font-size:13px">Search characters, passages…</span></div>
+  <div style="width:29px;height:29px;border-radius:50%;background:var(--accentSoft);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600">AR</div>
+</header>
+<div style="display:flex;min-height:844px">
+<nav style="width:212px;flex:none;border-right:1px solid var(--line);background:var(--surface);padding:16px 12px;display:flex;flex-direction:column;gap:2px">
+  <div class="lbl" style="padding:4px 12px 8px">Project</div><div class="navit"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg><span>Library</span></div><div class="navit"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>Characters</span></div><div class="navit on"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="6" r="2.2"/><circle cx="19" cy="6" r="2.2"/><circle cx="12" cy="18.5" r="2.2"/><path d="M7.2 6h9.6"/><path d="M6.4 8.1 10.6 16.6"/><path d="M17.6 8.1 13.4 16.6"/></svg><span>Graph</span></div><div class="navit"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>Ask</span></div><div class="navit"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11.5l2.5 2.5L21 4.5"/><path d="M21 12.5V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>Review</span><span style="margin-left:auto;font-size:12px;font-weight:600;padding:1px 6px;border-radius:999px;background:var(--accent);color:var(--accentInk)">7</span></div><div class="navit"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg><span>Ops</span></div>
+  <div style="flex-grow:1"></div>
+  <div style="padding:10px 12px;border-top:1px solid var(--line);color:var(--ink3);font-size:12.5px;line-height:1.5">Running locally<br>Qwen3-8B · no data leaves this machine</div>
+</nav>
+<div style="flex-grow:1;display:flex;min-width:0">
+
+  <aside style="width:236px;flex:none;border-right:1px solid var(--line);background:var(--surface);padding:20px 18px;display:flex;flex-direction:column;gap:22px">
+    <div style="display:flex;flex-direction:column;gap:2px">
+      <span class="lbl" style="margin-bottom:6px">Kind of tie</span>
+      <div style="display:flex;align-items:center;gap:9px;padding:6px 0;font-size:13px;color:var(--ink)"><div style="width:15px;height:15px;border-radius:4px;flex:none;display:flex;align-items:center;justify-content:center;background:var(--accent);color:var(--accentInk)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div><svg width="22" height="8" style="flex:none"><line x1="1" y1="4" x2="21" y2="4" stroke="var(--kin)" stroke-width="2.2" stroke-dasharray="0" stroke-linecap="round"/></svg><span style="flex-grow:1">Kinship</span></div><div style="display:flex;align-items:center;gap:9px;padding:6px 0;font-size:13px;color:var(--ink)"><div style="width:15px;height:15px;border-radius:4px;flex:none;display:flex;align-items:center;justify-content:center;background:var(--accent);color:var(--accentInk)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div><svg width="22" height="8" style="flex:none"><line x1="1" y1="4" x2="21" y2="4" stroke="var(--rom)" stroke-width="2.2" stroke-dasharray="7 5" stroke-linecap="round"/></svg><span style="flex-grow:1">Romantic</span></div><div style="display:flex;align-items:center;gap:9px;padding:6px 0;font-size:13px;color:var(--ink)"><div style="width:15px;height:15px;border-radius:4px;flex:none;display:flex;align-items:center;justify-content:center;background:var(--accent);color:var(--accentInk)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div><svg width="22" height="8" style="flex:none"><line x1="1" y1="4" x2="21" y2="4" stroke="var(--soc)" stroke-width="2.2" stroke-dasharray="2 4" stroke-linecap="round"/></svg><span style="flex-grow:1">Social</span></div><div style="display:flex;align-items:center;gap:9px;padding:6px 0;font-size:13px;color:var(--ink)"><div style="width:15px;height:15px;border-radius:4px;flex:none;display:flex;align-items:center;justify-content:center;background:var(--accent);color:var(--accentInk)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div><svg width="22" height="8" style="flex:none"><line x1="1" y1="4" x2="21" y2="4" stroke="var(--adv)" stroke-width="2.2" stroke-dasharray="9 4 2 4" stroke-linecap="round"/></svg><span style="flex-grow:1">Adversarial</span></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:2px">
+      <span class="lbl" style="margin-bottom:6px">How prominent</span>
+      <div style="display:flex;align-items:center;gap:9px;padding:6px 0;font-size:13px;color:var(--ink)"><div style="width:15px;height:15px;border-radius:4px;flex:none;display:flex;align-items:center;justify-content:center;background:var(--accent);color:var(--accentInk)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div><span style="flex-grow:1">Protagonists</span></div><div style="display:flex;align-items:center;gap:9px;padding:6px 0;font-size:13px;color:var(--ink)"><div style="width:15px;height:15px;border-radius:4px;flex:none;display:flex;align-items:center;justify-content:center;background:var(--accent);color:var(--accentInk)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div><span style="flex-grow:1">Major</span></div><div style="display:flex;align-items:center;gap:9px;padding:6px 0;font-size:13px;color:var(--ink)"><div style="width:15px;height:15px;border-radius:4px;flex:none;display:flex;align-items:center;justify-content:center;background:var(--accent);color:var(--accentInk)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div><span style="flex-grow:1">Minor</span></div><div style="display:flex;align-items:center;gap:9px;padding:6px 0;font-size:13px;color:var(--ink)"><div style="width:15px;height:15px;border-radius:4px;flex:none;display:flex;align-items:center;justify-content:center;border:1.5px solid var(--line)"></div><span style="flex-grow:1">Mentioned once</span></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:9px">
+      <span class="lbl">Confidence above</span>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="flex-grow:1;height:4px;border-radius:2px;background:var(--sunken);position:relative">
+          <div style="position:absolute;left:0;top:0;bottom:0;width:62%;background:var(--accent);border-radius:2px"></div>
+          <div style="position:absolute;left:62%;top:-5px;width:14px;height:14px;border-radius:50%;background:var(--surface);border:2px solid var(--accent)"></div></div>
+        <span class="mono" style="font-size:12px;color:var(--ink2)">0.62</span></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:9px">
+      <span class="lbl">I have read up to</span>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="flex-grow:1;height:4px;border-radius:2px;background:var(--sunken);position:relative">
+          <div style="position:absolute;left:0;top:0;bottom:0;width:100%;background:var(--accent);border-radius:2px"></div>
+          <div style="position:absolute;left:calc(100% - 14px);top:-5px;width:14px;height:14px;border-radius:50%;background:var(--surface);border:2px solid var(--accent)"></div></div>
+        <span class="mono" style="font-size:12px;color:var(--ink2)">ch. 61</span></div>
+      <p style="margin:0;font-size:12.5px;line-height:1.55;color:var(--ink3)">Drag back and anything you have not reached disappears — from the graph, the answers and the citations.</p>
+    </div>
+    <div style="flex-grow:1"></div>
+    <div style="padding-top:16px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:7px">
+      <div class="mono" style="font-size:12.5px;color:var(--ink3)">47 people · 214 ties</div>
+      <div class="mono" style="font-size:12.5px;color:var(--ink3)">showing 15 · 30 ties</div>
+    </div>
+  </aside>
+
+  <main style="flex-grow:1;min-width:0;display:flex;flex-direction:column;background:var(--sunken)">
+    <div style="display:flex;align-items:center;gap:14px;padding:14px 24px;border-bottom:1px solid var(--line);background:var(--surface)">
+      <h1 class="serif" style="margin:0;font-size:19px;font-weight:600">Who knows whom</h1>
+      <span class="mono" style="font-size:12px;color:var(--ink3)">Pride and Prejudice · all 61 chapters</span>
+      <div style="flex-grow:1"></div>
+      <div style="display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden">
+        <div style="display:flex;align-items:center;gap:6px;padding:7px 12px;background:var(--accent);color:var(--accentInk);font-size:12.5px;font-weight:600"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="6" r="2.2"/><circle cx="19" cy="6" r="2.2"/><circle cx="12" cy="18.5" r="2.2"/><path d="M7.2 6h9.6"/><path d="M6.4 8.1 10.6 16.6"/><path d="M17.6 8.1 13.4 16.6"/></svg>Graph</div>
+        <div style="display:flex;align-items:center;gap:6px;padding:7px 12px;background:var(--surface);color:var(--ink2);font-size:12.5px;font-weight:500"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11.5l2.5 2.5L21 4.5"/><path d="M21 12.5V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>List</div>
+      </div>
+    </div>
+
+    <div style="position:relative;flex-grow:1;padding:22px 24px;display:flex;align-items:center;justify-content:center">
+      <svg width="1000" height="690" viewBox="0 0 1000 690" role="img" aria-label="Character relationship graph for Pride and Prejudice"><line x1="430" y1="352" x2="322" y2="196" stroke="var(--kin)" stroke-width="3.0" stroke-dasharray="0" stroke-linecap="round" opacity="0.62"/><line x1="430" y1="352" x2="236" y2="424" stroke="var(--kin)" stroke-width="2.6" stroke-dasharray="0" stroke-linecap="round" opacity="0.62"/><line x1="430" y1="352" x2="332" y2="512" stroke="var(--kin)" stroke-width="2.8" stroke-dasharray="0" stroke-linecap="round" opacity="0.62"/><line x1="430" y1="352" x2="172" y2="318" stroke="var(--kin)" stroke-width="2.2" stroke-dasharray="0" stroke-linecap="round" opacity="0.62"/><line x1="430" y1="352" x2="186" y2="522" stroke="var(--kin)" stroke-width="1.6" stroke-dasharray="0" stroke-linecap="round" opacity="0.62"/><line x1="322" y1="196" x2="236" y2="424" stroke="var(--kin)" stroke-width="2.0" stroke-dasharray="0" stroke-linecap="round" opacity="0.62"/><line x1="322" y1="196" x2="332" y2="512" stroke="var(--kin)" stroke-width="1.8" stroke-dasharray="0" stroke-linecap="round" opacity="0.62"/><line x1="172" y1="318" x2="236" y2="424" stroke="var(--kin)" stroke-width="1.8" stroke-dasharray="0" stroke-linecap="round" opacity="0.62"/><line x1="332" y1="512" x2="236" y2="424" stroke="var(--rom)" stroke-width="2.4" stroke-dasharray="7 5" stroke-linecap="round" opacity="0.62"/><line x1="128" y1="196" x2="430" y2="352" stroke="var(--kin)" stroke-width="1.9" stroke-dasharray="0" stroke-linecap="round" opacity="0.62"/><line x1="128" y1="196" x2="322" y2="196" stroke="var(--kin)" stroke-width="1.4" stroke-dasharray="0" stroke-linecap="round" opacity="0.62"/><line x1="614" y1="592" x2="332" y2="512" stroke="var(--kin)" stroke-width="1.5" stroke-dasharray="0" stroke-linecap="round" opacity="0.62"/><line x1="668" y1="306" x2="858" y2="268" stroke="var(--kin)" stroke-width="2.0" stroke-dasharray="0" stroke-linecap="round" opacity="0.62"/><line x1="668" y1="306" x2="820" y2="470" stroke="var(--kin)" stroke-width="1.8" stroke-dasharray="0" stroke-linecap="round" opacity="0.62"/><line x1="566" y1="158" x2="772" y2="82" stroke="var(--kin)" stroke-width="1.8" stroke-dasharray="0" stroke-linecap="round" opacity="0.62"/><line x1="430" y1="352" x2="668" y2="306" stroke="var(--rom)" stroke-width="5.6" stroke-dasharray="7 5" stroke-linecap="round" opacity="0.95"/><line x1="322" y1="196" x2="566" y2="158" stroke="var(--rom)" stroke-width="3.4" stroke-dasharray="7 5" stroke-linecap="round" opacity="0.62"/><line x1="472" y1="558" x2="614" y2="592" stroke="var(--rom)" stroke-width="2.2" stroke-dasharray="7 5" stroke-linecap="round" opacity="0.62"/><line x1="172" y1="318" x2="700" y2="176" stroke="var(--rom)" stroke-width="2.4" stroke-dasharray="7 5" stroke-linecap="round" opacity="0.62"/><line x1="430" y1="352" x2="614" y2="592" stroke="var(--rom)" stroke-width="1.7" stroke-dasharray="7 5" stroke-linecap="round" opacity="0.62"/><line x1="430" y1="352" x2="472" y2="558" stroke="var(--soc)" stroke-width="2.6" stroke-dasharray="2 4" stroke-linecap="round" opacity="0.62"/><line x1="668" y1="306" x2="566" y2="158" stroke="var(--soc)" stroke-width="3.0" stroke-dasharray="2 4" stroke-linecap="round" opacity="0.62"/><line x1="430" y1="352" x2="128" y2="196" stroke="var(--soc)" stroke-width="1.6" stroke-dasharray="2 4" stroke-linecap="round" opacity="0.62"/><line x1="772" y1="82" x2="322" y2="196" stroke="var(--soc)" stroke-width="1.6" stroke-dasharray="2 4" stroke-linecap="round" opacity="0.62"/><line x1="820" y1="470" x2="614" y2="592" stroke="var(--soc)" stroke-width="2.0" stroke-dasharray="2 4" stroke-linecap="round" opacity="0.62"/><line x1="472" y1="558" x2="322" y2="196" stroke="var(--soc)" stroke-width="1.3" stroke-dasharray="2 4" stroke-linecap="round" opacity="0.62"/><line x1="430" y1="352" x2="700" y2="176" stroke="var(--adv)" stroke-width="2.4" stroke-dasharray="9 4 2 4" stroke-linecap="round" opacity="0.62"/><line x1="430" y1="352" x2="820" y2="470" stroke="var(--adv)" stroke-width="2.2" stroke-dasharray="9 4 2 4" stroke-linecap="round" opacity="0.62"/><line x1="668" y1="306" x2="700" y2="176" stroke="var(--adv)" stroke-width="2.6" stroke-dasharray="9 4 2 4" stroke-linecap="round" opacity="0.62"/><line x1="772" y1="82" x2="430" y2="352" stroke="var(--adv)" stroke-width="1.8" stroke-dasharray="9 4 2 4" stroke-linecap="round" opacity="0.62"/><circle cx="430" cy="352" r="34" fill="var(--surface)" stroke="var(--ink)" stroke-width="2.2"/><circle cx="430" cy="352" r="30" fill="var(--accent)" opacity="0.22"/><text x="430" y="401" text-anchor="middle" font-family="Literata,Georgia,serif" font-size="14.5" font-weight="600" fill="var(--ink)">Elizabeth Bennet</text><circle cx="668" cy="306" r="29" fill="var(--surface)" stroke="var(--ink)" stroke-width="2.2"/><circle cx="668" cy="306" r="25" fill="var(--accent)" opacity="0.22"/><text x="668" y="350" text-anchor="middle" font-family="Literata,Georgia,serif" font-size="14.5" font-weight="600" fill="var(--ink)">Fitzwilliam Darcy</text><circle cx="322" cy="196" r="23" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.4"/><circle cx="322" cy="196" r="19" fill="var(--accent)" opacity="0.13"/><text x="322" y="234" text-anchor="middle" font-family="Literata,Georgia,serif" font-size="12.5" font-weight="600" fill="var(--ink)">Jane Bennet</text><circle cx="566" cy="158" r="21" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.4"/><circle cx="566" cy="158" r="17" fill="var(--accent)" opacity="0.13"/><text x="566" y="194" text-anchor="middle" font-family="Literata,Georgia,serif" font-size="12.5" font-weight="600" fill="var(--ink)">Charles Bingley</text><circle cx="236" cy="424" r="20" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.4"/><circle cx="236" cy="424" r="16" fill="var(--accent)" opacity="0.13"/><text x="236" y="459" text-anchor="middle" font-family="Literata,Georgia,serif" font-size="12.5" font-weight="600" fill="var(--ink)">Mrs Bennet</text><circle cx="332" cy="512" r="19" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.4"/><circle cx="332" cy="512" r="15" fill="var(--accent)" opacity="0.13"/><text x="332" y="546" text-anchor="middle" font-family="Literata,Georgia,serif" font-size="12.5" font-weight="600" fill="var(--ink)">Mr Bennet</text><circle cx="172" cy="318" r="18" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.4"/><circle cx="172" cy="318" r="14" fill="var(--accent)" opacity="0.13"/><text x="172" y="351" text-anchor="middle" font-family="Literata,Georgia,serif" font-size="12.5" font-weight="600" fill="var(--ink)">Lydia Bennet</text><circle cx="700" cy="176" r="18" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.4"/><circle cx="700" cy="176" r="14" fill="var(--accent)" opacity="0.13"/><text x="700" y="209" text-anchor="middle" font-family="Literata,Georgia,serif" font-size="12.5" font-weight="600" fill="var(--ink)">George Wickham</text><circle cx="614" cy="592" r="17" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.4"/><circle cx="614" cy="592" r="13" fill="var(--accent)" opacity="0.13"/><text x="614" y="624" text-anchor="middle" font-family="Literata,Georgia,serif" font-size="12.5" font-weight="600" fill="var(--ink)">Mr Collins</text><circle cx="472" cy="558" r="17" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.4"/><circle cx="472" cy="558" r="13" fill="var(--accent)" opacity="0.07"/><text x="472" y="590" text-anchor="middle" font-family="Literata,Georgia,serif" font-size="11.5" font-weight="500" fill="var(--ink)">Charlotte</text><circle cx="820" cy="470" r="17" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.4"/><circle cx="820" cy="470" r="13" fill="var(--accent)" opacity="0.07"/><text x="820" y="502" text-anchor="middle" font-family="Literata,Georgia,serif" font-size="11.5" font-weight="500" fill="var(--ink)">Lady</text><circle cx="772" cy="82" r="15" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.4"/><circle cx="772" cy="82" r="11" fill="var(--accent)" opacity="0.07"/><text x="772" y="112" text-anchor="middle" font-family="Literata,Georgia,serif" font-size="11.5" font-weight="500" fill="var(--ink)">Caroline</text><circle cx="186" cy="522" r="14" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.4"/><circle cx="186" cy="522" r="10" fill="var(--accent)" opacity="0.07"/><text x="186" y="551" text-anchor="middle" font-family="Literata,Georgia,serif" font-size="11.5" font-weight="500" fill="var(--ink)">Mary</text><circle cx="858" cy="268" r="14" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.4"/><circle cx="858" cy="268" r="10" fill="var(--accent)" opacity="0.07"/><text x="858" y="297" text-anchor="middle" font-family="Literata,Georgia,serif" font-size="11.5" font-weight="500" fill="var(--ink)">Georgiana</text><circle cx="128" cy="196" r="14" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.4"/><circle cx="128" cy="196" r="10" fill="var(--accent)" opacity="0.07"/><text x="128" y="225" text-anchor="middle" font-family="Literata,Georgia,serif" font-size="11.5" font-weight="500" fill="var(--ink)">Mrs</text></svg>
+      <div class="card" style="position:absolute;left:36px;bottom:26px;padding:14px 16px;display:flex;flex-direction:column;gap:9px;box-shadow:var(--shadow)">
+        <span class="lbl">How to read it</span>
+        <div style="display:flex;align-items:center;gap:9px;font-size:12px"><svg width="26" height="8" style="flex:none"><line x1="1" y1="4" x2="25" y2="4" stroke="var(--kin)" stroke-width="2.4" stroke-dasharray="0" stroke-linecap="round"/></svg><span style="color:var(--ink2)">Kinship</span></div><div style="display:flex;align-items:center;gap:9px;font-size:12px"><svg width="26" height="8" style="flex:none"><line x1="1" y1="4" x2="25" y2="4" stroke="var(--rom)" stroke-width="2.4" stroke-dasharray="7 5" stroke-linecap="round"/></svg><span style="color:var(--ink2)">Romantic</span></div><div style="display:flex;align-items:center;gap:9px;font-size:12px"><svg width="26" height="8" style="flex:none"><line x1="1" y1="4" x2="25" y2="4" stroke="var(--soc)" stroke-width="2.4" stroke-dasharray="2 4" stroke-linecap="round"/></svg><span style="color:var(--ink2)">Social</span></div><div style="display:flex;align-items:center;gap:9px;font-size:12px"><svg width="26" height="8" style="flex:none"><line x1="1" y1="4" x2="25" y2="4" stroke="var(--adv)" stroke-width="2.4" stroke-dasharray="9 4 2 4" stroke-linecap="round"/></svg><span style="color:var(--ink2)">Adversarial</span></div>
+        <div style="padding-top:8px;border-top:1px solid var(--line);font-size:12.5px;color:var(--ink3);line-height:1.5;max-width:20ch">Thicker means more passages say so. Bigger means more of the book.</div>
+      </div>
+      <div class="card" style="position:absolute;right:36px;top:26px;padding:12px 15px;display:flex;align-items:center;gap:10px;box-shadow:var(--shadow)">
+        <svg width="30" height="8" style="flex:none"><line x1="1" y1="4" x2="29" y2="4" stroke="var(--rom)" stroke-width="4" stroke-dasharray="7 5" stroke-linecap="round"/></svg>
+        <div><div class="serif" style="font-size:13.5px;font-weight:600">Elizabeth &amp; Darcy</div>
+        <div style="font-size:12.5px;color:var(--ink3)">84 passages · click for the pages</div></div>
+      </div>
+    </div>
+  </main>
+</div></div></div>
+</x-dc>
+<script data-dc-script data-props='{"$preview": {"width": 1440, "height": 900}, "dark": {"editor": "boolean", "default": false, "section": "Theme"}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { theme: this.props.dark ? 'dark' : '' };
+  }
+}
+</script>
+</body>
+</html>

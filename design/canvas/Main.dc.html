@@ -1,0 +1,249 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,500;0,7..72,600;1,7..72,400&display=swap">
+  <style>
+*{box-sizing:border-box}
+body{margin:0}
+a{color:var(--accent);text-decoration:none}
+a:hover{color:var(--accent);text-decoration:underline}
+.rt{
+  --paper:#FAF7F2;--surface:#FFFDFA;--sunken:#F2EDE4;--line:#E2DACD;
+  --ink:#2B2622;--ink2:#6B6157;--ink3:#756A5C;
+  --accent:#A8502A;--accentSoft:#F4E7DF;--accentInk:#FFF9F5;
+  --kin:#2C6E6A;--rom:#A6385C;--soc:#8A6A12;--adv:#5D4A96;
+  --ok:#3F6D45;--warn:#8A5A12;--err:#9E3B30;
+  --shadow:0 2px 3px -1px rgba(43,38,34,.07),0 7px 14px -10px rgba(43,38,34,.20);
+  background:var(--paper);color:var(--ink);
+  font-family:'IBM Plex Sans',ui-sans-serif,system-ui,sans-serif;
+  font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;
+}
+.rt.dark{
+  --paper:#1C1815;--surface:#24201C;--sunken:#161311;--line:#3A342E;
+  --ink:#EDE6DC;--ink2:#B3A899;--ink3:#9C9183;
+  --accent:#D98357;--accentSoft:#33251D;--accentInk:#1C1815;
+  --kin:#63B5AE;--rom:#E08098;--soc:#C9A23C;--adv:#A493DB;
+  --ok:#7FB98A;--warn:#D2A44E;--err:#E08A7E;
+  --shadow:0 2px 3px -1px rgba(0,0,0,.4),0 7px 14px -10px rgba(0,0,0,.65);
+}
+.serif{font-family:Literata,Georgia,'Times New Roman',serif}
+.mono{font-family:'IBM Plex Mono',ui-monospace,SFMono-Regular,monospace}
+.pref{display:inline-flex;align-items:baseline;gap:3px;color:var(--accent);
+ font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:500;
+ font-variant-numeric:tabular-nums oldstyle-nums;letter-spacing:-.01em;
+ text-decoration:none;white-space:nowrap;cursor:pointer;
+ border-bottom:1px dotted currentColor;padding-bottom:1px}
+.pref:hover{border-bottom-style:solid;text-decoration:none}
+.pref.focus{outline:2px solid var(--accent);outline-offset:3px;border-radius:2px}
+/* a standalone reference at the end of a line, set like an index entry */
+.pref.trail{margin-left:auto}
+.aliases{display:flex;flex-wrap:wrap;align-items:baseline;gap:0;
+ font-family:Literata,Georgia,serif;font-size:13.5px;font-style:italic;color:var(--ink2)}
+.aliases > span:not(:last-child)::after{content:'·';margin:0 .5em;font-style:normal;color:var(--ink3)}
+.state{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;letter-spacing:.005em}
+.state i{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none;font-style:normal}
+.navit{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:7px;
+ color:var(--ink2);font-size:13.5px;font-weight:500;cursor:pointer}
+.navit.on{background:var(--accentSoft);color:var(--accent)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px}
+.lbl{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3)}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:2px 7px;border-radius:3px;
+ border:1px solid var(--line);color:var(--ink2);font-size:12.5px;background:transparent}
+/* browser surfaces — themed, not left to the browser */
+.rt ::selection{background:var(--accentSoft);color:var(--accent)}
+.rt{accent-color:var(--accent);caret-color:var(--accent);scrollbar-color:var(--line) transparent;scrollbar-width:thin}
+.rt a{text-underline-offset:2px;text-decoration-thickness:1px}
+.rt :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mono,.num{font-variant-numeric:tabular-nums}
+.rt ::placeholder{color:var(--ink3);opacity:1}
+
+.lbl.long{text-transform:none;letter-spacing:0;font-size:13px;color:var(--ink2);font-weight:600}
+
+
+  </style>
+</helmet>
+<div class="rt" style="width:1440px;display:flex;flex-direction:column">
+<header style="display:flex;align-items:center;gap:18px;height:56px;padding:0 20px;border-bottom:1px solid var(--line);background:var(--surface);flex:none">
+  <div style="display:flex;align-items:center;gap:9px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="6" r="2.2"/><circle cx="19" cy="6" r="2.2"/><circle cx="12" cy="18.5" r="2.2"/><path d="M7.2 6h9.6"/><path d="M6.4 8.1 10.6 16.6"/><path d="M17.6 8.1 13.4 16.6"/></svg><span class="serif" style="font-size:17px;font-weight:600;letter-spacing:-.01em">Traverse</span></div>
+  <div style="width:1px;height:22px;background:var(--line)"></div>
+  <div style="display:flex;align-items:center;gap:8px;padding:5px 10px;border:1px solid var(--line);border-radius:7px;background:var(--sunken)">
+    <span class="serif" style="font-size:14px">Pride and Prejudice</span><span style="color:var(--ink3);display:flex"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span></div>
+  <div style="flex-grow:1"></div>
+  <div style="display:flex;align-items:center;gap:8px;width:250px;padding:6px 11px;border:1px solid var(--line);border-radius:7px;background:var(--sunken);color:var(--ink3)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><span style="font-size:13px">Search characters, passages…</span></div>
+  <div style="width:29px;height:29px;border-radius:50%;background:var(--accentSoft);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600">AR</div>
+</header>
+<div style="display:flex;min-height:1010px">
+<nav style="width:212px;flex:none;border-right:1px solid var(--line);background:var(--surface);padding:16px 12px;display:flex;flex-direction:column;gap:2px">
+  <div class="lbl" style="padding:4px 12px 8px">Project</div><div class="navit on"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg><span>Library</span></div><div class="navit"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>Characters</span></div><div class="navit"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="6" r="2.2"/><circle cx="19" cy="6" r="2.2"/><circle cx="12" cy="18.5" r="2.2"/><path d="M7.2 6h9.6"/><path d="M6.4 8.1 10.6 16.6"/><path d="M17.6 8.1 13.4 16.6"/></svg><span>Graph</span></div><div class="navit"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>Ask</span></div><div class="navit"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11.5l2.5 2.5L21 4.5"/><path d="M21 12.5V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>Review</span><span style="margin-left:auto;font-size:12px;font-weight:600;padding:1px 6px;border-radius:999px;background:var(--accent);color:var(--accentInk)">7</span></div><div class="navit"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg><span>Ops</span></div>
+  <div style="flex-grow:1"></div>
+  <div style="padding:10px 12px;border-top:1px solid var(--line);color:var(--ink3);font-size:12.5px;line-height:1.5">Running locally<br>Qwen3-8B · no data leaves this machine</div>
+</nav>
+<main style="flex-grow:1;padding:26px 40px 40px;display:flex;flex-direction:column;gap:26px;max-width:1228px">
+
+  <div style="display:flex;align-items:flex-end;gap:16px;padding-bottom:18px;border-bottom:1px solid var(--line)">
+    <div>
+      <h1 class="serif" style="margin:0;font-size:30px;font-weight:600;letter-spacing:-.015em;line-height:1.15">The reading tool, not the dashboard</h1>
+      <p style="margin:8px 0 0;max-width:62ch;color:var(--ink2);font-size:14.5px;line-height:1.6">Literata carries anything a reader reads — names, book titles, quoted passages. IBM Plex Sans carries the interface around it, and IBM Plex Mono carries anything precise: page numbers, counts, confidence.</p>
+    </div>
+  </div>
+
+  <section style="display:flex;flex-direction:column;gap:14px">
+    <div class="lbl">Type</div>
+    <div class="card" style="padding:26px 28px;display:flex;flex-direction:column;gap:18px">
+      <div style="display:flex;align-items:baseline;gap:22px">
+        <span class="mono" style="width:120px;flex:none;font-size:12px;color:var(--ink3)">display / 30</span>
+        <span class="serif" style="font-size:30px;font-weight:600;letter-spacing:-.015em">Elizabeth Bennet</span></div>
+      <div style="display:flex;align-items:baseline;gap:22px">
+        <span class="mono" style="width:120px;flex:none;font-size:12px;color:var(--ink3)">heading / 20</span>
+        <span class="serif" style="font-size:20px;font-weight:600">Pride and Prejudice</span></div>
+      <div style="display:flex;align-items:baseline;gap:22px">
+        <span class="mono" style="width:120px;flex:none;font-size:12px;color:var(--ink3)">quote / 16.5</span>
+        <span class="serif" style="font-size:16.5px;font-style:italic;line-height:1.55;max-width:56ch;color:var(--ink)">“She is tolerable, but not handsome enough to tempt me; and I am in no humour at present to give consequence to young ladies who are slighted by other men.”</span></div>
+      <div style="display:flex;align-items:baseline;gap:22px">
+        <span class="mono" style="width:120px;flex:none;font-size:12px;color:var(--ink3)">body / 14.5</span>
+        <span style="font-size:14.5px;max-width:64ch;line-height:1.6;color:var(--ink2)">Interface copy sits in Plex Sans at a comfortable measure. Never wider than about sixty-five characters, because this is something people read rather than scan.</span></div>
+      <div style="display:flex;align-items:baseline;gap:22px">
+        <span class="mono" style="width:120px;flex:none;font-size:12px;color:var(--ink3)">data / mono 12</span>
+        <span class="mono" style="font-size:12px;color:var(--ink2)">p. 214 · ch. 34 · 41 mentions · 0.94</span></div>
+    </div>
+  </section>
+
+  <div style="display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:26px">
+    <section style="display:flex;flex-direction:column;gap:14px">
+      <div class="lbl long">Surfaces and ink — light</div>
+      <div class="card" style="padding:22px;display:grid;grid-template-columns:repeat(4, minmax(0, 1fr));gap:14px">
+        <div style="display:flex;flex-direction:column;gap:6px">
+  <div style="height:44px;border-radius:7px;background:#FAF7F2;border:1px solid var(--line)"></div>
+  <div style="font-size:12.5px;font-weight:600">paper</div><div style="font-size:12px;color:var(--ink3)">page ground</div></div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+  <div style="height:44px;border-radius:7px;background:#FFFDFA;border:1px solid var(--line)"></div>
+  <div style="font-size:12.5px;font-weight:600">surface</div><div style="font-size:12px;color:var(--ink3)">cards, bars</div></div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+  <div style="height:44px;border-radius:7px;background:#F2EDE4;border:1px solid var(--line)"></div>
+  <div style="font-size:12.5px;font-weight:600">sunken</div><div style="font-size:12px;color:var(--ink3)">wells, inputs</div></div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+  <div style="height:44px;border-radius:7px;background:#E2DACD;border:1px solid var(--line)"></div>
+  <div style="font-size:12.5px;font-weight:600">line</div><div style="font-size:12px;color:var(--ink3)">borders</div></div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+  <div style="height:44px;border-radius:7px;background:#2B2622;border:1px solid var(--line)"></div>
+  <div style="font-size:12.5px;font-weight:600">ink</div><div style="font-size:12px;color:var(--ink3)">13.1:1</div></div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+  <div style="height:44px;border-radius:7px;background:#6B6157;border:1px solid var(--line)"></div>
+  <div style="font-size:12.5px;font-weight:600">ink-2</div><div style="font-size:12px;color:var(--ink3)">5.6:1</div></div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+  <div style="height:44px;border-radius:7px;background:#A8502A;border:1px solid var(--line)"></div>
+  <div style="font-size:12.5px;font-weight:600">accent</div><div style="font-size:12px;color:var(--ink3)">5.4:1</div></div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+  <div style="height:44px;border-radius:7px;background:#F4E7DF;border:1px solid var(--line)"></div>
+  <div style="font-size:12.5px;font-weight:600">accent-soft</div><div style="font-size:12px;color:var(--ink3)">chips, fills</div></div>
+      </div>
+    </section>
+
+    <section style="display:flex;flex-direction:column;gap:14px">
+      <div class="lbl long">Kinds of tie — colour <em style="font-style:normal;color:var(--accent)">and</em> line</div>
+      <div class="card" style="padding:22px;display:flex;flex-direction:column;gap:16px">
+        <div style="display:flex;align-items:center;gap:12px">
+  <svg width="56" height="10" style="flex:none"><line x1="2" y1="5" x2="54" y2="5" stroke="var(--kin)" stroke-width="2.4" stroke-dasharray="0" stroke-linecap="round"/></svg>
+  <div><div style="font-size:13px;font-weight:600;color:var(--kin)">Kinship</div>
+  <div style="font-size:12.5px;color:var(--ink3)">parent_of · sibling_of · guardian_of</div></div></div>
+        <div style="display:flex;align-items:center;gap:12px">
+  <svg width="56" height="10" style="flex:none"><line x1="2" y1="5" x2="54" y2="5" stroke="var(--rom)" stroke-width="2.4" stroke-dasharray="7 5" stroke-linecap="round"/></svg>
+  <div><div style="font-size:13px;font-weight:600;color:var(--rom)">Romantic</div>
+  <div style="font-size:12.5px;color:var(--ink3)">married_to · engaged_to · lover_of</div></div></div>
+        <div style="display:flex;align-items:center;gap:12px">
+  <svg width="56" height="10" style="flex:none"><line x1="2" y1="5" x2="54" y2="5" stroke="var(--soc)" stroke-width="2.4" stroke-dasharray="2 4" stroke-linecap="round"/></svg>
+  <div><div style="font-size:13px;font-weight:600;color:var(--soc)">Social</div>
+  <div style="font-size:12.5px;color:var(--ink3)">friend_of · employer_of · neighbour_of</div></div></div>
+        <div style="display:flex;align-items:center;gap:12px">
+  <svg width="56" height="10" style="flex:none"><line x1="2" y1="5" x2="54" y2="5" stroke="var(--adv)" stroke-width="2.4" stroke-dasharray="9 4 2 4" stroke-linecap="round"/></svg>
+  <div><div style="font-size:13px;font-weight:600;color:var(--adv)">Adversarial</div>
+  <div style="font-size:12.5px;color:var(--ink3)">rival_of · enemy_of · deceives</div></div></div>
+        <p style="margin:2px 0 0;font-size:12.5px;line-height:1.55;color:var(--ink3);border-top:1px solid var(--line);padding-top:14px">Colour never carries meaning alone. Every family owns a stroke pattern too, so the graph still reads with colour vision deficiency, in greyscale, and in an export.</p>
+      </div>
+    </section>
+  </div>
+
+  <section style="display:flex;flex-direction:column;gap:14px">
+    <div class="lbl long">The page reference</div>
+    <div class="card" style="padding:24px 26px;display:flex;flex-direction:column;gap:18px">
+      <div style="display:flex;align-items:center;gap:34px;flex-wrap:wrap">
+        <div style="display:flex;flex-direction:column;gap:7px"><span class="mono" style="font-size:12px;color:var(--ink3)">default</span><span class="pref ">p. 214</span></div>
+        <div style="display:flex;flex-direction:column;gap:7px"><span class="mono" style="font-size:12px;color:var(--ink3)">hover</span><span class="pref" style="border-bottom-style:solid">p. 214</span></div>
+        <div style="display:flex;flex-direction:column;gap:7px"><span class="mono" style="font-size:12px;color:var(--ink3)">focus-visible</span><span class="pref focus">p. 214</span></div>
+        <div style="display:flex;flex-direction:column;gap:7px"><span class="mono" style="font-size:12px;color:var(--ink3)">series</span><span class="pref ">bk 1, p. 47</span></div>
+        <div style="display:flex;flex-direction:column;gap:7px"><span class="mono" style="font-size:12px;color:var(--ink3)">range</span><span class="pref ">pp. 96–98</span></div>
+        <div style="display:flex;flex-direction:column;gap:7px"><span class="mono" style="font-size:12px;color:var(--ink3)">not yet rendered</span><span class="pref" style="color:var(--ink3);border-bottom-style:dashed">p. 331</span></div>
+      </div>
+      <p style="margin:0;font-size:13px;line-height:1.6;color:var(--ink2);border-top:1px solid var(--line);padding-top:16px;max-width:78ch">Set like a cross-reference in a printed book — oldstyle figures, a hairline rule, no capsule. It is a <strong style="color:var(--ink)">link, not a button</strong>: it takes you to the page. Its accessible name reads “page 214 of Pride and Prejudice”, never a bare number. It sits beside every fact the system states, and a fact without one is not rendered at all.</p>
+    </div>
+  </section>
+
+</main></div></div>
+
+<div class="rt dark" style="width:1440px;padding-bottom:26px;display:flex;flex-direction:column">
+<header style="display:flex;align-items:center;gap:18px;height:56px;padding:0 20px;border-bottom:1px solid var(--line);background:var(--surface);flex:none">
+  <div style="display:flex;align-items:center;gap:9px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="6" r="2.2"/><circle cx="19" cy="6" r="2.2"/><circle cx="12" cy="18.5" r="2.2"/><path d="M7.2 6h9.6"/><path d="M6.4 8.1 10.6 16.6"/><path d="M17.6 8.1 13.4 16.6"/></svg><span class="serif" style="font-size:17px;font-weight:600;letter-spacing:-.01em">Traverse</span></div>
+  <div style="width:1px;height:22px;background:var(--line)"></div>
+  <div style="display:flex;align-items:center;gap:8px;padding:5px 10px;border:1px solid var(--line);border-radius:7px;background:var(--sunken)">
+    <span class="serif" style="font-size:14px">Pride and Prejudice</span><span style="color:var(--ink3);display:flex"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span></div>
+  <div style="flex-grow:1"></div>
+  <div style="display:flex;align-items:center;gap:8px;width:250px;padding:6px 11px;border:1px solid var(--line);border-radius:7px;background:var(--sunken);color:var(--ink3)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><span style="font-size:13px">Search characters, passages…</span></div>
+  <div style="width:29px;height:29px;border-radius:50%;background:var(--accentSoft);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600">AR</div>
+</header>
+<div style="display:flex;min-height:214px">
+<nav style="width:212px;flex:none;border-right:1px solid var(--line);background:var(--surface);padding:16px 12px;display:flex;flex-direction:column;gap:2px">
+  <div class="lbl" style="padding:4px 12px 8px">Project</div><div class="navit on"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg><span>Library</span></div><div class="navit"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>Characters</span></div><div class="navit"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="6" r="2.2"/><circle cx="19" cy="6" r="2.2"/><circle cx="12" cy="18.5" r="2.2"/><path d="M7.2 6h9.6"/><path d="M6.4 8.1 10.6 16.6"/><path d="M17.6 8.1 13.4 16.6"/></svg><span>Graph</span></div><div class="navit"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>Ask</span></div><div class="navit"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11.5l2.5 2.5L21 4.5"/><path d="M21 12.5V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>Review</span><span style="margin-left:auto;font-size:12px;font-weight:600;padding:1px 6px;border-radius:999px;background:var(--accent);color:var(--accentInk)">7</span></div><div class="navit"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg><span>Ops</span></div>
+  <div style="flex-grow:1"></div>
+  <div style="padding:10px 12px;border-top:1px solid var(--line);color:var(--ink3);font-size:12.5px;line-height:1.5">Running locally<br>Qwen3-8B · no data leaves this machine</div>
+</nav>
+<main style="flex-grow:1;padding:22px 40px;display:flex;gap:30px;align-items:flex-start">
+  <div style="display:flex;flex-direction:column;gap:12px;flex-grow:1">
+    <div class="lbl long">Dark — the same page, re-tinted</div>
+    <div class="card" style="padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+      <span class="serif" style="font-size:19px;font-weight:600">Elizabeth Bennet</span>
+      <span class="serif" style="font-size:15px;font-style:italic;line-height:1.55;color:var(--ink2);max-width:52ch">“There is a stubbornness about me that never can bear to be frightened at the will of others.”</span>
+      <div style="display:flex;align-items:center;gap:10px"><span class="pref ">p. 158</span><span class="chip">narrated</span></div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(4, minmax(0, 1fr));gap:12px;width:440px">
+    <div style="display:flex;flex-direction:column;gap:6px">
+  <div style="height:44px;border-radius:7px;background:#1C1815;border:1px solid var(--line)"></div>
+  <div style="font-size:12.5px;font-weight:600">paper</div><div style="font-size:12px;color:var(--ink3)"></div></div><div style="display:flex;flex-direction:column;gap:6px">
+  <div style="height:44px;border-radius:7px;background:#24201C;border:1px solid var(--line)"></div>
+  <div style="font-size:12.5px;font-weight:600">surface</div><div style="font-size:12px;color:var(--ink3)"></div></div><div style="display:flex;flex-direction:column;gap:6px">
+  <div style="height:44px;border-radius:7px;background:#3A342E;border:1px solid var(--line)"></div>
+  <div style="font-size:12.5px;font-weight:600">line</div><div style="font-size:12px;color:var(--ink3)"></div></div><div style="display:flex;flex-direction:column;gap:6px">
+  <div style="height:44px;border-radius:7px;background:#D98357;border:1px solid var(--line)"></div>
+  <div style="font-size:12.5px;font-weight:600">accent</div><div style="font-size:12px;color:var(--ink3)">7.0:1</div></div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:14px;width:250px">
+    <div style="display:flex;align-items:center;gap:12px">
+  <svg width="56" height="10" style="flex:none"><line x1="2" y1="5" x2="54" y2="5" stroke="var(--kin)" stroke-width="2.4" stroke-dasharray="0" stroke-linecap="round"/></svg>
+  <div><div style="font-size:13px;font-weight:600;color:var(--kin)">Kinship</div>
+  <div style="font-size:12.5px;color:var(--ink3)"></div></div></div>
+    <div style="display:flex;align-items:center;gap:12px">
+  <svg width="56" height="10" style="flex:none"><line x1="2" y1="5" x2="54" y2="5" stroke="var(--rom)" stroke-width="2.4" stroke-dasharray="7 5" stroke-linecap="round"/></svg>
+  <div><div style="font-size:13px;font-weight:600;color:var(--rom)">Romantic</div>
+  <div style="font-size:12.5px;color:var(--ink3)"></div></div></div>
+    <div style="display:flex;align-items:center;gap:12px">
+  <svg width="56" height="10" style="flex:none"><line x1="2" y1="5" x2="54" y2="5" stroke="var(--soc)" stroke-width="2.4" stroke-dasharray="2 4" stroke-linecap="round"/></svg>
+  <div><div style="font-size:13px;font-weight:600;color:var(--soc)">Social</div>
+  <div style="font-size:12.5px;color:var(--ink3)"></div></div></div>
+    <div style="display:flex;align-items:center;gap:12px">
+  <svg width="56" height="10" style="flex:none"><line x1="2" y1="5" x2="54" y2="5" stroke="var(--adv)" stroke-width="2.4" stroke-dasharray="9 4 2 4" stroke-linecap="round"/></svg>
+  <div><div style="font-size:13px;font-weight:600;color:var(--adv)">Adversarial</div>
+  <div style="font-size:12.5px;color:var(--ink3)"></div></div></div>
+  </div>
+</main></div></div>
+</x-dc>
+<script data-dc-script data-props='{"$preview": {"width": 1440, "height": 1500}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

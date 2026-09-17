@@ -21,3 +21,9 @@ dist/
 
 
 sample_docs/
+
+# Claude Code — personal, per-machine
+.claude/settings.local.json
+
+# Design canvas — generated from design/canvas/gen.py + the seed helper (2.7 MB)
+design/canvas/traverse-ui.html

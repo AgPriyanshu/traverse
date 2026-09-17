@@ -1,0 +1,167 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,500;0,7..72,600;1,7..72,400&display=swap">
+  <style>
+*{box-sizing:border-box}
+body{margin:0}
+a{color:var(--accent);text-decoration:none}
+a:hover{color:var(--accent);text-decoration:underline}
+.rt{
+  --paper:#FAF7F2;--surface:#FFFDFA;--sunken:#F2EDE4;--line:#E2DACD;
+  --ink:#2B2622;--ink2:#6B6157;--ink3:#756A5C;
+  --accent:#A8502A;--accentSoft:#F4E7DF;--accentInk:#FFF9F5;
+  --kin:#2C6E6A;--rom:#A6385C;--soc:#8A6A12;--adv:#5D4A96;
+  --ok:#3F6D45;--warn:#8A5A12;--err:#9E3B30;
+  --shadow:0 2px 3px -1px rgba(43,38,34,.07),0 7px 14px -10px rgba(43,38,34,.20);
+  background:var(--paper);color:var(--ink);
+  font-family:'IBM Plex Sans',ui-sans-serif,system-ui,sans-serif;
+  font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;
+}
+.rt.dark{
+  --paper:#1C1815;--surface:#24201C;--sunken:#161311;--line:#3A342E;
+  --ink:#EDE6DC;--ink2:#B3A899;--ink3:#9C9183;
+  --accent:#D98357;--accentSoft:#33251D;--accentInk:#1C1815;
+  --kin:#63B5AE;--rom:#E08098;--soc:#C9A23C;--adv:#A493DB;
+  --ok:#7FB98A;--warn:#D2A44E;--err:#E08A7E;
+  --shadow:0 2px 3px -1px rgba(0,0,0,.4),0 7px 14px -10px rgba(0,0,0,.65);
+}
+.serif{font-family:Literata,Georgia,'Times New Roman',serif}
+.mono{font-family:'IBM Plex Mono',ui-monospace,SFMono-Regular,monospace}
+.pref{display:inline-flex;align-items:baseline;gap:3px;color:var(--accent);
+ font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:500;
+ font-variant-numeric:tabular-nums oldstyle-nums;letter-spacing:-.01em;
+ text-decoration:none;white-space:nowrap;cursor:pointer;
+ border-bottom:1px dotted currentColor;padding-bottom:1px}
+.pref:hover{border-bottom-style:solid;text-decoration:none}
+.pref.focus{outline:2px solid var(--accent);outline-offset:3px;border-radius:2px}
+/* a standalone reference at the end of a line, set like an index entry */
+.pref.trail{margin-left:auto}
+.aliases{display:flex;flex-wrap:wrap;align-items:baseline;gap:0;
+ font-family:Literata,Georgia,serif;font-size:13.5px;font-style:italic;color:var(--ink2)}
+.aliases > span:not(:last-child)::after{content:'·';margin:0 .5em;font-style:normal;color:var(--ink3)}
+.state{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;letter-spacing:.005em}
+.state i{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none;font-style:normal}
+.navit{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:7px;
+ color:var(--ink2);font-size:13.5px;font-weight:500;cursor:pointer}
+.navit.on{background:var(--accentSoft);color:var(--accent)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px}
+.lbl{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3)}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:2px 7px;border-radius:3px;
+ border:1px solid var(--line);color:var(--ink2);font-size:12.5px;background:transparent}
+/* browser surfaces — themed, not left to the browser */
+.rt ::selection{background:var(--accentSoft);color:var(--accent)}
+.rt{accent-color:var(--accent);caret-color:var(--accent);scrollbar-color:var(--line) transparent;scrollbar-width:thin}
+.rt a{text-underline-offset:2px;text-decoration-thickness:1px}
+.rt :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mono,.num{font-variant-numeric:tabular-nums}
+.rt ::placeholder{color:var(--ink3);opacity:1}
+
+.lbl.long{text-transform:none;letter-spacing:0;font-size:13px;color:var(--ink2);font-weight:600}
+
+
+  </style>
+</helmet>
+<div class="rt {{theme}}" style="width:1440px;display:flex;flex-direction:column">
+<header style="display:flex;align-items:center;gap:18px;height:56px;padding:0 20px;border-bottom:1px solid var(--line);background:var(--surface);flex:none">
+  <div style="display:flex;align-items:center;gap:9px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="6" r="2.2"/><circle cx="19" cy="6" r="2.2"/><circle cx="12" cy="18.5" r="2.2"/><path d="M7.2 6h9.6"/><path d="M6.4 8.1 10.6 16.6"/><path d="M17.6 8.1 13.4 16.6"/></svg><span class="serif" style="font-size:17px;font-weight:600;letter-spacing:-.01em">Traverse</span></div>
+  <div style="width:1px;height:22px;background:var(--line)"></div>
+  <div style="display:flex;align-items:center;gap:8px;padding:5px 10px;border:1px solid var(--line);border-radius:7px;background:var(--sunken)">
+    <span class="serif" style="font-size:14px">Pride and Prejudice</span><span style="color:var(--ink3);display:flex"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span></div>
+  <div style="flex-grow:1"></div>
+  <div style="display:flex;align-items:center;gap:8px;width:250px;padding:6px 11px;border:1px solid var(--line);border-radius:7px;background:var(--sunken);color:var(--ink3)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><span style="font-size:13px">Search characters, passages…</span></div>
+  <div style="width:29px;height:29px;border-radius:50%;background:var(--accentSoft);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600">AR</div>
+</header>
+<div style="display:flex;min-height:1064px">
+<nav style="width:212px;flex:none;border-right:1px solid var(--line);background:var(--surface);padding:16px 12px;display:flex;flex-direction:column;gap:2px">
+  <div class="lbl" style="padding:4px 12px 8px">Project</div><div class="navit"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg><span>Library</span></div><div class="navit"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>Characters</span></div><div class="navit"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="6" r="2.2"/><circle cx="19" cy="6" r="2.2"/><circle cx="12" cy="18.5" r="2.2"/><path d="M7.2 6h9.6"/><path d="M6.4 8.1 10.6 16.6"/><path d="M17.6 8.1 13.4 16.6"/></svg><span>Graph</span></div><div class="navit on"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>Ask</span></div><div class="navit"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11.5l2.5 2.5L21 4.5"/><path d="M21 12.5V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>Review</span><span style="margin-left:auto;font-size:12px;font-weight:600;padding:1px 6px;border-radius:999px;background:var(--accent);color:var(--accentInk)">7</span></div><div class="navit"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg><span>Ops</span></div>
+  <div style="flex-grow:1"></div>
+  <div style="padding:10px 12px;border-top:1px solid var(--line);color:var(--ink3);font-size:12.5px;line-height:1.5">Running locally<br>Qwen3-8B · no data leaves this machine</div>
+</nav>
+<main style="flex-grow:1;display:flex;flex-direction:column;min-width:0">
+
+  <div style="display:flex;align-items:center;gap:14px;padding:14px 32px;border-bottom:1px solid var(--line);background:var(--surface)">
+    <h1 class="serif" style="margin:0;font-size:19px;font-weight:600">Ask about this book</h1>
+    <span class="mono" style="font-size:12px;color:var(--ink3)">Pride and Prejudice · read up to ch. 61</span>
+    <div style="flex-grow:1"></div>
+    <span style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ok);font-weight:600">
+      <span style="width:7px;height:7px;border-radius:50%;background:var(--ok);display:inline-block"></span>answering on this machine</span>
+  </div>
+
+  <div style="flex-grow:1;padding:30px 32px 0;display:flex;justify-content:center">
+    <div style="width:100%;max-width:820px;display:flex;flex-direction:column;gap:26px">
+
+      <div style="display:flex;justify-content:flex-end"><div class="serif" style="max-width:74%;padding:12px 18px;border-radius:14px 14px 4px 14px;background:var(--accentSoft);color:var(--ink);font-size:16px;line-height:1.5">Who is Mr Collins, and why does everyone find him so trying?</div></div>
+
+      <div style="display:flex;flex-direction:column;gap:11px">
+        <div style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink3)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="6" r="2.2"/><circle cx="19" cy="6" r="2.2"/><circle cx="12" cy="18.5" r="2.2"/><path d="M7.2 6h9.6"/><path d="M6.4 8.1 10.6 16.6"/><path d="M17.6 8.1 13.4 16.6"/></svg><span>answered from the character graph, then the passages behind it</span></div>
+        <div style="font-size:15.5px;line-height:1.75;color:var(--ink);max-width:70ch">
+          <p style="margin:0 0 14px">Mr Collins is a clergyman and the Bennets’ cousin. Under the entail on Longbourn he stands to inherit the estate that Mr Bennet’s five daughters cannot <span class="pref ">p. 62</span>, which is why he arrives in chapter 13 openly intending to choose a wife among them <span class="pref ">p. 64</span>.</p>
+          <p style="margin:0 0 14px">He proposes to Elizabeth in chapter 19 and is refused <span class="pref ">p. 104</span>. Three days later he proposes to Charlotte Lucas, who accepts him <span class="pref ">p. 121</span> — a decision the book treats as prudence rather than affection <span class="pref ">p. 123</span>.</p>
+          <p style="margin:0">As for why he grates: the book shows it rather than says it. His deference to his patroness, Lady Catherine de Bourgh, is quoted at length and entirely without irony on his part <span class="pref ">p. 66</span>, and his letter after Lydia’s elopement offers condolence and reproach in the same breath <span class="pref ">p. 296</span>. <span style="color:var(--ink2)">No passage calls him tiresome outright — that reading comes from what he is given to say.</span></p>
+        </div>
+        <div style="display:flex;align-items:center;gap:14px;padding-top:6px">
+          <span class="mono" style="font-size:12.5px;color:var(--ink3)">6 citations · 1.2s</span>
+          <a href="#" style="font-size:12.5px;font-weight:600">Show every passage about him</a>
+        </div>
+      </div>
+
+      <div style="height:1px;background:var(--line)"></div>
+
+      <div style="display:flex;justify-content:flex-end"><div class="serif" style="max-width:74%;padding:12px 18px;border-radius:14px 14px 4px 14px;background:var(--accentSoft);color:var(--ink);font-size:16px;line-height:1.5">What happens to Elizabeth’s brother?</div></div>
+
+      <div style="display:flex;flex-direction:column;gap:11px">
+        <div style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink3)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="6" r="2.2"/><circle cx="19" cy="6" r="2.2"/><circle cx="12" cy="18.5" r="2.2"/><path d="M7.2 6h9.6"/><path d="M6.4 8.1 10.6 16.6"/><path d="M17.6 8.1 13.4 16.6"/></svg><span>checked the roster and the household — no match</span></div>
+        <div class="card" style="padding:20px 22px;background:var(--sunken);border-style:dashed">
+          <div style="font-size:15.5px;line-height:1.75;color:var(--ink);max-width:68ch">
+            <p style="margin:0 0 12px"><strong>Elizabeth has no brother.</strong> The Bennets have five daughters and no son — which is the entire reason Longbourn is entailed away to Mr Collins <span class="pref ">p. 62</span>.</p>
+            <p style="margin:0;color:var(--ink2)">If you have someone else in mind: <strong style="color:var(--ink)">Mr Gardiner</strong> is her uncle <span class="pref ">p. 129</span>, and <strong style="color:var(--ink)">Mr Bingley</strong> becomes her brother-in-law when he marries Jane in chapter 55 <span class="pref ">p. 350</span>.</p>
+          </div>
+        </div>
+        <p style="margin:0;font-size:12px;color:var(--ink3);max-width:60ch">Nothing was invented to fill the gap. When the book does not say, neither does Traverse.</p>
+      </div>
+
+      <div style="height:1px;background:var(--line)"></div>
+
+      <div style="display:flex;flex-direction:column;gap:14px;padding-bottom:10px">
+        <div class="lbl long">First visit — nothing asked yet</div>
+        <div class="card" style="padding:34px 32px;display:flex;flex-direction:column;gap:20px">
+          <div>
+            <h2 class="serif" style="margin:0;font-size:28px;font-weight:600;letter-spacing:-.02em;line-height:1.2">Ask anything about <em>Pride and Prejudice</em></h2>
+            <p style="margin:9px 0 0;font-size:14px;line-height:1.65;color:var(--ink2);max-width:62ch">Every answer carries the pages it came from, and nothing is said that the book does not support. Start with one of these:</p>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:9px">
+          <div style="display:flex;align-items:center;gap:13px;padding:13px 16px;border:1px solid var(--line);border-radius:9px;background:var(--surface)"><div style="flex-grow:1"><div class="serif" style="font-size:15px">Who is Mr Collins, and why is he so trying?</div><div style="font-size:12px;color:var(--ink3);margin-top:2px">he turns up in chapter 13 and never quite leaves</div></div><span style="color:var(--ink3)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span></div><div style="display:flex;align-items:center;gap:13px;padding:13px 16px;border:1px solid var(--line);border-radius:9px;background:var(--surface)"><div style="flex-grow:1"><div class="serif" style="font-size:15px">How do Elizabeth and Darcy end up together?</div><div style="font-size:12px;color:var(--ink3);margin-top:2px">the arc across all 61 chapters</div></div><span style="color:var(--ink3)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span></div><div style="display:flex;align-items:center;gap:13px;padding:13px 16px;border:1px solid var(--line);border-radius:9px;background:var(--surface)"><div style="flex-grow:1"><div class="serif" style="font-size:15px">Who are all five Bennet sisters?</div><div style="font-size:12px;color:var(--ink3);margin-top:2px">a complete list, not a plausible one</div></div><span style="color:var(--ink3)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div style="padding:18px 32px 26px;display:flex;justify-content:center;border-top:1px solid var(--line);background:var(--surface)">
+    <div style="width:100%;max-width:820px;display:flex;align-items:center;gap:12px;padding:12px 16px;border:1px solid var(--line);border-radius:11px;background:var(--sunken)">
+      <span style="flex-grow:1;font-size:14.5px;color:var(--ink3)">Ask about a character, a connection, or a scene…</span>
+      <span class="mono" style="font-size:12px;color:var(--ink3)">up to ch. 61</span>
+      <div style="width:30px;height:30px;border-radius:8px;background:var(--accent);color:var(--accentInk);display:flex;align-items:center;justify-content:center">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></div>
+    </div>
+  </div>
+
+</main></div></div>
+</x-dc>
+<script data-dc-script data-props='{"$preview": {"width": 1440, "height": 1120}, "dark": {"editor": "boolean", "default": false, "section": "Theme"}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { theme: this.props.dark ? 'dark' : '' };
+  }
+}
+</script>
+</body>
+</html>
