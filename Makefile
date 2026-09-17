@@ -165,7 +165,7 @@ worktrees: ## Cut the four agent branches (make worktrees SPRINT=3 SLUG=characte
 # ── CI helpers ────────────────────────────────────────────────────────────────
 
 ci-up: ## Start the CI subset: Postgres + RabbitMQ + migrate + api
-	$(COMPOSE_CI) up -d --build $(CI_SERVICES)
+	$(COMPOSE_CI) up -d $(CI_SERVICES)
 	COMPOSE="$(COMPOSE_CI)" $(WAIT) --timeout 300 $(CI_SERVICES)
 
 ci-smoke: ## Assert /health reports ok on the CI subset
