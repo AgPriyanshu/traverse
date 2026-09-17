@@ -60,9 +60,24 @@ RUN groupadd --system --gid 10001 traverse \
 
 WORKDIR /app
 COPY --chown=traverse:traverse api/ /app/api/
+COPY --chown=traverse:traverse scripts/ /app/scripts/
 
 USER traverse
 EXPOSE 8000
 
 # Overridden per service in compose (worker, migrate, healthcheck entrypoints).
 CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+
+FROM runtime AS test
+USER root
+COPY --from=ghcr.io/astral-sh/uv:0.9 /uv /bin/uv
+# pytest is not in api/pyproject.toml's dev group and pyproject is
+# orchestrator-owned. Installed here so `make test` works this sprint; delete
+# this layer once the dev group carries them (see plans/sprint-1/HANDOFF.md).
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --python /opt/venv/bin/python \
+      pytest pytest-asyncio pytest-cov ruff
+USER traverse
+ENV MODELS_OFFLINE=1 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
+CMD ["sh", "-c", "if [ -d api/tests ]; then pytest api/tests -q; else echo 'no api/tests yet'; fi"]

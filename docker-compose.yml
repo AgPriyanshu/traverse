@@ -304,6 +304,46 @@ services:
       api:
         condition: service_healthy
 
+  test:
+    profiles: ["test"]
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+      target: test
+    image: traverse-api-test:${TRAVERSE_TAG:-dev}
+    environment:
+      <<: *api-env
+      ENV: test
+      POSTGRES_DB_STRING: postgresql+psycopg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${TEST_POSTGRES_DB:-traverse_test}
+      HEALTH_REQUIRED_DEPS: db,broker
+      CELERY_REQUIRE_STAGES: "0"
+    volumes:
+      - model_cache:/models
+      - media_data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  test-web:
+    profiles: ["test"]
+    image: node:22-alpine
+    working_dir: /app/web
+    environment:
+      CI: "1"
+    command:
+      - sh
+      - -c
+      - >-
+        corepack enable && pnpm install --frozen-lockfile && pnpm lint &&
+        pnpm exec tsc -b --noEmit &&
+        if node -e "process.exit(require('./package.json').scripts.test?0:1)";
+        then pnpm run test; else echo "web: no test script yet (fe1)"; fi
+    volumes:
+      - ./web:/app/web
+      - web_test_node_modules:/app/web/node_modules
+
   vllm:
     profiles: ["gpu"]
     image: vllm/vllm-openai:latest
@@ -363,6 +403,7 @@ services:
       - hermes
 
 volumes:
+  web_test_node_modules:
   postgres_data:
   neo4j_data:
   neo4j_logs:
