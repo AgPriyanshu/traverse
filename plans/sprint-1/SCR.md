@@ -112,3 +112,20 @@ deprecated_features.permit.transient_nonexcl_queues = true
 
 or pin `image: rabbitmq:3.13-management` until Celery ships quorum-queue pidbox
 support. Prefer the config line — it keeps the 4.x image and is one line.
+
+**Resolved 2026-09-18 by do1.** Re-verified live: `celery -A api.workers.app
+inspect registered` and `inspect ping` both succeed against `traverse-rabbitmq`
+on vhost `/be1`, returning all six `pipeline.*` names.
+
+One thing worth a note for be2/do1: `rabbitmqctl list_vhosts` shows the agent
+vhosts as literally named `/be1`, `/be2`, `/int` (the leading slash is part of
+the name, distinct from the default vhost `/`). An AMQP URL's vhost segment is
+whatever follows the host:port, so reaching vhost `/be1` needs the leading
+slash **percent-encoded**:
+
+```
+RABBITMQ_URL=pyamqp://guest:guest@localhost:5672/%2Fbe1
+```
+
+`.../5672/be1` (no encoding) connects to a vhost literally named `be1`, which
+does not exist, and fails with `NOT_ALLOWED - vhost be1 not found`.
