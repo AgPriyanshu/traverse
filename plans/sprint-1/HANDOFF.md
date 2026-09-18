@@ -485,3 +485,92 @@ merge train:
 - `api/db/graph_db.py` — **deleted**. Nothing imported it, it opened a driver
   per call, and it carried hardcoded credentials. The brief instructed the
   replacement.
+
+---
+
+## For do1 (S1.11–S1.15, container/CI story)
+
+- **The API needs CORS, or the container needs a proxy** (SCR-3). The frozen
+  FastAPI app installs no `CORSMiddleware`, so a browser at the web origin
+  cannot call the API origin directly. In dev, `web/vite.config.ts` proxies
+  `/api` and `/health` to `VITE_API_BASE_URL`. **nginx must do the same in the
+  container** — proxy `/api/` and `/health` to the API service — or the web
+  container's every request fails at the browser's CORS check regardless of
+  whether the API itself works. This is not a `web/` file, so I cannot land it
+  myself; happy to hand you the exact proxy block if useful.
+- `web/package.json` gains a script CI should run: `pnpm gen:api:check`
+  (regenerates `schema.d.ts` against a running API and `git diff --exit-code`s
+  it). It needs the contract API reachable at build time — same requirement
+  `pnpm gen:api` has, parameterised by the `API_URL` env var
+  (`API_URL=http://api:8000 pnpm gen:api:check` in CI, default `:8000`).
+- New test script: `pnpm test` (`vitest run`), 99 tests today across
+  `web/tests/*.test.{ts,tsx}`. No network access required — the route tests
+  stub `fetch`.
+- `pnpm build` output is unchanged in shape (`dist/`), just bigger — Chakra +
+  react-router + TanStack Query is the app's floor now. Current gzip: ~122KB
+  main chunk + a few KB per lazy route chunk.
+- Fonts: `index.html` pulls Literata / IBM Plex Sans / IBM Plex Mono from
+  `fonts.googleapis.com` (`@import`-free `<link>` tags, so this is a network
+  dependency of the built page, not of the build). If the container needs to
+  be offline-capable, this is worth flagging back to the orchestrator — I did
+  not self-host the fonts because `design/DESIGN.md` names the families but
+  not a self-hosting requirement, and it is not in my owned paths to add a
+  vendored font pipeline without checking scope first.
+
+## For be1 / be2 (S2+ handlers)
+
+- The web app already calls **every** endpoint in the frozen contract through
+  a typed hook (`web/src/lib/api/hooks.ts`) and renders the current 501
+  correctly. When your handler starts returning real data, nothing on my side
+  needs to change — the hook, the loading state, and the error state are
+  already wired to whatever the contract promises. If a response shape turns
+  out to be awkward once real data exists, that is a new SCR, not a
+  regression in what's here.
+- `useBookStatus` polls `GET /books/{id}/status` every 2 seconds and expects
+  the poll to become useful the moment `stages` starts populating — no
+  contract change needed, just data.
+- **SCR-1** (no flat book list) and **SCR-2** (optional SSE `type` discriminator)
+  are both filed against contracts you may touch later (be1 owns
+  `routes/books.py`; the `QueryEventEnvelope` union feeds be2's S6 query
+  route). Neither blocks Sprint 1. See `SCR.md` for the exact proposed fix —
+  SCR-2 in particular is a one-line change (drop `default=` on each event's
+  `type` field) whenever one of you is next in `contracts/api.py`.
+
+## For the orchestrator
+
+- **DCR-1 is the one worth prioritising next freeze**: `web/src/design-system/tokens.ts`
+  was never exported despite `BRANCH.md` §2 and `design/DESIGN.md` listing it
+  as frozen and FE1-consumed. I transcribed §3 into `theme.ts` verbatim
+  (`export const palette`, commented as a stopgap) so nothing is blocked, but
+  every value there is a hand-copy that only I have verified against the
+  spec — a second frozen copy is exactly the divergence risk BRANCH.md §8
+  exists to prevent.
+- Three smaller DCRs (2–4) recorded in `SCR.md`: one relation colour
+  (`social`, light mode) measures 4.34:1 on `sunken`, below the 4.5:1 floor;
+  shadow colour/alpha was unspecified in §3; two of §3's own contrast figures
+  are off by the ground they were measured against. None block anything this
+  sprint — S4 is the first consumer of relation colours.
+- SCR-4 asks for a documented error schema (`ErrorOut`) on the non-2xx
+  responses so the generated client's error path is typed rather than parsed
+  by hand from FastAPI's default `{detail}` shape.
+
+## Verifying this sprint's frontend acceptance criteria
+
+```bash
+cd web
+pnpm install
+pnpm tsc --noEmit && pnpm lint && pnpm test && pnpm build   # all clean
+
+# Against a running contract API (api/.venv/bin/python -m uvicorn api.main:app --port 8003):
+echo 'VITE_API_BASE_URL=http://localhost:8003' > .env.local
+pnpm dev    # :5173 — /books shows the real empty-project state (or a 501
+            # rendered as a proper error, before be1's S1.4 lands);
+            # dark/light toggle persists across reload; tab order starts at
+            # "Skip to content"; every /books/:id/* and /projects/* tab
+            # renders <NotYetBuilt> naming its landing sprint.
+```
+
+`tests/routes.test.tsx` is the executable version of the "every route renders
+without a console error" acceptance criterion — it mounts all nineteen routes
+against a mocked 501 and fails on any `console.error`, which is also what
+caught the Chakra `<Icon asChild>` bug during this sprint (see the memory map).

@@ -29,3 +29,19 @@ Three lines per agent per day: what landed, what is next, what is blocked.
 - **Blocked:** nothing. SCR-1 filed (non-blocking): `GraphEdgeOut.page_refs` has
   no book dimension. One cross-boundary note for be1 — the Celery worker
   bootstrap still needs `graph.connect()` on `worker_process_init`.
+
+---
+
+### fe1 · 2026-09-18
+
+**Landed:** S1.8 (app shell, full S1–S9 route table, theme/dark-mode,
+primitives incl. `<PageRef>`), S1.9 (typed client generated from the frozen
+contract, one hook per endpoint), S1.10 (library, upload with client-side
+PDF/200MB validation and a real 501 error surface, ingestion stage stepper).
+99 Vitest tests; `tsc --noEmit`/`lint`/`build` clean on every commit.
+**Next:** nothing left in the S1 brief; available to pair on the S1.11/S1.12
+CORS/proxy question in HANDOFF.md, or start early on S2 page-viewer plumbing
+if the orchestrator wants that pulled forward.
+**Blocked:** not blocked — four DCRs and four SCRs filed (`SCR.md`), all
+non-blocking, workarounds in place and noted in code comments pointing back
+at the ticket.
