@@ -1,21 +1,42 @@
 import { Box, Heading, Link, Stack, Text } from "@chakra-ui/react";
+import { useState } from "react";
 import { useParams } from "react-router";
 import { ErrorState, LoadingSkeleton } from "@/components/ui";
-import { useBookStatus } from "@/lib/api";
+import type { StageName } from "@/lib/api";
+import { useBookStatus, useReprocessBook } from "@/lib/api";
 import { formatSecondsRemaining } from "@/lib/format";
+import { estimateSecondsRemaining } from "@/lib/ingestion-eta";
 import { StageStepper } from "./stage-stepper";
 
 export const BookOverview = () => {
+  // States.
+  const [retryingStage, setRetryingStage] = useState<StageName | undefined>(
+    undefined,
+  );
+
   // Hooks.
   const { bookId = "" } = useParams();
 
   // Apis.
   const status = useBookStatus(bookId);
+  const reprocess = useReprocessBook(bookId);
 
   // Variables.
+  // The backend does not populate this yet (nothing in this sprint computes
+  // it) — fall back to a local estimate from this book's own stage durations
+  // rather than showing nothing for the whole sprint.
   const remaining = formatSecondsRemaining(
-    status.data?.estimated_seconds_remaining,
+    status.data?.estimated_seconds_remaining ??
+      estimateSecondsRemaining(status.data?.stages),
   );
+
+  // Handlers.
+  const handleRetryStage = (stageName: StageName) => {
+    setRetryingStage(stageName);
+    reprocess.mutate(stageName, {
+      onSettled: () => { setRetryingStage(undefined); },
+    });
+  };
 
   return (
     <Stack gap="7" maxW="measure">
@@ -48,8 +69,16 @@ export const BookOverview = () => {
 
       {!status.isPending ? (
         <Box>
-          <StageStepper stages={status.data?.stages} />
+          <StageStepper
+            stages={status.data?.stages}
+            onRetryStage={handleRetryStage}
+            retryingStage={retryingStage}
+          />
         </Box>
+      ) : null}
+
+      {reprocess.error ? (
+        <ErrorState error={reprocess.error} title="The retry did not start" />
       ) : null}
 
       {status.data?.trace_url ? (
