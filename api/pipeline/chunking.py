@@ -20,7 +20,7 @@ from ..config.settings import settings as default_settings
 from ..contracts.enums import DetectionMethod
 from ..contracts.pipeline import ChapterInfo, ChunkPayload
 from .constants import CHAPTER_RE, CHUNK_MAX_TOKENS, ROMAN_VALUES
-from .errors import DocumentParseError, MissingProvenanceError
+from .errors import DocumentParseError, MissingProvenanceError, PageParseError
 
 logger = logging.getLogger(__name__)
 
@@ -55,10 +55,11 @@ def resolve_device(requested: str) -> str:
     return requested
 
 
-@lru_cache(maxsize=2)
-def _document_converter(artifacts_path: str | None) -> DocumentConverter:
+@lru_cache(maxsize=4)
+def _document_converter(artifacts_path: str | None, ocr: bool) -> DocumentConverter:
     pipeline_options = PdfPipelineOptions(
-        artifacts_path=Path(artifacts_path) if artifacts_path else None
+        artifacts_path=Path(artifacts_path) if artifacts_path else None,
+        do_ocr=ocr,
     )
 
     return DocumentConverter(
@@ -108,10 +109,20 @@ def _normalize_chapter_number(number: str) -> int | None:
 
 class DocumentChunker:
     def __init__(
-        self, settings: Settings | None = None, *, llm_classify: bool = True
+        self,
+        settings: Settings | None = None,
+        *,
+        llm_classify: bool = True,
+        ocr: bool = False,
     ) -> None:
         self.settings = settings or default_settings
         self.llm_classify = llm_classify
+        # OCR is off by default because the corpus is digitally-typeset novels
+        # with a real text layer. Turning it on pulls in RapidOCR, which
+        # downloads its own weights from modelscope.cn outside the Hugging Face
+        # cache and claims CUDA device 0 regardless of EMBEDDING_DEVICE — both
+        # of which break a worktree run (BRANCH.md §9). A scanned book opts in.
+        self.ocr = ocr
 
     # Public methods.
     def warm(self) -> None:
@@ -120,7 +131,7 @@ class DocumentChunker:
         Called once per worker process so the first task of a worker's life is
         not also the one that pays a multi-second model load.
         """
-        _document_converter(self._artifacts_path())
+        _document_converter(self._artifacts_path(), self.ocr)
         _tokenizer(self.settings.embedding_model_id, CHUNK_MAX_TOKENS)
         _embedding_model(self.settings.embedding_model_id, self.device)
 
@@ -138,17 +149,30 @@ class DocumentChunker:
             The converted document.
 
         Raises:
-            DocumentParseError: If conversion fails. A file that cannot be
-                parsed cannot be parsed on a retry either.
+            DocumentParseError: If conversion fails outright. A file that
+                cannot be parsed cannot be parsed on a retry either.
+            PageParseError: If the backend dropped individual pages. This is
+                transient: the same file converted twice in a row can yield
+                pages [1, 3] and then [1, 2, 3], and a silently missing page is
+                a citation that can never be made (PRD F1.3).
         """
-        converter = _document_converter(self._artifacts_path())
+        converter = _document_converter(self._artifacts_path(), self.ocr)
 
         try:
-            document = converter.convert(document_path).document
+            result = converter.convert(document_path)
         except Exception as exc:
             raise DocumentParseError(f"cannot convert {document_path.name}") from exc
 
-        return document
+        failed = sorted(
+            {error.page_no for error in result.errors if error.page_no is not None}
+        )
+
+        if failed:
+            raise PageParseError(
+                f"{document_path.name}: pages {failed} failed to parse"
+            )
+
+        return result.document
 
     def detect_chapters(self, document: DoclingDocument) -> list[ChapterInfo]:
         """Return the chapter headings found in a document, in document order.
