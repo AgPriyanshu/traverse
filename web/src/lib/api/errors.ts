@@ -49,7 +49,16 @@ export class ApiError extends Error {
     this.detail = init.detail;
   }
 
-  static from(response: Response, body: unknown): ApiError {
+  /**
+   * A structural subset of `Response` rather than `Response` itself, so an
+   * `XMLHttpRequest` upload — which has no `Response` object, only
+   * `status`/`statusText`/`responseURL` — can report through the same error
+   * type as the typed client (S2.11).
+   */
+  static from(
+    response: { status: number; statusText: string; url: string },
+    body: unknown,
+  ): ApiError {
     return new ApiError({
       status: response.status,
       statusText: response.statusText,
