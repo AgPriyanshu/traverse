@@ -1,25 +1,32 @@
+import type { Schemas } from "./types";
+
+/** Every documented 404/422/501 body matches this now that ErrorOut is real
+ * (SCR-9) — an undocumented status (a bare 500) may still send anything, so
+ * this stays a type guard rather than an assumption. */
+const isErrorOut = (body: unknown): body is Schemas["ErrorOut"] => {
+  return body !== null && typeof body === "object" && "detail" in body;
+};
+
 const detailOf = (body: unknown): string | undefined => {
   if (typeof body === "string") { return body; }
-  if (body === null || typeof body !== "object") { return undefined; }
+  if (!isErrorOut(body)) { return undefined; }
 
-  const detail = (body as { detail?: unknown }).detail;
+  const { detail } = body;
   if (typeof detail === "string") { return detail; }
 
-  // FastAPI 422s carry a list of {loc, msg} rather than a string.
-  if (Array.isArray(detail)) {
-    const messages = detail
-      .map((item) => {
-        if (item === null || typeof item !== "object") { return undefined; }
-        const { loc, msg } = item as { loc?: unknown; msg?: unknown };
-        if (typeof msg !== "string") { return undefined; }
-        const where = Array.isArray(loc) ? loc.join(".") : undefined;
-        return where ? `${where}: ${msg}` : msg;
-      })
-      .filter((message): message is string => Boolean(message));
-    if (messages.length > 0) { return messages.join("; "); }
-  }
+  // FastAPI's 422 list items are `{loc, msg, type}`; ErrorOut types them
+  // loosely (`Record<string, unknown>[]`) since that shape is FastAPI's own,
+  // not this contract's.
+  const messages = detail
+    .map((item) => {
+      const { loc, msg } = item as { loc?: unknown; msg?: unknown };
+      if (typeof msg !== "string") { return undefined; }
+      const where = Array.isArray(loc) ? loc.join(".") : undefined;
+      return where ? `${where}: ${msg}` : msg;
+    })
+    .filter((message): message is string => Boolean(message));
 
-  return undefined;
+  return messages.length > 0 ? messages.join("; ") : undefined;
 };
 
 export class ApiError extends Error {
