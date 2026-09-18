@@ -8,6 +8,7 @@ from api.contracts.pipeline import ChunkPayload
 from api.pipeline.chunking import (
     DocumentChunker,
     _normalize_chapter_number,
+    _plan_heading_batches,
     _roman_to_int,
     resolve_device,
 )
@@ -102,6 +103,39 @@ class TestNoHostPaths:
         chunker = DocumentChunker(cpu_settings(models_cache_dir=tmp_path / "absent"))
 
         assert chunker._artifacts_path() is None
+
+
+class TestHeadingBatching:
+    """The stopgap batcher ahead of be2's ``api.llm.plan_batches`` (S2.7)."""
+
+    def test_an_empty_input_needs_no_calls(self) -> None:
+        assert _plan_heading_batches([], max_context=1000, output_reserve=100) == []
+
+    def test_short_headings_fit_in_one_batch(self) -> None:
+        headings = [f"Chapter {n}" for n in range(1, 21)]
+
+        batches = _plan_heading_batches(headings, max_context=4000, output_reserve=500)
+
+        assert len(batches) == 1
+        assert batches[0].items == headings
+
+    def test_a_tight_budget_splits_into_several_calls(self) -> None:
+        headings = [f"Chapter {n}: A Very Long Chapter Title Indeed" for n in range(20)]
+
+        batches = _plan_heading_batches(headings, max_context=200, output_reserve=50)
+
+        assert len(batches) > 1
+        # Every heading is covered exactly once, in order, none dropped.
+        assert [h for batch in batches for h in batch.items] == headings
+
+    def test_a_single_heading_is_never_split(self) -> None:
+        batches = _plan_heading_batches(
+            ["Chapter One"], max_context=50, output_reserve=45
+        )
+
+        assert len(batches) == 1
+        assert batches[0].items == ["Chapter One"]
+        assert batches[0].was_split is False
 
 
 class TestChunkPayloadContract:

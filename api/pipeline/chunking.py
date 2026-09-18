@@ -18,6 +18,7 @@ from transformers import AutoTokenizer
 from ..config.settings import Settings
 from ..config.settings import settings as default_settings
 from ..contracts.enums import DetectionMethod
+from ..contracts.llm import BatchPlan, TokenBudget
 from ..contracts.pipeline import ChapterInfo, ChunkPayload
 from .constants import CHAPTER_RE, CHUNK_MAX_TOKENS, ROMAN_VALUES
 from .errors import DocumentParseError, MissingProvenanceError, PageParseError
@@ -313,8 +314,13 @@ class DocumentChunker:
         Every item on a page is inspected, not just the first — a chapter
         heading that opens partway down a page (after a running header or a
         part-title) would otherwise be missed entirely.
+
+        Every heading that regex cannot resolve is classified in as few LLM
+        calls as fit the model's context window, not one call per heading —
+        against a shared vLLM server that is the difference between seconds
+        and minutes on a heading-heavy novel.
         """
-        chapters: list[tuple[object, ChapterInfo]] = []
+        items = []
 
         for page_no in document.pages:
             for doc_item, _level in document.iterate_items(page_no=page_no):
@@ -322,17 +328,27 @@ class DocumentChunker:
                     DocItemLabel.SECTION_HEADER,
                     DocItemLabel.TITLE,
                 }:
-                    chapter_info = self._parse_chapter_heading(doc_item.text)
-                    chapters.append((doc_item, chapter_info))
+                    items.append(doc_item)
 
-        return chapters
+        texts = [re.sub(r"\s+", " ", item.text).strip() for item in items]
+        results: list[ChapterInfo | None] = [
+            self._match_chapter_regex(t) for t in texts
+        ]
+        ambiguous = [index for index, result in enumerate(results) if result is None]
 
-    def _parse_chapter_heading(self, text: str) -> ChapterInfo:
-        text = re.sub(r"\s+", " ", text).strip()
+        if ambiguous:
+            classified = self._classify_headings([texts[index] for index in ambiguous])
+            for index, info in zip(ambiguous, classified, strict=True):
+                results[index] = info
+
+        return list(zip(items, cast(list[ChapterInfo], results), strict=True))
+
+    def _match_chapter_regex(self, text: str) -> ChapterInfo | None:
+        """Return a regex-matched chapter, or ``None`` if ``text`` needs the LLM."""
         match = CHAPTER_RE.match(text)
 
         if not match:
-            return self._classify_chapter_heading(text)
+            return None
 
         number = _normalize_chapter_number(match.group("number"))
         title = match.group("title").strip(" :-–—.")
@@ -346,51 +362,110 @@ class DocumentChunker:
             confidence=1.0,
         )
 
-    def _classify_chapter_heading(self, text: str) -> ChapterInfo:
+    def _parse_chapter_heading(self, text: str) -> ChapterInfo:
+        text = re.sub(r"\s+", " ", text).strip()
+        matched = self._match_chapter_regex(text)
+
+        if matched is not None:
+            return matched
+
+        return self._classify_chapter_heading(text)
+
+    def _classify_headings(self, texts: list[str]) -> list[ChapterInfo]:
+        """Classify every heading regex could not resolve, batched per call.
+
+        Args:
+            texts: Normalised heading strings, in document order.
+
+        Returns:
+            One ``ChapterInfo`` per input text, in the same order.
+        """
         if not self.llm_classify:
-            return ChapterInfo(is_chapter=False, text=text)
+            return [ChapterInfo(is_chapter=False, text=text) for text in texts]
+
+        results: list[ChapterInfo] = []
+        for batch in _plan_heading_batches(
+            texts,
+            max_context=self.settings.llm_max_context,
+            output_reserve=self.settings.llm_output_reserve,
+        ):
+            results.extend(self._classify_heading_batch(batch.items))
+
+        return results
+
+    def _classify_chapter_heading(self, text: str) -> ChapterInfo:
+        results = self._classify_heading_batch([text])
+
+        return results[0]
+
+    def _classify_heading_batch(self, texts: list[str]) -> list[ChapterInfo]:
+        if not self.llm_classify:
+            return [ChapterInfo(is_chapter=False, text=text) for text in texts]
 
         # Imported here, not at module scope: importing ``api.llm`` constructs a
         # client and a Langfuse handler, and the chunker must stay importable in
-        # a test process that has neither. S2.3 batches these calls — one
-        # request per heading against a shared vLLM is the slowest possible
-        # shape — and moves them behind ``api/llm``'s structured_call.
+        # a test process that has neither.
+        #
+        # This calls the Sprint 1 ``api/llm.py`` prototype directly rather than
+        # be2's ``api.llm.structured_call`` (S2.7) — the latter did not exist
+        # yet in this worktree when this landed. Swapping the two lines below
+        # for the real helper once it does should not need anything else here
+        # to change; see plans/sprint-2/HANDOFF.md.
         from langchain.messages import SystemMessage
 
         from ..llm import langfuse_handler, llm
-        from .constants import ChapterInfoStructuredOutput
+        from .constants import ChapterBatchStructuredOutput
 
-        structured_llm = llm.with_structured_output(ChapterInfoStructuredOutput)
+        structured_llm = llm.with_structured_output(ChapterBatchStructuredOutput)
         callbacks = [langfuse_handler] if langfuse_handler else []
+        prompt = _BATCH_HEADING_PROMPT.format(
+            headings="\n".join(f"{i + 1}. {text}" for i, text in enumerate(texts))
+        )
 
         try:
             result = cast(
-                ChapterInfoStructuredOutput,
+                ChapterBatchStructuredOutput,
                 structured_llm.invoke(
-                    [SystemMessage(_HEADING_PROMPT.format(text=text))],
-                    config={"callbacks": callbacks},
+                    [SystemMessage(prompt)], config={"callbacks": callbacks}
                 ),
             )
         except Exception:
-            logger.warning("heading classification failed for %r", text, exc_info=True)
+            logger.warning(
+                "batched heading classification failed for %d headings",
+                len(texts),
+                exc_info=True,
+            )
 
-            return ChapterInfo(is_chapter=False, text=text)
+            return [ChapterInfo(is_chapter=False, text=text) for text in texts]
 
-        if not result.is_chapter:
-            return ChapterInfo(is_chapter=False, text=text)
+        if len(result.items) != len(texts):
+            logger.warning(
+                "classifier returned %d results for %d headings; discarding batch",
+                len(result.items),
+                len(texts),
+            )
 
-        return ChapterInfo(
-            is_chapter=True,
-            number=result.number,
-            title=result.title,
-            text=text,
-            detection_method=DetectionMethod.LLM,
-        )
+            return [ChapterInfo(is_chapter=False, text=text) for text in texts]
+
+        classified = [
+            ChapterInfo(
+                is_chapter=True,
+                number=item.number,
+                title=item.title,
+                text=text,
+                detection_method=DetectionMethod.LLM,
+            )
+            if item.is_chapter
+            else ChapterInfo(is_chapter=False, text=text)
+            for item, text in zip(result.items, texts, strict=True)
+        ]
+
+        return classified
 
 
-_HEADING_PROMPT = (
-    "You are analyzing a heading extracted from a novel to decide "
-    "whether it marks the start of a new chapter, as opposed to a "
+_BATCH_HEADING_PROMPT = (
+    "You are analyzing headings extracted from a novel to decide, for each "
+    "one, whether it marks the start of a new chapter, as opposed to a "
     "sub-heading, running header, or other non-chapter text.\n\n"
     "Rules:\n"
     "- A chapter heading may be a number word or digit alone (e.g. "
@@ -417,5 +492,59 @@ _HEADING_PROMPT = (
     '"Prologue" -> is_chapter=true, number=null, title="Prologue"\n'
     '"Contents" -> is_chapter=false\n'
     '"About the Author" -> is_chapter=false\n\n'
-    'Heading to classify: "{text}"'
+    "Return exactly one classification per heading below, in the same order, "
+    "as `items`.\n\n"
+    "Headings to classify:\n{headings}"
 )
+
+
+def _plan_heading_batches(
+    texts: list[str], *, max_context: int, output_reserve: int
+) -> list[BatchPlan[str]]:
+    """Group headings into as few LLM calls as fit the model's context window.
+
+    A stopgap ahead of be2's ``api.llm.plan_batches`` (S2.7), against the
+    frozen ``TokenBudget``/``BatchPlan`` contracts rather than an invented
+    shape — swap this call site for the real helper once it lands (see
+    ``plans/sprint-2/HANDOFF.md``). Sized with a chars/4 estimate rather than
+    the model's own tokenizer: acceptable here only because a heading is a
+    handful of words and the failure mode of underestimating is an extra call,
+    not a truncated prompt.
+
+    Args:
+        texts: Headings needing classification, in document order.
+        max_context: The model's context window, in tokens.
+        output_reserve: Tokens held back for the response.
+
+    Returns:
+        Batches covering every heading exactly once, none split (a heading is
+        never too large to fit alone).
+    """
+    if not texts:
+        return []
+
+    budget = TokenBudget(
+        max_context=max_context,
+        prompt_tokens=len(_BATCH_HEADING_PROMPT) // 4,
+        output_reserve=output_reserve,
+    )
+    item_budget = max(1, budget.item_budget)
+
+    batches: list[BatchPlan[str]] = []
+    current: list[str] = []
+    current_tokens = 0
+
+    for text in texts:
+        text_tokens = max(1, len(text) // 4)
+
+        if current and current_tokens + text_tokens > item_budget:
+            batches.append(BatchPlan(items=current, token_count=current_tokens))
+            current, current_tokens = [], 0
+
+        current.append(text)
+        current_tokens += text_tokens
+
+    if current:
+        batches.append(BatchPlan(items=current, token_count=current_tokens))
+
+    return batches

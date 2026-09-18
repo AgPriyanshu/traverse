@@ -148,7 +148,7 @@ class TestChapterDetectionFixes:
         assert [chapter.number for chapter in chapters] == [5]
 
     def test_a_repeated_heading_text_binds_to_its_own_position_not_the_first(
-        self, chunker: DocumentChunker, monkeypatch: pytest.MonkeyPatch
+        self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Two chapters that share heading text must not collapse into one.
 
@@ -171,31 +171,31 @@ class TestChapterDetectionFixes:
         doc.add_heading("Interlude", level=1, prov=prov(3))
         doc.add_text(label="text", text="Second interlude passage.", prov=prov(3))
 
+        # llm_classify=True here (unlike the shared `chunker` fixture): a
+        # number-less heading like "Interlude" is only ever ambiguous — and
+        # so only ever reaches the batched classifier under test — when LLM
+        # classification is turned on.
+        chunker = DocumentChunker(Settings(embedding_device="cpu"), llm_classify=True)
+
         # "Interlude" carries no number, so it never matches CHAPTER_RE and
-        # always falls to LLM classification in production. Two distinct
-        # return values per call stand in for that: the point under test is
-        # positional binding, not the classifier itself.
-        results = iter(
-            [
+        # both occurrences go into one batched classification call in
+        # document order. Returning distinct results per position (rather
+        # than a real, deterministic classifier) is what makes the point
+        # under test — positional binding, not the classifier itself —
+        # observable at all.
+        def fake_batch(texts: list[str]) -> list[ChapterInfo]:
+            return [
                 ChapterInfo(
                     is_chapter=True,
-                    number=100,
+                    number=100 * (index + 1),
                     title="Interlude",
-                    text="Interlude",
+                    text=text,
                     detection_method=DetectionMethod.LLM,
-                ),
-                ChapterInfo(
-                    is_chapter=True,
-                    number=200,
-                    title="Interlude",
-                    text="Interlude",
-                    detection_method=DetectionMethod.LLM,
-                ),
+                )
+                for index, text in enumerate(texts)
             ]
-        )
-        monkeypatch.setattr(
-            chunker, "_classify_chapter_heading", lambda _text: next(results)
-        )
+
+        monkeypatch.setattr(chunker, "_classify_heading_batch", fake_batch)
 
         chunks = chunker.generate_chunks(doc, embed=False)
         numbers_by_page = {chunk.page_start: chunk.chapter_number for chunk in chunks}
