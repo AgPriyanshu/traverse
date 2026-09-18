@@ -1,8 +1,13 @@
 """Projects, books and ingestion. Owned by backend engineer 1."""
 
-from uuid import UUID
+import hashlib
+import tempfile
+from pathlib import Path
+from uuid import UUID, uuid4
 
+import anyio
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
+from fastapi.responses import JSONResponse
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
 from ..contracts.api import (
@@ -18,11 +23,68 @@ from ..contracts.api import (
 )
 from ..contracts.enums import BookStatus
 from ..db.engine import get_session
+from ..db.models import Project
 from ..pipeline import repository
+from ..pipeline.metadata import extract_title_author
+from ..pipeline.storage import store
+from ..tasks import ingestion_chain
 from ._stub import not_implemented
 
 router = APIRouter(tags=["books"])
 OWNER = "be1"
+
+# Matches the streaming chunk size ``pipeline/storage.py`` already reads with.
+_READ_CHUNK = 1 << 20
+_PDF_MAGIC = b"%PDF-"
+
+
+async def _stream_to_temp_file(file: UploadFile) -> tuple[Path, str]:
+    """Write an upload to a temp file while hashing it, never buffered whole.
+
+    Args:
+        file: The incoming multipart file.
+
+    Returns:
+        The temp file's path and the blake2b hex digest of its bytes.
+
+    Raises:
+        HTTPException: 415, if the first chunk is not a PDF signature. 400, if
+            the upload is empty.
+    """
+
+    # Not a `with`: the handle must outlive this function while chunks stream
+    # in across multiple awaits, and is closed explicitly in the `finally`.
+    handle = await anyio.to_thread.run_sync(
+        lambda: tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)  # noqa: SIM115
+    )
+    path = Path(handle.name)
+    digest = hashlib.blake2b()
+    first = True
+
+    try:
+        while chunk := await file.read(_READ_CHUNK):
+            if first:
+                if not chunk.startswith(_PDF_MAGIC):
+                    raise HTTPException(
+                        status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+                        detail=(
+                            "expected a PDF, received "
+                            f"{file.filename!r} ({file.content_type or 'unknown type'})"
+                        ),
+                    )
+                first = False
+            digest.update(chunk)
+            await anyio.to_thread.run_sync(handle.write, chunk)
+    finally:
+        await anyio.to_thread.run_sync(handle.close)
+
+    if first:
+        await anyio.to_thread.run_sync(path.unlink, True)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="uploaded file is empty"
+        )
+
+    return path, digest.hexdigest()
 
 
 @router.get("/projects", response_model=list[ProjectOut])
@@ -85,9 +147,75 @@ async def list_books(
     status_code=status.HTTP_202_ACCEPTED,
 )
 async def upload_book(
-    project_id: UUID, file: UploadFile, series_order: int | None = Query(default=None)
-) -> BookOut:
-    not_implemented(OWNER, "S2.1")
+    project_id: UUID,
+    file: UploadFile,
+    series_order: int | None = Query(default=None),
+    session: SQLModelAsyncSession = Depends(get_session),
+) -> BookOut | JSONResponse:
+    """Stream an uploaded PDF to storage and queue its ingestion.
+
+    Hashing happens while the file streams to a temp path so a 200 MB upload
+    never sits in memory whole (F1.1). A ``content_hash`` collision short
+    circuits everything after it (F1.5): the object is never re-uploaded and
+    the caller gets back the book that already exists, at ``200`` rather than
+    ``202`` since nothing was queued.
+    """
+    project = await session.get(Project, project_id)
+
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="project not found"
+        )
+
+    temp_path, content_hash = await _stream_to_temp_file(file)
+
+    try:
+        existing = await repository.get_book_by_hash(session, content_hash)
+
+        if existing is not None:
+            return JSONResponse(
+                status_code=status.HTTP_200_OK,
+                content={
+                    "status": "already_ingested",
+                    "book_id": str(existing.id),
+                },
+            )
+
+        book_id = uuid4()
+        title, author = extract_title_author(
+            temp_path, fallback_filename=file.filename or "untitled.pdf"
+        )
+        storage_key = f"books/{book_id}/source.pdf"
+        await store.put_stream(storage_key, temp_path, content_type="application/pdf")
+
+        book = await repository.create_book(
+            session,
+            id=book_id,
+            project_id=project_id,
+            title=title,
+            author=author,
+            content_hash=content_hash,
+            series_order=series_order,
+            storage_key=storage_key,
+        )
+    finally:
+        await anyio.to_thread.run_sync(temp_path.unlink, True)
+
+    if book.id != book_id:
+        # Lost a concurrent-upload race for this content_hash: another
+        # request's row won, so the object just written at our own book_id is
+        # orphaned. Report the winner rather than a book nothing points at.
+        await store.delete_prefix(f"books/{book_id}/")
+
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={"status": "already_ingested", "book_id": str(book.id)},
+        )
+
+    await anyio.to_thread.run_sync(ingestion_chain(book.id).apply_async)
+    out = await repository.get_book_out(session, book.id)
+
+    return out
 
 
 @router.get("/books/{book_id}", response_model=BookOut)

@@ -1,5 +1,6 @@
 import uuid
 from collections.abc import AsyncIterator
+from pathlib import Path
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
@@ -10,8 +11,13 @@ from api.db.engine import get_session
 from api.db.models import Book, Project
 from api.main import app
 from api.pipeline import repository
+from api.pipeline.storage import store
 from api.workers.errors import PermanentError
 from api.workers.stages import stage
+
+from ._pdf_helpers import minimal_pdf_with_metadata
+
+FIXTURE = Path(__file__).parent.parent / "fixtures" / "three_page_novel.pdf"
 
 
 @pytest_asyncio.fixture
@@ -29,6 +35,9 @@ async def client(session: SQLModelAsyncSession) -> AsyncIterator[AsyncClient]:
         yield http
 
     app.dependency_overrides.clear()
+    # Real MinIO, not a mock: clean up anything an upload test wrote so the
+    # bucket does not accumulate across runs.
+    await store.delete_prefix("books/")
 
 
 class TestListProjects:
@@ -140,21 +149,93 @@ class TestGetBookStatus:
         assert response.status_code == 404
 
 
-class TestStillFrozen:
-    """Endpoints that must keep returning 501 until their sprint lands.
-
-    Shipping half of upload now means FE1 codes against a shape that changes.
-    """
-
-    async def test_upload_is_still_a_stub(
+class TestUploadBook:
+    async def test_a_new_pdf_is_stored_and_queued(
         self, client: AsyncClient, project: Project
     ) -> None:
         response = await client.post(
             f"/api/projects/{project.id}/books",
-            files={"file": ("novel.pdf", b"%PDF-1.4", "application/pdf")},
+            files={
+                "file": (
+                    "three_page_novel.pdf",
+                    FIXTURE.read_bytes(),
+                    "application/pdf",
+                )
+            },
+        )
+        body = response.json()
+
+        assert response.status_code == 202
+        assert body["status"] == BookStatus.QUEUED.value
+        assert body["title"] == "Three Page Novel"
+
+    async def test_title_and_author_come_from_pdf_metadata_when_present(
+        self, client: AsyncClient, project: Project
+    ) -> None:
+        response = await client.post(
+            f"/api/projects/{project.id}/books",
+            files={
+                "file": (
+                    "whatever.pdf",
+                    minimal_pdf_with_metadata("Pride and Prejudice", "Jane Austen"),
+                    "application/pdf",
+                )
+            },
+        )
+        body = response.json()
+
+        assert body["title"] == "Pride and Prejudice"
+        assert body["author"] == "Jane Austen"
+
+    async def test_an_identical_upload_is_not_re_stored(
+        self, client: AsyncClient, project: Project, session: SQLModelAsyncSession
+    ) -> None:
+        content = FIXTURE.read_bytes()
+        files = {"file": ("three_page_novel.pdf", content, "application/pdf")}
+
+        first = await client.post(f"/api/projects/{project.id}/books", files=files)
+        second = await client.post(f"/api/projects/{project.id}/books", files=files)
+
+        assert first.status_code == 202
+        assert second.status_code == 200
+        assert second.json() == {
+            "status": "already_ingested",
+            "book_id": first.json()["id"],
+        }
+        assert await repository.count_books(session) == 1
+
+    async def test_a_non_pdf_is_rejected_with_the_content_type_named(
+        self, client: AsyncClient, project: Project
+    ) -> None:
+        response = await client.post(
+            f"/api/projects/{project.id}/books",
+            files={"file": ("notes.txt", b"just some text", "text/plain")},
         )
 
-        assert response.status_code == 501
+        assert response.status_code == 415
+        assert "notes.txt" in response.json()["detail"]
+
+    async def test_an_empty_upload_is_rejected(
+        self, client: AsyncClient, project: Project
+    ) -> None:
+        response = await client.post(
+            f"/api/projects/{project.id}/books",
+            files={"file": ("empty.pdf", b"", "application/pdf")},
+        )
+
+        assert response.status_code == 400
+
+    async def test_an_unknown_project_is_404(self, client: AsyncClient) -> None:
+        response = await client.post(
+            f"/api/projects/{uuid.uuid4()}/books",
+            files={"file": ("novel.pdf", FIXTURE.read_bytes(), "application/pdf")},
+        )
+
+        assert response.status_code == 404
+
+
+class TestStillFrozen:
+    """Endpoints that must keep returning 501 until their sprint lands."""
 
     async def test_the_openapi_document_still_lists_every_frozen_path(
         self, client: AsyncClient

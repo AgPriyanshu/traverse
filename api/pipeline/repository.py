@@ -44,6 +44,7 @@ async def create_book(
     page_count: int | None = None,
     series_order: int | None = None,
     storage_key: str | None = None,
+    id: UUID | None = None,
 ) -> Book:
     """Create a book, or return the existing one with the same content hash.
 
@@ -60,6 +61,9 @@ async def create_book(
         page_count: Page count, if already known.
         series_order: Position in a series; ``None`` for a standalone.
         storage_key: Object-storage key of the uploaded file.
+        id: Explicit primary key. Upload needs the id before the row exists,
+            since the object-storage key is ``books/{id}/source.pdf`` — passed
+            through rather than left to the default factory so the two agree.
 
     Returns:
         The new book, or the pre-existing one with that ``content_hash``.
@@ -72,6 +76,7 @@ async def create_book(
         page_count=page_count,
         series_order=series_order,
         storage_key=storage_key,
+        **({"id": id} if id is not None else {}),
     )
     session.add(book)
 
