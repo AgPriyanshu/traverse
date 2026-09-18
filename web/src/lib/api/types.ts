@@ -14,6 +14,28 @@ export type StageStatus = Schemas["StageStatus"];
 export type StageName = Schemas["StageName"];
 export type StageState = Schemas["StageState"];
 
+/**
+ * `POST /api/projects/{project_id}/books` returns this at `200` when the
+ * upload's content hash matches a book already ingested (PRD F1.5) — a shape
+ * the frozen contract does not yet declare (SCR-10, `plans/sprint-2/SCR.md`).
+ * Every other response from that endpoint is `BookOut`, so this is a narrow,
+ * hand-written exception to "never hand-write API types," not a precedent.
+ */
+export type AlreadyIngestedOut = {
+  status: "already_ingested";
+  book_id: string;
+};
+
+export const isAlreadyIngested = (
+  value: unknown,
+): value is AlreadyIngestedOut => {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    (value as { status?: unknown }).status === "already_ingested"
+  );
+};
+
 export type Chapter = Schemas["ChapterOut"];
 export type Chunk = Schemas["ChunkOut"];
 export type PageRender = Schemas["PageRenderOut"];

@@ -1,16 +1,23 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRef } from "react";
 import { client, request } from "./client";
 import { queryKeys } from "./query-keys";
 import type {
+  AlreadyIngestedOut,
+  Book,
   ProjectCreate,
   QueryParams,
   ReviewResolution,
   RoutingPolicy,
   Schemas,
 } from "./types";
-import { isTerminalStatus } from "./types";
+import { isAlreadyIngested, isTerminalStatus } from "./types";
+import type { UploadProgress } from "./upload";
+import { uploadMultipart } from "./upload";
 
 const POLL_INTERVAL_MS = 2000;
+const SLOW_POLL_INTERVAL_MS = 10_000;
+const SLOW_POLL_AFTER_MS = 5 * 60 * 1000;
 
 // --- Projects ---------------------------------------------------------------
 
@@ -84,34 +91,47 @@ export type UploadBookInput = {
   projectId: string;
   file: File;
   seriesOrder?: number;
+  /** Real percentages from `XMLHttpRequest.upload` — `fetch` cannot report this. */
+  onProgress?: (progress: UploadProgress) => void;
+  signal?: AbortSignal;
 };
 
+export type UploadBookResult = Book | AlreadyIngestedOut;
+
+/**
+ * Goes around the typed `openapi-fetch` client — see `upload.ts` — so the
+ * upload can report real progress. The `200` "already ingested" response
+ * (SCR-10) is not yet in the generated contract; callers narrow the result
+ * with `isAlreadyIngested`.
+ */
 export const useUploadBook = () => {
   // Apis.
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ projectId, file, seriesOrder }: UploadBookInput) =>
-      request(() =>
-        client.POST("/api/projects/{project_id}/books", {
-          params: {
-            path: { project_id: projectId },
-            query: { series_order: seriesOrder ?? null },
-          },
-          // The contract types a binary part as `string`; the wire wants the
-          // File itself, so the serialiser below is what actually runs.
-          body: { file: file as unknown as string },
-          bodySerializer: (body: { file: unknown }) => {
-            const form = new FormData();
-            form.append("file", body.file as File);
-            return form;
-          },
-        }),
-      ),
-    onSuccess: (book) => {
+    mutationFn: ({
+      projectId,
+      file,
+      seriesOrder,
+      onProgress,
+      signal,
+    }: UploadBookInput) => {
+      const form = new FormData();
+      form.append("file", file);
+      return uploadMultipart<UploadBookResult>({
+        path: `/api/projects/${projectId}/books`,
+        query: { series_order: seriesOrder ?? null },
+        form,
+        onProgress,
+        signal,
+      });
+    },
+    onSuccess: (result, { projectId }) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.projects() });
       void queryClient.invalidateQueries({
-        queryKey: queryKeys.project(book.project_id),
+        queryKey: queryKeys.project(
+          isAlreadyIngested(result) ? projectId : result.project_id,
+        ),
       });
       void queryClient.invalidateQueries({ queryKey: queryKeys.books() });
     },
@@ -132,6 +152,13 @@ export const useBook = (bookId: string | undefined) => {
 };
 
 export const useBookStatus = (bookId: string | undefined) => {
+  // Refs.
+  // Tracks when polling started for *this* book, so a long-open tab backs off
+  // to a slower interval rather than hammering the API for the life of the
+  // page (S2.12). Keyed on bookId so navigating to a different book restarts
+  // the clock instead of inheriting the previous book's elapsed time.
+  const pollStartRef = useRef<{ bookId: string; at: number } | null>(null);
+
   return useQuery({
     queryKey: queryKeys.bookStatus(bookId ?? ""),
     queryFn: () =>
@@ -144,10 +171,14 @@ export const useBookStatus = (bookId: string | undefined) => {
     // Stops dead on a terminal status. A poll with no stop condition is a
     // background CPU leak in a tab somebody left open.
     refetchInterval: (query) => {
-      if (query.state.error) { return false; }
-      return isTerminalStatus(query.state.data?.status)
-        ? false
-        : POLL_INTERVAL_MS;
+      if (!bookId || query.state.error) { return false; }
+      if (isTerminalStatus(query.state.data?.status)) { return false; }
+
+      if (pollStartRef.current?.bookId !== bookId) {
+        pollStartRef.current = { bookId, at: Date.now() };
+      }
+      const elapsed = Date.now() - pollStartRef.current.at;
+      return elapsed > SLOW_POLL_AFTER_MS ? SLOW_POLL_INTERVAL_MS : POLL_INTERVAL_MS;
     },
   });
 };
