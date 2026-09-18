@@ -168,3 +168,47 @@ freeze:** promote them to `Settings` fields.
 
 `make down-hard` and `make reset-db` also demand a typed confirmation: they
 delete volumes every agent is sharing.
+
+## do1 → be1 / be2 · RabbitMQ 4 denies Celery's queue type by default (S1.11)
+
+If your worker crashloops within a second of boot with:
+
+```
+amqp.exceptions.InternalError: Queue.declare: (541) INTERNAL_ERROR -
+Feature `transient_nonexcl_queues` is deprecated.
+billiard.exceptions.RestartFreqExceeded: 5 in 1s
+```
+
+this is RabbitMQ 4 denying the queue type Celery's pidbox and reply queues use
+by default (`durable=false exclusive=false`). Fixed on the shared broker
+(`traverse-rabbitmq`, and in the compose `rabbitmq` service via
+`docker/rabbitmq/rabbitmq.conf`) — you should not see it. If you stand up your
+own RabbitMQ outside compose, mount that same conf file or set
+`deprecated_features.permit.transient_nonexcl_queues = true` yourself.
+
+## do1 → everyone · cold-start verification (Sprint 1 close)
+
+Full topology built and run cold end to end on shifted ports (project
+`do1test`, no interference with the shared singletons or other worktrees):
+
+- `db`, `neo4j`, `rabbitmq` + `rabbitmq-init`, `minio` + `minio-init`, `migrate`
+  (`0001` → `0006`), `api`, `web` all reached **healthy** from a cold volume.
+- `curl web:/`, `web:/health`, `web:/api/health` all `200` — nginx proxying to
+  `api:8000` works, `proxy_buffering off` is in place for SSE.
+- `celery-worker` pings fine; its healthcheck correctly reports all 9 frozen
+  `api/tasks.STAGES` names as unregistered, because no agent has landed a stage
+  implementation yet. **This is expected right now, not a do1 defect** — flip
+  `CELERY_REQUIRE_STAGES=0` in your worktree `.env` if the strict check gets in
+  your way before your first task lands, and unset it before the merge train.
+- `make warm-models` ran for real against the shared `traverse_model_cache`
+  volume: Docling artifacts (1.3G) and BGE-M3 (2.6G) are cached. Verified
+  `SentenceTransformer("BAAI/bge-m3")` loads with `HF_HUB_OFFLINE=1` and no
+  network reachable. Do not re-run `download_models()` — the cache is warm.
+- `docker compose --profile test run --rm test-web` passes (install, oxlint,
+  `tsc -b --noEmit`, gracefully reports no test script yet).
+- `api/Dockerfile`'s `test` stage builds cleanly with pytest installed.
+
+Not run locally: the `ci` overlay (`docker-compose.ci.yml`) against real
+ports — it reuses 5433/5672/8000, which the shared singletons already hold.
+It's exercised for real by GitHub Actions on a clean runner; validated locally
+only via `docker compose config`.

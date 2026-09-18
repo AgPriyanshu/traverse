@@ -110,7 +110,10 @@ make revision m="…"               ORCHESTRATOR ONLY — typed confirmation
 - **`proxy_buffering off`** in `web/nginx.conf` or SSE streaming silently hangs.
   Also `chunked_transfer_encoding off` and a 3600s read timeout.
 - **Models are volume-mounted, not baked.** `make warm-models` fills the shared
-  `/models` volume once, behind an flock so two worktrees cannot race.
+  `/models` volume once, behind an flock so two worktrees cannot race. **Done
+  for Sprint 1** — the `traverse_model_cache` volume is warm (Docling 1.3G,
+  BGE-M3 2.6G); confirmed `SentenceTransformer("BAAI/bge-m3")` loads with
+  `HF_HUB_OFFLINE=1` and no network. Do not run `download_models()` again.
 - **Tests must not hit the network** — `MODELS_OFFLINE=1` sets `HF_HUB_OFFLINE`
   and `TRANSFORMERS_OFFLINE` and points Docling at `/models/docling`.
 - **`ruff format` ignores `per-file-ignores`.** The migrations are excluded with
@@ -120,6 +123,14 @@ make revision m="…"               ORCHESTRATOR ONLY — typed confirmation
   uses `ps -a`, or the one-shot services look absent forever.
 - **`%2F` in an AMQP URL.** `pyamqp://…/%2Fbe1` is vhost `/be1`; `…/be1` is a
   different vhost that does not exist.
+- **RabbitMQ 4 denies `transient_nonexcl_queues` by default.** Celery's pidbox
+  and reply queues are declared `durable=false exclusive=false`, and with the
+  feature denied the worker crashloops within a second of boot
+  (`amqp.exceptions.InternalError: (541) INTERNAL_ERROR`,
+  `RestartFreqExceeded`). Fixed by mounting
+  `docker/rabbitmq/rabbitmq.conf` (`deprecated_features.permit.*`) into
+  `/etc/rabbitmq/conf.d/`. If a worker crashloops on boot with that traceback,
+  check the broker has this file mounted before looking anywhere else.
 - Langfuse needs a **dedicated Postgres** — it runs its own Prisma migrations.
 - vLLM under WSL2 in compose may not start — the documented fallback is
   `INFERENCE_MODE=api`, which is the default, so nobody is blocked on a GPU.
