@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { Link as RouterLink } from "react-router";
 import { PageHeader } from "@/components/layout";
 import { EmptyState, ErrorState, LoadingSkeleton } from "@/components/ui";
-import { useLibrary } from "@/lib/api";
+import { useBooks, useProjects } from "@/lib/api";
 import { BookCard } from "./book-card";
 import { formatCount } from "@/lib/format";
 
@@ -24,19 +24,30 @@ const AddBookButton = () => {
 
 export const Library = () => {
   // Apis.
-  const library = useLibrary();
+  const books = useBooks();
+  const projects = useProjects();
 
   // useMemos.
   const projectsById = useMemo(() => {
-    return new Map(library.projects.map((project) => [project.id, project]));
-  }, [library.projects]);
+    return new Map((projects.data ?? []).map((project) => [project.id, project]));
+  }, [projects.data]);
 
-  const books = useMemo(() => {
-    return [...library.books].sort((a, b) => a.title.localeCompare(b.title));
-  }, [library.books]);
+  const sortedBooks = useMemo(() => {
+    return [...(books.data ?? [])].sort((a, b) =>
+      a.title.localeCompare(b.title),
+    );
+  }, [books.data]);
 
   // Variables.
-  const showProject = library.projects.length > 1;
+  const isPending = books.isPending || projects.isPending;
+  const error = books.error ?? projects.error ?? null;
+  const showProject = (projects.data?.length ?? 0) > 1;
+
+  // Handlers.
+  const refetch = () => {
+    void books.refetch();
+    void projects.refetch();
+  };
 
   return (
     <>
@@ -44,18 +55,20 @@ export const Library = () => {
         title="Library"
         description="Every novel you have brought in, and what Traverse has made of it so far."
         meta={
-          books.length > 0 ? formatCount(books.length, "book") : undefined
+          sortedBooks.length > 0
+            ? formatCount(sortedBooks.length, "book")
+            : undefined
         }
         actions={<AddBookButton />}
       />
 
-      {library.isPending ? <LoadingSkeleton variant="cards" count={3} /> : null}
+      {isPending ? <LoadingSkeleton variant="cards" count={3} /> : null}
 
-      {!library.isPending && library.error ? (
-        <ErrorState error={library.error} onRetry={library.refetch} />
+      {!isPending && error ? (
+        <ErrorState error={error} onRetry={refetch} />
       ) : null}
 
-      {!library.isPending && !library.error && books.length === 0 ? (
+      {!isPending && !error && sortedBooks.length === 0 ? (
         <EmptyState
           title="No books yet — upload a novel to begin"
           description="Traverse reads a PDF end to end, finds who is in it, and works out how they know each other. Every answer it gives points back at the page that proves it."
@@ -63,9 +76,9 @@ export const Library = () => {
         />
       ) : null}
 
-      {books.length > 0 ? (
+      {sortedBooks.length > 0 ? (
         <SimpleGrid columns={{ base: 1, sm: 2, lg: 3 }} gap="4">
-          {books.map((book) => (
+          {sortedBooks.map((book) => (
             <BookCard
               key={book.id}
               book={book}

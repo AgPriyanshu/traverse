@@ -1,13 +1,7 @@
-import {
-  useMutation,
-  useQueries,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { client, request } from "./client";
 import { queryKeys } from "./query-keys";
 import type {
-  Book,
   ProjectCreate,
   QueryParams,
   ReviewResolution,
@@ -38,50 +32,6 @@ export const useProject = (projectId: string | undefined) => {
       ),
     enabled: Boolean(projectId),
   });
-};
-
-/**
- * The library across every project.
- *
- * The contract has no flat book list — books only arrive nested in
- * `ProjectDetailOut` — so this fans out to one detail call per project. See
- * SCR-1: when `GET /api/books` lands this collapses to a single `useQuery`
- * and no screen changes.
- */
-export const useLibrary = () => {
-  // Apis.
-  const projects = useProjects();
-
-  const details = useQueries({
-    queries: (projects.data ?? []).map((project) => ({
-      queryKey: queryKeys.project(project.id),
-      queryFn: () =>
-        request(() =>
-          client.GET("/api/projects/{project_id}", {
-            params: { path: { project_id: project.id } },
-          }),
-        ),
-    })),
-  });
-
-  // Variables.
-  const books: Book[] = details.flatMap((detail) => detail.data?.books ?? []);
-  const isPending = projects.isPending || details.some((d) => d.isPending);
-  const error = projects.error ?? details.find((d) => d.error)?.error ?? null;
-
-  // Handlers.
-  const refetch = () => {
-    void projects.refetch();
-    for (const detail of details) { void detail.refetch(); }
-  };
-
-  return {
-    projects: projects.data ?? [],
-    books,
-    isPending,
-    error,
-    refetch,
-  };
 };
 
 export const useCreateProject = () => {
@@ -119,6 +69,17 @@ export const useReorderBooks = (projectId: string) => {
 
 // --- Books ------------------------------------------------------------------
 
+type BooksParams = QueryParams<"/api/books", "get">;
+
+/** The library across every project — one call, filterable by project or status. */
+export const useBooks = (params?: BooksParams) => {
+  return useQuery({
+    queryKey: queryKeys.books(params),
+    queryFn: () =>
+      request(() => client.GET("/api/books", { params: { query: params } })),
+  });
+};
+
 export type UploadBookInput = {
   projectId: string;
   file: File;
@@ -152,6 +113,7 @@ export const useUploadBook = () => {
       void queryClient.invalidateQueries({
         queryKey: queryKeys.project(book.project_id),
       });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.books() });
     },
   });
 };
