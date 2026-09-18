@@ -40,6 +40,7 @@ change — worth knowing before you add a stage or a task type.
 | `query_log` | question, route, retrieved ids, answer, citations, model, tokens, cost, latency_ms (jsonb), spoiler_chapter_limit, policy_version | S6/S9 |
 | `eval_run` / `eval_result` | config (jsonb), corpus_version, git_sha, metrics | S8 |
 | `routing_policy` / `cost_snapshot` | purpose → model, version | S9 |
+| `checkpoints`, `checkpoint_blobs`, `checkpoint_writes`, `checkpoint_migrations` | LangGraph's own tables. **Not in Alembic** — created by `api.graph.checkpoint.setup_checkpointer()`, which owns their migrations. Do not autogenerate against them; Alembic will try to drop them. | Built |
 
 ## Constraints that carry meaning
 

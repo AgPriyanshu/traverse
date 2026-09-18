@@ -129,3 +129,33 @@ RABBITMQ_URL=pyamqp://guest:guest@localhost:5672/%2Fbe1
 
 `.../5672/be1` (no encoding) connects to a vhost literally named `be1`, which
 does not exist, and fails with `NOT_ALLOWED - vhost be1 not found`.
+
+---
+
+### SCR-5 · be2 · 2026-09-17
+**Need:** `GraphEdgeOut.page_refs` is `list[int]`, with no book dimension.
+**Why:** relations are project-scoped and evidence carries `book_id`, so in a
+series a bare page number is not a citation — "page 214" of which volume?
+Every other citation surface in the contracts (`EvidenceOut`, `CitationOut`)
+already carries `book_id` and `series_order`; `GraphEdgeOut` is the one that
+does not. The Neo4j projection therefore stores `page_refs` as
+`"<book_order>:<page>"` strings and the read path would have to throw the book
+away to satisfy the contract.
+**Blocking:** no. Sprint 1 ships it as-is and the graph explorer is
+single-book-shaped until S4.7; it bites at S5 (series arcs) at the latest.
+**Proposed:** replace with a small struct, batched into the Sprint 2 freeze
+rather than landed mid-sprint:
+
+```python
+class PageRefOut(BaseModel):
+    book_order: int = 1
+    book_id: UUID | None = None
+    page: int
+
+class GraphEdgeOut(BaseModel):
+    ...
+    page_refs: list[PageRefOut] = Field(default_factory=list)
+```
+
+A standalone book is `book_order=1`, so there is still one code path. FE1 would
+need the regenerated client; the change is additive to every other model.

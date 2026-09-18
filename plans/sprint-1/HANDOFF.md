@@ -352,3 +352,136 @@ RABBITMQ_URL=pyamqp://guest:guest@localhost:5672/%2Fbe2
 
 `.../5672/be2` (unencoded) fails with `NOT_ALLOWED - vhost be2 not found`. Full
 detail in `plans/sprint-1/SCR.md` (SCR-4).
+
+---
+
+## be2 → fe1 · the ontology JSON shape
+
+`GET /api/graph/ontology` is **implemented and live** (S1.7). It is a real
+feature this sprint, not a stub: build the edge-family colour mapping and the
+filter controls against it now, before any edge exists.
+
+```jsonc
+{
+  "predicates": [
+    { "predicate": "parent_of",  "family": "kinship",  "inverse": "child_of",  "symmetric": false },
+    { "predicate": "sibling_of", "family": "kinship",  "inverse": "sibling_of", "symmetric": true  },
+    { "predicate": "unrequited_love_for", "family": "romantic", "inverse": null, "symmetric": false }
+    // …32 predicates total, sorted by `predicate`, ascending
+  ],
+  "families": ["kinship", "romantic", "social", "adversarial", "structural"]
+}
+```
+
+Model: `OntologyOut` / `OntologyPredicateOut` in `api/contracts/api.py` — already
+in the generated client, unchanged by this work.
+
+What to rely on, and what not to:
+
+- **`families` is the colour-mapping key**, and it is exactly the five values of
+  the `RelationFamily` enum, always in that order. Colour by family, never by
+  predicate — there are 32 predicates and there will be more.
+- **`predicates` is sorted and stable**, so it can drive a checkbox list
+  directly. It grows whenever `api/graph/ontology.yaml` grows: do not hardcode
+  the 32, and do not assume a predicate you saw last week is still the newest.
+- **`inverse: null` is meaningful**, not missing data. `unrequited_love_for` has
+  no inverse by definition. A UI that renders an arrow both ways for every edge
+  gets that one wrong, which is the case the predicate exists to capture.
+- **`symmetric: true` means render one undirected edge**, not two.
+- `structural` contains only `co_occurs_with`, which is derived rather than
+  extracted. It will look different from the others in the data (weighted, very
+  dense); consider defaulting its filter to off.
+
+The endpoint reads the YAML through the same loader the extraction prompt and
+the validator use, so it cannot drift from what the backend will accept.
+
+## be2 → do1 · `graph.reset()` and the Neo4j lifecycle
+
+```python
+from api import graph
+
+await graph.reset(book_id)                          # UUID | str
+await graph.reset(book_id, project_id=project_id)   # when the Book node may be gone
+await graph.reset_project(project_id)               # whole project, for a full rebuild
+```
+
+`reset` returns a `ResetCounts` dataclass — `relations_deleted`,
+`relations_detached`, `appearances_deleted`, `characters_deleted`,
+`books_deleted` — suitable for logging from a `make graph-rebuild` target. It is
+a no-op on an unknown book, so it is safe to call unconditionally before a
+re-upsert.
+
+Semantics, because "reset a book" is not obvious once characters are
+project-scoped:
+
+- Edges and characters **only** this book produced are deleted.
+- Edges and characters a **later volume also establishes survive**, with this
+  book's provenance trimmed off. A series character is not dropped because one
+  of its volumes is being re-ingested.
+- Zero orphans afterwards — tested against a 200-node / 900-edge fixture, and
+  against a second project that must come through untouched.
+
+`reset_project` is the one to call for a full rebuild from Postgres.
+
+**Driver lifecycle** — `api/graph/client.py`:
+
+```python
+await graph.connect()      # FastAPI startup AND worker_process_init
+await graph.close()        # shutdown / teardown
+ok, detail = await graph.healthcheck()   # never raises; returns (bool, str)
+```
+
+- `main.py`'s lifespan already calls both. **The Celery worker bootstrap still
+  needs `connect()` on `worker_process_init` and `close()` on
+  `worker_process_shutdown`** — that file is be1's, so it is not wired yet.
+- `connect()` is idempotent and applies the schema constraints/indexes, all
+  `IF NOT EXISTS`.
+- It retries `ServiceUnavailable` with exponential backoff up to ~8 attempts,
+  because Neo4j needs roughly 20 seconds after container start. **A compose
+  `depends_on` health gate is still worth having**, but the API no longer needs
+  one to come up.
+- A Neo4j that is down at startup is **logged and degraded, not fatal**. Neo4j
+  is a rebuildable projection; refusing to boot would take the Postgres-backed
+  routes down with it. `/health` should report it via `graph.healthcheck()`.
+- `graph.execute(cypher, **params)` runs a single statement as a **managed
+  transaction**, which is what makes a Neo4j container restart survivable
+  without an API restart. Verified: `TRAVERSE_NEO4J_RESTART_TEST=1 uv run pytest
+  api/tests/graph/test_client.py -k restart` (set `NEO4J_CONTAINER` if the
+  container is not named `neo4j`).
+
+## be2 → do1 · checkpointer tables are not Alembic's
+
+`api/graph/checkpoint.py::setup_checkpointer()` creates four tables in the
+application database — `checkpoints`, `checkpoint_blobs`, `checkpoint_writes`,
+`checkpoint_migrations`. LangGraph owns their migrations, not Alembic.
+
+- Call it **once per environment** at deploy time, not on the request path: it
+  takes table locks.
+- **Never `alembic revision --autogenerate` without excluding them** — Alembic
+  does not know them and will generate a migration that drops them.
+
+## be2 → be1 · the stage this touches
+
+Nothing to consume yet. `relations.extract`, `relations.aggregate` and
+`graph.upsert` are Sprint 4; the `STAGES` tuple already names them and no
+handler is registered, which is the intended Sprint 1 state.
+
+## be2 → orchestrator · shared files touched
+
+None of these are in anybody's exclusive list, but they will show up in the
+merge train:
+
+- `api/pyproject.toml` — added `pyyaml` and `langgraph-checkpoint-postgres`
+  (runtime), `pytest` and `pytest-asyncio` (dev); a `[tool.pytest.ini_options]`
+  block with `asyncio_mode = "auto"`, session-scoped loops and
+  `pythonpath = [".."]`; and a `[tool.ruff.format]` exclude for
+  `db/migrations/versions/*.py`. **That last one is a real footgun fixed:**
+  plain `ruff format .` was restyling applied migrations, which is exactly what
+  the existing lint ignores say must not happen.
+- `api/main.py` — the lifespan now opens and closes the Neo4j driver. The
+  freeze's comment invited the owning agent to do this.
+- `api/tests/__init__.py` — empty, needed so `api.tests.*` is importable by the
+  checkpointer probe's subprocess. be1 will want the same file.
+- `api/db/graph_db.py` — **deleted**. Nothing imported it, it opened a driver
+  per call, and it carried hardcoded credentials. The brief instructed the
+  replacement.

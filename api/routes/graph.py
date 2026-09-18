@@ -2,7 +2,8 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
 from ..contracts.api import (
     EvidenceOut,
@@ -12,6 +13,8 @@ from ..contracts.api import (
     RelationArcOut,
 )
 from ..contracts.enums import RelationFamily
+from ..db.engine import get_session
+from ..graph import ontology, repository
 from ._stub import not_implemented
 
 router = APIRouter(tags=["graph"])
@@ -20,7 +23,13 @@ OWNER = "be2"
 
 @router.get("/graph/ontology", response_model=OntologyOut)
 async def get_ontology() -> OntologyOut:
-    not_implemented(OWNER, "S1.7")
+    """Return the predicate registry: every predicate, family, inverse and symmetry.
+
+    Served from ``api/graph/ontology.yaml``, so adding a predicate there is
+    enough to change this response — the frontend's edge-family colour mapping
+    and filter controls are generated from it.
+    """
+    return ontology.to_contract()
 
 
 @router.get("/projects/{project_id}/graph", response_model=GraphOut)
@@ -33,8 +42,29 @@ async def get_graph(
     min_confidence: float = Query(default=0.0, ge=0.0, le=1.0),
     limit_book_order: int | None = Query(default=None),
     limit_chapter: int | None = Query(default=None),
+    session: SQLModelAsyncSession = Depends(get_session),
 ) -> GraphOut:
-    not_implemented(OWNER, "S1.7 / S4.7")
+    """Return the project's character graph, filtered.
+
+    Raises:
+        HTTPException: 404 when the project does not exist.
+    """
+    if not await repository.project_exists(session, project_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
+        )
+
+    graph = await repository.get_graph(
+        session,
+        project_id,
+        book_id=book_id,
+        families=families,
+        min_confidence=min_confidence,
+        limit_book_order=limit_book_order,
+        limit_chapter=limit_chapter,
+    )
+
+    return graph
 
 
 @router.get("/characters/{character_id}/neighbourhood", response_model=GraphOut)

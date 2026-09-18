@@ -10,6 +10,8 @@ page. Symbols over line numbers.
 | `GraphState`, `responder`, `get_agent` | `api/llm.py` | Built — **prototype; a single node doing raw cosine-distance top-5. Replaced in S6.** |
 | WebSocket `/ws` echo + agent invoke | `api/main.py` | Built — prototype |
 | Route stubs, all 33 paths with real response models | `api/routes/*.py` | **Built — frozen** |
+| `GET /graph/ontology`, `/projects/{id}/characters`, `/characters/{id}`, `/projects/{id}/graph` | `api/routes/{graph,characters}.py` | **Built** — Postgres-backed reads; `/graph` moves to Neo4j in S4.7 |
+| LangGraph Postgres checkpointer (`checkpointer`, `setup_checkpointer`) | `api/graph/checkpoint.py` | **Built** — survives a SIGKILL; see character-graph.md |
 | Hybrid retrieval (pgvector + `ts_rank_cd` + RRF) | `api/retrieval/hybrid.py` | S2 |
 | Cross-encoder reranker (flagged) | `api/retrieval/` | S2 |
 | Query router | `api/query/router.py` | S6 |
