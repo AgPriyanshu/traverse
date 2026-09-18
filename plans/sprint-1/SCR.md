@@ -159,3 +159,109 @@ class GraphEdgeOut(BaseModel):
 
 A standalone book is `book_order=1`, so there is still one code path. FE1 would
 need the regenerated client; the change is additive to every other model.
+
+---
+
+### DCR-1 · fe1 · 2026-09-17
+**Need:** `web/src/design-system/tokens.ts` does not exist.
+**Why:** `design/DESIGN.md` §3 and BRANCH.md §2 both describe it as the frozen
+file FE1 imports, and `web/AGENTS.md` forbids literals in components on the
+strength of it. It was never exported at the freeze. The only thing in
+`web/src/design-system/` was the Vite starter's purple template theme
+(`#aa3bff`, system-ui), which contradicts the settled direction in §2.
+**Blocking:** no — shipped by transcribing §3 verbatim.
+**Proposed:** export `tokens.ts` with the §3 palette and type/space/radius
+scales. `web/src/design-system/theme.ts` already isolates the whole palette in
+one `const palette` block with a comment naming this DCR, so the swap is
+`import { palette } from "./tokens"` and a deletion — no component changes.
+Until then `theme.ts` is the de facto token layer, which is a divergence risk
+of exactly the kind BRANCH.md §8 exists to prevent.
+
+### DCR-2 · fe1 · 2026-09-17
+**Need:** light-mode `relation.social` (`#8A6A12`) measures **4.34:1** on
+`sunken` (`#F2EDE4`) — below the 4.5:1 floor. It passes on `paper` (4.73) and
+`surface` (4.98); dark mode passes everywhere.
+**Why:** the graph legend and the relationship list sit on `sunken` wells in the
+S4 artboards, and colour is a labelled channel there, not decoration.
+**Blocking:** no — nothing renders relation colours until S4.
+**Proposed:** darken light `social` to ≈`#7F6210` (≈4.8:1 on `sunken`), or state
+in §3 that relation colours are only ever used on `paper`/`surface`. Measured
+with the WCAG 2.x relative-luminance formula, all pairs, both themes.
+
+### DCR-3 · fe1 · 2026-09-17
+**Need:** §3 specifies shadow *geometry* (`0 2px 3px -1px / 0 7px 14px -10px`)
+but no shadow colour or alpha.
+**Why:** a shadow token cannot be built from geometry alone, and "a 1px border
+plus a wide soft halo is the tell to avoid" is a statement about colour as much
+as blur.
+**Blocking:** no.
+**Proposed:** I used the `ink` hue at low alpha
+(`rgba(43, 38, 34, 0.09)` / `0.22`) so shadows read as warm rather than grey.
+Confirm or replace in `tokens.ts`.
+
+### DCR-4 · fe1 · 2026-09-17
+**Need:** two measured contrast figures in §3 are optimistic.
+**Why:** §3 is cited as "measured to pass 4.5:1", so the numbers get trusted.
+`accent` light is **5.11:1** on `paper` (§3 says 5.4 — that is its value on
+`surface`); `accent` dark is **6.16:1** on `paper` (§3 says 7.0). Both clear the
+floor, so nothing is broken; the table is just off.
+**Blocking:** no.
+**Proposed:** restate §3's contrast column as "vs `paper`", or correct the two
+figures.
+
+---
+
+### SCR-6 · fe1 · 2026-09-17
+**Need:** a flat book list — `GET /api/books`, optionally `?project_id=`.
+**Why:** the library screen (`/books`, S1.10) lists books. The frozen contract
+has no book-list endpoint: books only reach the client inside
+`ProjectDetailOut.books` from `GET /api/projects/{project_id}`. Rendering the
+library therefore costs `1 + N` requests (`GET /api/projects`, then one detail
+call per project) and the client has to flatten and re-sort them. That is an
+N+1 in the first screen a user sees, and it gets worse in S5, where a project
+*is* a series and a reader may have many.
+**Blocking:** no — implemented as a fan-out with `useQueries`, isolated in
+`useLibrary()` so it collapses to one call when this lands.
+**Proposed:** `GET /api/books` → `list[BookOut]`, `project_id` and `status`
+optional query filters. `BookOut` already carries `project_id`, so nothing else
+changes.
+
+### SCR-7 · fe1 · 2026-09-17
+**Need:** make `type` **required** on `TokenEvent`, `CitationEvent`,
+`RouteEvent`, `InterruptEvent`, `DoneEvent` and `ErrorEvent`.
+**Why:** each declares `type` as a `const` **with a default**, so FastAPI emits
+it as optional and `openapi-typescript` generates `type?: "token"`. The union
+still narrows on a `switch`, but `undefined` is a member of every arm, so an
+exhaustive `default:` cannot be proved unreachable and an event with the field
+stripped type-checks. The docstring on `QueryEventEnvelope` says the envelope
+exists precisely so the client carries a discriminated union; one keyword
+finishes the job.
+**Blocking:** no — S6 consumes these.
+**Proposed:** drop the `default=` on each literal `type` field so it lands in
+`required`. No wire-format change.
+
+### SCR-8 · fe1 · 2026-09-17
+**Need:** `CORSMiddleware` on the FastAPI app, dev origins only.
+**Why:** `api/main.py` installs no CORS middleware, so a browser at
+`:5173` cannot call `:8003` directly — the arrangement the sprint brief
+describes (`VITE_API_BASE_URL=http://localhost:8003`) fails at the preflight.
+**Blocking:** no — the Vite dev server proxies `/api` and `/health` to
+`VITE_API_BASE_URL` instead, which is also what nginx must do in the container,
+so dev and prod now share one code path and the browser is always same-origin.
+**Proposed:** either add the middleware behind a settings key, or record in
+`api/AGENTS.md` that the API is same-origin by design and the proxy is the
+supported path. I would keep the proxy; this is a request for the decision to be
+written down rather than for the middleware.
+
+### SCR-9 · fe1 · 2026-09-17
+**Need:** a documented error body on the frozen routes — at minimum an
+`ErrorOut {detail: str}` schema on the `501`/`404`/`5xx` responses.
+**Why:** the contract documents only `200`/`201`/`202`/`204` and `422`. Every
+route returns 501 today via `HTTPException(detail=...)`, and the generated
+client types that body as nothing at all, so the error surface — which S1.10
+names as *the* acceptance criterion this sprint — is the one part of the client
+that is hand-written and unchecked. `web/src/lib/api/errors.ts` parses `detail`
+by hand, including the `422` `[{loc, msg}]` shape.
+**Blocking:** no.
+**Proposed:** add `responses={501: {"model": ErrorOut}, 404: {"model": ErrorOut}}`
+to the frozen routes, or one app-level `responses` default.

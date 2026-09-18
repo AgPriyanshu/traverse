@@ -4,7 +4,48 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>web</title>
+    <meta name="color-scheme" content="light dark" />
+    <meta
+      name="theme-color"
+      content="#FAF7F2"
+      media="(prefers-color-scheme: light)"
+    />
+    <meta
+      name="theme-color"
+      content="#1C1815"
+      media="(prefers-color-scheme: dark)"
+    />
+    <meta
+      name="description"
+      content="Traverse — a character knowledge graph for novels and series, with every fact traceable to the page that proves it."
+    />
+    <title>Traverse</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,500;0,7..72,600;1,7..72,400&display=swap"
+    />
+
+    <!-- The pre-paint ground, so a reload does not flash white before the
+         stylesheet lands. Mirrors the `paper` token in design/DESIGN.md §3. -->
+    <style>
+      html {
+        background: #faf7f2;
+      }
+      @media (prefers-color-scheme: dark) {
+        html {
+          background: #1c1815;
+        }
+      }
+      html.light {
+        background: #faf7f2;
+      }
+      html.dark {
+        background: #1c1815;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
