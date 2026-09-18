@@ -205,7 +205,7 @@ LIBRARY_BODY = f'''<div class="rt {{{{theme}}}}" style="width:1440px;display:fle
   </div>
 
   <div style="display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));gap:18px">
-    {bookcard("Pride and Prejudice","Jane Austen · 1813","61 chapters · 432 pp · 47 characters","Ready","ok",["#A8502A","#8A6A12","#2C6E6A"])}
+    {bookcard("Pride and Prejudice","Jane Austen · 1813","61 chapters · 432 pp · 47 characters","Ready","ok",["#A8502A","#7F6210","#2C6E6A"])}
     {bookcard("Anne of Green Gables","L. M. Montgomery · series","3 of 8 books · 112 characters","Ready","ok",["#2C6E6A","#5D4A96","#A6385C"],
       '<div style="display:flex;flex-direction:column;gap:5px;padding-top:9px;border-top:1px solid var(--line)">'
       + bookrow(1,"Anne of Green Gables","38 characters")
@@ -214,12 +214,12 @@ LIBRARY_BODY = f'''<div class="rt {{{{theme}}}}" style="width:1440px;display:fle
     {bookcard("Wuthering Heights","Emily Brontë · 1847","34 chapters · 288 pp · 23 characters","Ready","ok",["#5D4A96","#A6385C","#2B2622"],
       '<div style="display:flex;align-items:center;gap:7px;padding-top:9px;border-top:1px solid var(--line);font-size:12.5px;color:var(--warn)">'
       + ICON["warn"] + '<span>2 name collisions resolved by review</span></div>')}
-    {bookcard("The Adventures of Sherlock Holmes","Arthur Conan Doyle · series","2 of 4 books · 64 characters","1 book processing","warn",["#2C6E6A","#8A6A12"],
+    {bookcard("The Adventures of Sherlock Holmes","Arthur Conan Doyle · series","2 of 4 books · 64 characters","1 book processing","warn",["#2C6E6A","#7F6210"],
       '<div style="display:flex;flex-direction:column;gap:5px;padding-top:9px;border-top:1px solid var(--line)">'
       + bookrow(1,"A Study in Scarlet","31 characters")
       + bookrow(2,"The Sign of the Four","+18 new")
       + bookrow(3,"The Hound of the Baskervilles","mapping relationships…") + '</div>')}
-    {bookcard("Frankenstein","Mary Shelley · 1818","Discovering characters · 3 of 5 stages","Processing","warn",["#8A6A12","#2C6E6A"],
+    {bookcard("Frankenstein","Mary Shelley · 1818","Discovering characters · 3 of 5 stages","Processing","warn",["#7F6210","#2C6E6A"],
       '<div style="display:flex;flex-direction:column;gap:7px;padding-top:9px;border-top:1px solid var(--line)">'
       '<div style="height:5px;border-radius:3px;background:var(--sunken);overflow:hidden"><div style="width:58%;height:100%;background:var(--accent)"></div></div>'
       '<div class="mono" style="font-size:12px;color:var(--ink3)">about 4 minutes remaining</div></div>')}

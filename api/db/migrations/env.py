@@ -24,16 +24,23 @@ if config.config_file_name is not None:
 # alembic.ini, so there is a single source of truth for the connection string.
 config.set_main_option("sqlalchemy.url", settings.postgres_db_string)
 
-# add your model's MetaData object here
-# for 'autogenerate' support
-# from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
 target_metadata = SQLModel.metadata
 
-# other values from the config, defined by the needs of env.py,
-# can be acquired:
-# my_important_option = config.get_main_option("my_important_option")
-# ... etc.
+# LangGraph's Postgres checkpointer (api/graph/checkpoint.py::setup_checkpointer())
+# creates its own tables in this database and owns their migrations, not
+# Alembic. Without this filter, `autogenerate` proposes dropping them on every
+# single revision — noise that is at best distracting and at worst, if not
+# caught, a migration that destroys every paused review-queue thread.
+_CHECKPOINTER_TABLES = {
+    "checkpoints",
+    "checkpoint_blobs",
+    "checkpoint_writes",
+    "checkpoint_migrations",
+}
+
+
+def include_object(obj, name, type_, reflected, compare_to) -> bool:
+    return not (type_ == "table" and name in _CHECKPOINTER_TABLES)
 
 
 def process_revision_directives(context, revision, directives) -> None:
@@ -67,6 +74,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         process_revision_directives=process_revision_directives,
+        include_object=include_object,
     )
 
     with context.begin_transaction():
@@ -78,6 +86,7 @@ def do_run_migrations(connection: Connection) -> None:
         connection=connection,
         target_metadata=target_metadata,
         process_revision_directives=process_revision_directives,
+        include_object=include_object,
     )
 
     with context.begin_transaction():

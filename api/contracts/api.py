@@ -26,6 +26,21 @@ from .enums import (
 )
 from .pipeline import StageStatus
 
+
+class ErrorOut(BaseModel):
+    """The body of every non-2xx response this API returns.
+
+    FastAPI's own ``HTTPException`` already serialises to ``{"detail": ...}``;
+    this model exists so that shape is *documented* — every frozen route stub
+    raises one via ``not_implemented()``, and an undocumented error body is the
+    one part of the generated client that has to be hand-parsed instead of
+    typed. ``detail`` is a string for HTTPException-style errors and a list of
+    ``{loc, msg, type}`` objects for FastAPI's own 422 validation errors.
+    """
+
+    detail: str | list[dict[str, Any]]
+
+
 # ── Projects and books ──────────────────────────────────────────────────────
 
 
@@ -194,6 +209,15 @@ class CharacterSplitRequest(BaseModel):
 # ── Graph ───────────────────────────────────────────────────────────────────
 
 
+class PageRefOut(BaseModel):
+    """A page reference that names its book — a bare page number is not a
+    citation once a project can hold more than one volume."""
+
+    book_order: int = 1
+    book_id: UUID | None = None
+    page: int
+
+
 class EvidenceOut(BaseModel):
     id: UUID
     book_id: UUID
@@ -225,7 +249,7 @@ class RelationOut(BaseModel):
     first_chapter: int | None = None
     last_book_order: int | None = None
     last_chapter: int | None = None
-    page_refs: list[int] = Field(default_factory=list)
+    page_refs: list[PageRefOut] = Field(default_factory=list)
 
 
 class RelationArcOut(BaseModel):
@@ -259,7 +283,7 @@ class GraphEdgeOut(BaseModel):
     confidence: float
     evidence_count: int
     hearsay: bool = False
-    page_refs: list[int] = Field(default_factory=list)
+    page_refs: list[PageRefOut] = Field(default_factory=list)
 
 
 class GraphOut(BaseModel):
@@ -312,32 +336,32 @@ class QueryRequest(BaseModel):
 # Discriminated on ``type`` so the generated TypeScript is a usable union
 # rather than ``unknown``.
 class TokenEvent(BaseModel):
-    type: Literal["token"] = "token"
+    type: Literal["token"]
     text: str
 
 
 class CitationEvent(BaseModel):
-    type: Literal["citation"] = "citation"
+    type: Literal["citation"]
     index: int
     citation: CitationOut
 
 
 class RouteEvent(BaseModel):
-    type: Literal["route"] = "route"
+    type: Literal["route"]
     route: QueryRoute
     explanation: str | None = None
     retrieval_tier: str | None = None
 
 
 class InterruptEvent(BaseModel):
-    type: Literal["interrupt"] = "interrupt"
+    type: Literal["interrupt"]
     thread_id: UUID
     question: str
     options: list[str] = Field(default_factory=list)
 
 
 class DoneEvent(BaseModel):
-    type: Literal["done"] = "done"
+    type: Literal["done"]
     thread_id: UUID
     citation_count: int = 0
     latency_ms: int | None = None
@@ -345,7 +369,7 @@ class DoneEvent(BaseModel):
 
 
 class ErrorEvent(BaseModel):
-    type: Literal["error"] = "error"
+    type: Literal["error"]
     message: str
     recoverable: bool = False
 

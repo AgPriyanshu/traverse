@@ -141,6 +141,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "anyio" },
     { name = "celery-types" },
     { name = "ipykernel" },
     { name = "pytest" },
@@ -174,6 +175,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "anyio", specifier = ">=4.14.2" },
     { name = "celery-types", specifier = ">=0.26.0" },
     { name = "ipykernel", specifier = ">=7.3.0" },
     { name = "pytest", specifier = ">=9.1.1" },

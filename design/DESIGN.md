@@ -116,7 +116,13 @@ there is one source of truth rather than two.
 
 Values below are the canvas's, measured to pass 4.5:1 on every ground they are
 used on. `--ink3` in particular was corrected from `#948878` (3.2:1) — do not
-lighten it back.
+lighten it back. Light `social` was corrected from `#8A6A12`, which measured
+4.34:1 on `sunken` — below the floor, and the graph legend and relationship
+list (S4) sit on `sunken` wells (DCR-2). Contrast figures below are measured
+against **`paper`**, the ground most text sits on; a colour used only on
+`surface` (a lighter ground) will read slightly higher there (DCR-4 — two
+figures in an earlier revision of this table were the `surface` value
+mislabelled as `paper`, corrected above).
 
 ```
             LIGHT       DARK        note
@@ -127,13 +133,13 @@ line        #E2DACD     #3A342E     borders
 ink         #2B2622     #EDE6DC     13.1:1 / 13.4:1
 ink2        #6B6157     #B3A899     5.6:1 / 7.0:1  — secondary text
 ink3        #756A5C     #9C9183     4.95:1 / 5.2:1 — metadata; the floor
-accent      #A8502A     #D98357     5.4:1 / 7.0:1
+accent      #A8502A     #D98357     5.11:1 / 6.16:1 (vs paper — see note)
 accentSoft  #F4E7DF     #33251D     tinted fills
 ok/warn/err #3F6D45 #8A5A12 #9E3B30 · dark #7FB98A #D2A44E #E08A7E
 
 relation    kinship #2C6E6A / #63B5AE   solid
             romantic #A6385C / #E08098  dashed 7 5
-            social #8A6A12 / #C9A23C    dotted 2 4
+            social #7F6210 / #C9A23C    dotted 2 4
             adversarial #5D4A96 / #A493DB  dash-dot 9 4 2 4
 
 type        Literata — display 30 / heading 20 / quote 16.5 italic
@@ -143,7 +149,11 @@ type        Literata — display 30 / heading 20 / quote 16.5 italic
 space       4pt scale
 radius      3 sm · 7 md · 10 lg · 999 only for the status dot
 shadow      0 2px 3px -1px / 0 7px 14px -10px — offset and a tight blur.
-            A 1px border plus a wide soft halo is the tell to avoid.
+            A 1px border plus a wide soft halo is the tell to avoid. Colour is
+            the `ink` hue at low alpha (card 0.09/0.22, raised 0.14/0.34 —
+            dark theme roughly triples the alpha since it sits on a near-black
+            ground), not a generic grey (DCR-3). Defined in
+            `web/src/design-system/tokens.ts`.
 motion      fast 120ms · base 200ms · slow 320ms; respect prefers-reduced-motion
 ```
 

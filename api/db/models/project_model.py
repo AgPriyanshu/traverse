@@ -61,5 +61,6 @@ class Chapter(TimestampMixin, table=True):
     page_end: int
     detection_method: DetectionMethod = Field(default=DetectionMethod.REGEX)
     confidence: float | None = Field(default=None)
+    human_verified: bool = Field(default=False)
 
     book: Book = Relationship(back_populates="chapters")

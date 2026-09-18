@@ -1,26 +1,6 @@
 import { createSystem, defaultConfig, defineConfig } from "@chakra-ui/react";
 
-// Transcribed verbatim from design/DESIGN.md §3 pending DCR-1, which asks the
-// orchestrator to export `design-system/tokens.ts`. When that file lands this
-// block becomes `import { palette } from "./tokens"` and nothing else changes.
-export const palette = {
-  paper: { light: "#FAF7F2", dark: "#1C1815" },
-  surface: { light: "#FFFDFA", dark: "#24201C" },
-  sunken: { light: "#F2EDE4", dark: "#161311" },
-  line: { light: "#E2DACD", dark: "#3A342E" },
-  ink: { light: "#2B2622", dark: "#EDE6DC" },
-  ink2: { light: "#6B6157", dark: "#B3A899" },
-  ink3: { light: "#756A5C", dark: "#9C9183" },
-  accent: { light: "#A8502A", dark: "#D98357" },
-  accentSoft: { light: "#F4E7DF", dark: "#33251D" },
-  ok: { light: "#3F6D45", dark: "#7FB98A" },
-  warn: { light: "#8A5A12", dark: "#D2A44E" },
-  err: { light: "#9E3B30", dark: "#E08A7E" },
-  kinship: { light: "#2C6E6A", dark: "#63B5AE" },
-  romantic: { light: "#A6385C", dark: "#E08098" },
-  social: { light: "#8A6A12", dark: "#C9A23C" },
-  adversarial: { light: "#5D4A96", dark: "#A493DB" },
-} as const;
+import { palette, shadow } from "./tokens";
 
 const dual = (name: keyof typeof palette) => {
   return { value: { base: palette[name].light, _dark: palette[name].dark } };
@@ -114,18 +94,6 @@ const config = defineConfig({
         base: { value: "200ms" },
         slow: { value: "320ms" },
       },
-      shadows: {
-        // Offset plus a tight blur. A 1px border plus a wide soft halo is the
-        // tell to avoid (DESIGN.md §3).
-        card: {
-          value:
-            "0 2px 3px -1px rgba(43, 38, 34, 0.09), 0 7px 14px -10px rgba(43, 38, 34, 0.22)",
-        },
-        raised: {
-          value:
-            "0 2px 3px -1px rgba(43, 38, 34, 0.14), 0 7px 14px -10px rgba(43, 38, 34, 0.34)",
-        },
-      },
       sizes: {
         // A reading tool earns a measure, not a full-bleed dashboard grid.
         measure: { value: "68ch" },
@@ -134,6 +102,16 @@ const config = defineConfig({
       },
     },
     semanticTokens: {
+      shadows: {
+        // Offset plus a tight blur, tinted from `ink` rather than a generic
+        // grey halo (DCR-3). A 1px border plus a wide soft halo is the tell
+        // to avoid (DESIGN.md §3) — and it must actually vary by theme, which
+        // a static `tokens.shadows` value cannot do.
+        card: { value: { base: shadow.card.light, _dark: shadow.card.dark } },
+        raised: {
+          value: { base: shadow.raised.light, _dark: shadow.raised.dark },
+        },
+      },
       colors: {
         bg: {
           DEFAULT: dual("paper"),

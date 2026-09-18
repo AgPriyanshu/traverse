@@ -16,6 +16,7 @@ from ..contracts.api import (
     ProjectDetailOut,
     ProjectOut,
 )
+from ..contracts.enums import BookStatus
 from ..db.engine import get_session
 from ..pipeline import repository
 from ._stub import not_implemented
@@ -59,6 +60,23 @@ async def get_project(
 @router.patch("/projects/{project_id}/order", response_model=ProjectDetailOut)
 async def reorder_books(project_id: UUID, body: BookOrderUpdate) -> ProjectDetailOut:
     not_implemented(OWNER, "S5.9")
+
+
+@router.get("/books", response_model=list[BookOut])
+async def list_books(
+    project_id: UUID | None = Query(default=None),
+    book_status: BookStatus | None = Query(default=None, alias="status"),
+    session: SQLModelAsyncSession = Depends(get_session),
+) -> list[BookOut]:
+    """List books across every project, or filter to one.
+
+    A flat list rather than fanning `GET /projects` out into N detail calls —
+    the library screen is the first thing a user sees, and it grows worse in a
+    series project, where a reader may have many books (SCR-6).
+    """
+    books = await repository.list_books(session, project_id, book_status)
+
+    return books
 
 
 @router.post(

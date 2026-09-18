@@ -524,13 +524,16 @@ async def get_book_out(session: SQLModelAsyncSession, book_id: UUID) -> BookOut 
 
 
 async def list_books(
-    session: SQLModelAsyncSession, project_id: UUID | None = None
+    session: SQLModelAsyncSession,
+    project_id: UUID | None = None,
+    status: BookStatus | None = None,
 ) -> list[BookOut]:
-    """Return books, optionally restricted to one project, in series order.
+    """Return books, optionally filtered, in series order.
 
     Args:
         session: Open session.
         project_id: Restrict to this project when given.
+        status: Restrict to books in this ingestion status when given.
 
     Returns:
         Books ordered by ``series_order`` then title; a standalone book has a
@@ -544,6 +547,8 @@ async def list_books(
 
     if project_id is not None:
         statement = statement.where(Book.project_id == project_id)  # type: ignore[arg-type]
+    if status is not None:
+        statement = statement.where(Book.status == status)  # type: ignore[arg-type]
 
     books = list((await session.execute(statement)).scalars().all())
     counts = await _character_counts_by_book(session, [book.id for book in books])

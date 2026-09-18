@@ -151,8 +151,11 @@ volume of a series means dropping the whole project's graph.
 
 `page_refs` entries are `"<book_order>:<page>"` strings, not bare ints — in a
 series a page number without its volume is not a citation, and `reset` needs to
-drop one book's pages without touching another's. The API contract
-(`GraphEdgeOut.page_refs`) is still `list[int]`; the hydration splits them.
+drop one book's pages without touching another's. **The API contract now
+matches** (SCR-5, landed at the Sprint 2 freeze): `GraphEdgeOut.page_refs` and
+`RelationOut.page_refs` are `list[PageRefOut]` (`{book_order, book_id, page}`),
+not bare ints — the hydration parses the `"<order>:<page>"` string and resolves
+`book_id` from it rather than discarding the book on the way out.
 
 `page_refs` is denormalised so a traversal answers "which pages" without a
 Postgres round trip; full quotes hydrate on click. Batch writes with `UNWIND` —

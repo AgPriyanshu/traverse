@@ -21,7 +21,7 @@ change — worth knowing before you add a stage or a task type.
 | `user` | id, email (unique) | Built |
 | `project` | id, name, slug, kind (`standalone`\|`series`) | S1 |
 | `book` | id, **project_id, series_order**, title, author, content_hash **(unique)**, storage_key, page_count, chapter_count, status | S1/S2 |
-| `chapter` | id, book_id, number, title, page_start, page_end, heading_text, detection_method, confidence | S1/S2 |
+| `chapter` | id, book_id, number, title, page_start, page_end, heading_text, detection_method, confidence, **human_verified** (0007) | S1/S2 |
 | `documentchunk` | id, book_id, chapter_id, text, headings[], **pages[], page_start, page_end**, text_embedding `vector(1024)`, tsv, token_count | Built (v1 shape); reshaped S1 |
 | `scene` / `scene_participant` | book_id, chapter_id, page range, chunk_ids[] / character_id | S4 |
 | `dialogue_line` | chunk_id, char span, speaker_character_id, method, confidence | S4 |
@@ -76,11 +76,19 @@ change — worth knowing before you add a stage or a task type.
 freeze.** Agents never write migrations — two agents writing `0006` produces a
 branch Alembic refuses to run. Need a column? File an SCR (BRANCH.md §8).
 
-**Current head: `0006`** — the full v2 schema in one migration, so Sprints 2–4
-need no migration of their own unless something is discovered. Later sprints
-add only what their behaviour needs: `0007` reconciliation audit and
-`character_death` (S5), then one per sprint as required.
+**Current head: `0007`** — `0006` was the full v2 schema; `0007` (Sprint 2
+freeze) added `chapter.human_verified` (SCR-1 — chapters needed the same
+human-verified guard `character` and `relation` already carry, for S7's
+`confirm_chapter_split`). Later sprints add only what their behaviour needs.
 
-`0006` is verified reversible: `head → 0005 → head → base → head` all pass. Its
-downgrade restores **structure, not data** — it truncates v1 chunks and drops
-`document`, and says so.
+Both are verified reversible: `head → 0005 → head → base → head` (0006), and a
+no-op `autogenerate` reports zero drift after 0007. `0006`'s downgrade restores
+**structure, not data** — it truncates v1 chunks and drops `document`, and
+says so.
+
+**LangGraph's checkpointer tables are excluded from autogenerate entirely**
+(`api/db/migrations/env.py::include_object`) — `checkpoints`,
+`checkpoint_blobs`, `checkpoint_writes`, `checkpoint_migrations` are created by
+`api/graph/checkpoint.py::setup_checkpointer()`, not Alembic, and without the
+filter every single `autogenerate` proposes dropping them. Nearly shipped as
+part of `0007`; excluded at the source now instead.

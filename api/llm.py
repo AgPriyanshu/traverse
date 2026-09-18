@@ -1,5 +1,4 @@
 from operator import add
-from pathlib import Path
 from typing import Annotated, TypedDict
 
 from langchain_core.messages import AnyMessage
@@ -14,6 +13,7 @@ from sqlmodel import select
 from .config import settings
 from .db.engine import db_session
 from .db.models.chunk_model import DocumentChunk
+from .pipeline.chunking import resolve_device
 
 langfuse = (
     Langfuse(
@@ -28,8 +28,8 @@ langfuse = (
 langfuse_handler = CallbackHandler() if settings.langfuse_enabled else None
 
 llm = ChatOpenAI(
-    model="Qwen/Qwen3-8B-AWQ",
-    base_url="http://localhost:8080/v1/",
+    model=settings.llm_model,
+    base_url=settings.vllm_base_url,
     api_key=SecretStr("not-needed"),
 )
 
@@ -45,13 +45,11 @@ class GraphState(TypedDict):
 async def responder(state: GraphState):
     user_query = state["messages"][-1]
 
-    EMBEDDING_MODEL_ID = "BAAI/bge-m3"
-    CACHE_DIR = Path("/home/prinzz/main/my-projects/traverse/api/.cache/")
     model = SentenceTransformer(
-        EMBEDDING_MODEL_ID,
-        device="cuda",
-        cache_folder=str(CACHE_DIR),
-        local_files_only=True,
+        settings.embedding_model_id,
+        device=resolve_device(settings.embedding_device),
+        cache_folder=str(settings.models_cache_dir),
+        local_files_only=settings.models_offline,
     )
 
     user_query_embedded = model.encode(

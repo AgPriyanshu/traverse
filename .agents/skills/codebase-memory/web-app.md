@@ -11,11 +11,13 @@ library/upload/ingestion-shell screens. 99 Vitest tests
 (`web/tests/*.test.{ts,tsx}`), all passing; `pnpm tsc --noEmit`, `pnpm lint`,
 `pnpm build` all clean.
 
-`web/src/design-system/tokens.ts` **still does not exist** — DCR-1
-(`plans/sprint-1/SCR.md`) asks the orchestrator to export it. Until then the
-§3 palette lives inline in `theme.ts` as `export const palette`, commented as
-provisional; swapping in `tokens.ts` is `import { palette } from "./tokens"`
-and a deletion, no component changes.
+`web/src/design-system/tokens.ts` **exists** (DCR-1, landed at the Sprint 2
+freeze) — `palette`, `shadow`, `type`, `space`, `radius`, `motion`. `theme.ts`
+imports `{ palette, shadow }` from it; shadows are now real `semanticTokens`
+with distinct light/dark values (they were a single static value before,
+DCR-3). Light `relation.social` was darkened `#8A6A12` → `#7F6210` to clear
+4.5:1 on `sunken` (DCR-2). A missing token is still a DCR, never a local
+addition — `tokens.ts` stays orchestrator-owned.
 
 ## Structure
 

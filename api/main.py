@@ -5,9 +5,18 @@ from fastapi import FastAPI
 from neo4j.exceptions import ServiceUnavailable
 
 from . import graph
-from .contracts.api import HealthOut
+from .contracts.api import ErrorOut, HealthOut
 from .routes import api_router
 from .routes.ops import health as _health
+
+# Applied to every route: the shape FastAPI's own HTTPException and validation
+# errors already serialise to, now documented rather than hand-parsed on the
+# client (SCR-9).
+_ERROR_RESPONSES = {
+    404: {"model": ErrorOut},
+    422: {"model": ErrorOut},
+    501: {"model": ErrorOut},
+}
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +45,7 @@ app = FastAPI(
     version="0.2.0",
     summary="Character knowledge graphs for novels and series.",
     lifespan=lifespan,
+    responses=_ERROR_RESPONSES,
 )
 
 app.include_router(api_router)

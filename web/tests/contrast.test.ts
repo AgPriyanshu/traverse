@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { palette } from "@/design-system/theme";
+import { palette } from "@/design-system/tokens";
 
 const luminance = (hex: string): number => {
   const value = hex.replace("#", "");

@@ -87,9 +87,16 @@ FORBIDDEN api/pipeline/**  api/graph/**  api/query/**  web/src/**
 ### Orchestrator (you, the lead session)
 Owns everything the agents are forbidden from: `api/db/models/**`,
 `api/db/migrations/**`, `api/contracts/**`, `api/routes/__init__.py`,
-`api/tasks.py`, `api/config/settings.py`, `design/**`,
+`api/tasks.py`, `api/config/settings.py`, `api/pyproject.toml`, `design/**`,
 `web/src/design-system/tokens.ts`, `plans/**`, `BRANCH.md`, `traverse-prd.md`.
 Runs the contract freeze, the merge train, and the retro.
+
+**`api/pyproject.toml` joined this list at the Sprint 2 freeze** (SCR-3): two
+agents independently needed `pytest`/`pytest-asyncio` in Sprint 1, and had both
+added them on their own branches, the merge train's cheap doc-conflict pattern
+becomes an expensive `uv.lock` conflict instead. Test-runner and other shared
+dependencies land at the freeze from here on; an agent needing a new dependency
+files an SCR rather than editing the file.
 
 **The design canvas is an orchestrator artifact.** Visual design lives in a
 Claude Design canvas (an Artifact URL recorded in `design/DESIGN.md`); the
@@ -169,7 +176,7 @@ container level.
 | Neo4j Community | 7474 / 7687 | **Community edition supports one database.** `be2` has exclusive write access; `do1` reads it during integration. `be1` and `fe1` never touch it. |
 | vLLM (Qwen3-8B-AWQ) | 8080 | Shared. `be1` and `be2` both call it — see §9 contention note. |
 | RabbitMQ | 5672 / 15672 | Separate vhost per agent: `/be1`, `/be2`, `/int` |
-| MinIO | 9000 / 9001 | Separate bucket per agent: `traverse-be1`, `traverse-be2`, `traverse-int` |
+| MinIO | 9002 / 9003 | Separate bucket per agent: `traverse-be1`, `traverse-be2`, `traverse-int`. **Not 9000/9001** — another project's stack on this machine already holds those (do1, S1.11). `MINIO_PORT`/`MINIO_CONSOLE_PORT` are both env-overridable for exactly this reason. |
 | Langfuse | 3000 | Shared; agents tag traces with `session_id=<agent>` |
 | FastAPI | 8000 int · 8001 be1 · 8002 be2 · 8003 fe1-mock | one per agent |
 | Vite dev server | 5173 fe1 · 5174 int | |

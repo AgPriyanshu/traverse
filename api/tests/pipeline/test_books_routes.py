@@ -161,4 +161,6 @@ class TestStillFrozen:
     ) -> None:
         response = await client.get("/openapi.json")
 
-        assert len(response.json()["paths"]) == 33
+        # 33 frozen at the Sprint 1 freeze, +1 for GET /books at Sprint 2's
+        # (SCR-6: a flat list so the library screen isn't an N+1).
+        assert len(response.json()["paths"]) == 34
