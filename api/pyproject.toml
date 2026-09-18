@@ -29,6 +29,8 @@ dependencies = [
 dev = [
     "celery-types>=0.26.0",
     "ipykernel>=7.3.0",
+    "pytest>=8.4.0",
+    "pytest-asyncio>=1.0.0",
     "ruff>=0.14.0",
 ]
 
@@ -62,3 +64,16 @@ extend-immutable-calls = [
 # F401: the alembic template always imports sa/sqlmodel for generated types.
 "db/migrations/versions/*.py" = ["E501", "F401", "I001", "UP006", "UP007", "UP035"]
 "db/migrations/env.py" = ["E402"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Alembic and the app share one import root, the repo root, so `api.x` resolves
+# the same way in a test as in a migration.
+pythonpath = [".."]
+asyncio_mode = "auto"
+# Every async test shares one event loop and therefore one engine connection
+# pool; a per-test loop leaves asyncpg connections bound to a closed loop.
+asyncio_default_fixture_loop_scope = "session"
+markers = [
+    "models: needs the Docling or BGE-M3 model cache on disk",
+]

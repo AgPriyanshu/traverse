@@ -125,10 +125,11 @@ freeze:** promote them to `Settings` fields.
 
 ## do1 → orchestrator · open questions
 
-1. **`api/routes/ops.py` ownership is contradictory.** BRANCH.md §2 does not
-   grant do1 `api/routes/**`; `plans/sprint-1/README.md` §4 and the file's own
-   docstring both say `ops.py` is do1's. Resolve it — the probes are written
-   either way, but somebody has to land the four-line route change.
+1. ~~`api/routes/ops.py` ownership is contradictory.~~ **Resolved at merge:**
+   BRANCH.md §2's per-agent tables now explicitly list `api/routes/ops.py`
+   (do1) and `api/routes/review.py` (be2), matching what the file docstrings
+   and `plans/sprint-1/README.md` already said. Wiring `/health` to
+   `gather_health()` per do1's note above is do1's four-line change.
 2. **MinIO port deviates from BRANCH.md §4** (9002/9003, see above).
 3. **Accessibility gating contradiction.** `PRODUCT.md` §Accessibility says
    "best effort, deliberately not gated on merge"; `plans/sprint-9/frontend-1.md`
@@ -212,3 +213,142 @@ Not run locally: the `ci` overlay (`docker-compose.ci.yml`) against real
 ports — it reuses 5433/5672/8000, which the shared singletons already hold.
 It's exercised for real by GitHub Actions on a clean runner; validated locally
 only via `docker compose config`.
+
+---
+
+## be1 → be2 (consumed from Sprint 4, character extraction / relations)
+
+All of this lives in `api/pipeline/repository.py`. Import it as
+`from api.pipeline import repository` — cross-package, per `api/AGENTS.md`
+import rules. Every function takes an open `SQLModelAsyncSession` as its first
+argument and commits internally; the caller does not need its own `commit()`.
+
+### Books and content identity
+
+```python
+async def create_book(session, *, project_id, title, author=None, content_hash,
+                       page_count=None, series_order=None, storage_key=None) -> Book
+async def get_book_by_hash(session, content_hash: str) -> Book | None
+async def get_book(session, book_id: UUID) -> Book | None
+async def set_book_status(session, book_id: UUID, status: BookStatus) -> None
+```
+
+`create_book` is idempotent on `content_hash` — a second call with the same
+hash returns the existing row rather than raising or duplicating.
+
+### Chapters and page ranges — what a relation's evidence anchors to
+
+```python
+async def list_chapters(session, book_id: UUID) -> list[Chapter]          # ordered by page_start
+async def upsert_chapters(session, book_id, chapters: list[ChapterInfo],
+                           *, page_ranges: dict[int | None, tuple[int, int]] | None = None
+                           ) -> list[Chapter]
+async def chapter_ids_by_number(session, book_id: UUID) -> dict[int | None, UUID]
+async def chapter_page_ranges(session, book_id: UUID) -> dict[int | None, tuple[int, int]]
+def page_ranges_from_payloads(payloads: list[ChunkPayload]) -> dict[int | None, tuple[int, int]]
+```
+
+`relation_evidence.chapter_no` and `.page_start`/`.page_end` come from the
+chunk a quote was pulled from — use `chapter_ids_by_number` /
+`chapter_page_ranges` rather than re-deriving them; the mapping is
+authoritative and re-deriving it independently is exactly how the two drift
+(the mistake `page_ranges_from_payloads` exists to avoid on a first ingest).
+
+### Chunks — what pass-2 extraction reads and what evidence cites
+
+```python
+async def bulk_insert_chunks(session, book_id, payloads: list[ChunkPayload]) -> int
+async def list_chunks(session, book_id, *, limit=50, offset=0) -> list[DocumentChunk]
+async def count_chunks(session, book_id: UUID) -> int
+async def assign_chunk_chapters(session, book_id: UUID) -> int
+```
+
+`DocumentChunk.chapter_id` is a real FK, resolved from `chapter_number` at
+insert time — never a dangling string. A chunk whose chapter number has no
+matching `Chapter` row yet gets `chapter_id=None`, not an error; call
+`assign_chunk_chapters` after chapters land to backfill it.
+
+### Ingestion status — what `relations.extract` / `graph.upsert` check before running
+
+```python
+async def get_stage_statuses(session, book_id: UUID) -> list[StageStatus]   # pipeline order
+async def get_latest_run(session, book_id: UUID) -> IngestionRun | None
+def derive_book_status(statuses: list[StageStatus]) -> BookStatus            # pure, no I/O
+```
+
+Stage recording itself — `api/workers/stages.py` `stage(book_id, StageName)`
+async context manager — is what be2's own `relations.extract` /
+`relations.aggregate` / `graph.upsert` tasks should wrap their bodies in. It is
+generic over `StageName`, not pipeline-specific:
+
+```python
+async with stage(book_id, StageName.EXTRACT_RELATIONS) as record:
+    record.rows_written = ...   # optional counters the status endpoint surfaces
+    ...
+```
+
+A worker killed mid-stage leaves the row `running`; re-entering `stage()` for
+the same book+stage bumps `attempt` rather than orphaning it — this is handled
+for you, not something be2's tasks need to replicate.
+
+### Read models — already wired into `GET /projects`, `GET /books/{id}` etc
+
+```python
+async def list_projects(session) -> list[ProjectOut]
+async def get_project_detail(session, project_id) -> ProjectDetailOut | None
+async def list_books(session, project_id: UUID | None = None) -> list[BookOut]
+async def get_book_out(session, book_id) -> BookOut | None
+```
+
+`character_count` and `relation_count` on these are read from `Character` /
+`Relation` rows that don't exist until be2's tables have data — the counts are
+correct (0) against an empty table and need no change from be2 to start
+reporting real numbers once `Character`/`Relation` rows exist. `book_count` on
+`ProjectOut`/`ProjectDetailOut` likewise just works once be2 or fe1 create
+projects with more than one book.
+
+---
+
+## Retry contract every task shares
+
+`api/workers/errors.py`: `TransientError` (Celery retries with backoff) vs
+`PermanentError` (Celery does not retry). `api/workers/policy.py`:
+`RETRY_POLICY` dict, unpack into every `@celery_app.task(**RETRY_POLICY)`
+registration — this is what S1.1 asked for and it is generic, not
+pipeline-specific. relations/graph tasks should use the same dict rather than
+inventing their own backoff numbers.
+
+---
+
+## Worker module registration — how be2's tasks get discovered
+
+`api/workers/app.py` imports `api.relations.tasks` and `api.graph.tasks`
+**tolerantly** — a missing module logs a warning and the worker still boots.
+Nothing to change here: once those modules exist with
+`@celery_app.task(name=StageName.EXTRACT_RELATIONS.value, ...)` etc., they are
+picked up automatically. `worker_app.missing_stage_tasks()` reports which
+frozen names are still unregistered — useful for a sanity check without
+needing a live broker.
+
+---
+
+## Contracts note
+
+`ChunkPayload.text_embedding` is `list[float] | None` — `None` when a chunk was
+generated with `embed=False` (the chunk-only stage). Do not assume it is always
+populated when reading `DocumentChunk` rows written before `pipeline.embed_chunks`
+has run for that book.
+
+---
+
+## Environment gotcha (do1 fixed the underlying issue; noting it for be2)
+
+The RabbitMQ vhosts are literally named `/be1`, `/be2`, `/int` — the leading
+slash is part of the name. The AMQP URL needs it percent-encoded:
+
+```
+RABBITMQ_URL=pyamqp://guest:guest@localhost:5672/%2Fbe2
+```
+
+`.../5672/be2` (unencoded) fails with `NOT_ALLOWED - vhost be2 not found`. Full
+detail in `plans/sprint-1/SCR.md` (SCR-4).
