@@ -30,7 +30,7 @@ services:
       - watchfiles
       - --filter
       - python
-      - "celery -A api.tasks worker --loglevel=INFO --concurrency=${CELERY_CONCURRENCY:-2}"
+      - "celery -A api.workers.app worker --loglevel=INFO --concurrency=${CELERY_CONCURRENCY:-2}"
       - /app/api
     volumes:
       - model_cache:/models
@@ -59,7 +59,7 @@ services:
     command:
       - celery
       - -A
-      - api.tasks
+      - api.workers.app
       - flower
       - --port=5555
     environment:

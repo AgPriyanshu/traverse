@@ -6,12 +6,12 @@ from fastapi import APIRouter, Query
 
 from ..contracts.api import (
     DeadLetterOut,
-    DependencyHealth,
     HealthOut,
     MetricsOut,
     RoutingPolicyOut,
 )
 from ..contracts.pipeline import IngestionRunOut
+from ..ops import gather_health
 from ._stub import not_implemented
 
 router = APIRouter(tags=["ops"])
@@ -22,21 +22,11 @@ OWNER = "do1"
 async def health() -> HealthOut:
     """Liveness plus per-dependency status.
 
-    Implemented shallow at the freeze so compose has something to gate on;
-    do1 fills in the real dependency probes in S1.12.
+    Real probes as of S1.12 (``api/ops/probes.py``, do1) — concurrent, 5s
+    timeout each. ``llm`` never gates the overall status: the default profile
+    has no GPU (PRD NFR-deploy).
     """
-    return HealthOut(
-        status="degraded",
-        dependencies=[
-            DependencyHealth(
-                name="api", ok=True, detail="contract freeze — handlers pending"
-            ),
-            DependencyHealth(name="db", ok=False, detail="not probed yet (S1.12)"),
-            DependencyHealth(name="neo4j", ok=False, detail="not probed yet (S1.12)"),
-            DependencyHealth(name="broker", ok=False, detail="not probed yet (S1.12)"),
-            DependencyHealth(name="llm", ok=False, detail="not probed yet (S1.12)"),
-        ],
-    )
+    return await gather_health()
 
 
 @router.get("/ops/metrics", response_model=MetricsOut)

@@ -15,7 +15,12 @@ from ..tasks import STAGES, celery_app
 from .probes import gather_health
 
 HTTP_TIMEOUT_S = 5.0
-INSPECT_TIMEOUT_S = 10.0
+# `inspect()` without a `destination=` uses a fanout and, having no way to know
+# how many workers might still reply, waits the FULL timeout on every call —
+# it does not return early just because the one worker on this host already
+# answered. Two sequential calls at the old 10s each reliably exceeded the
+# container healthcheck's 20s window. 2s is generous for a same-host broker.
+INSPECT_TIMEOUT_S = 2.0
 
 
 def _fail(message: str) -> int:

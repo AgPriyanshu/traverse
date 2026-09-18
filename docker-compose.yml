@@ -41,6 +41,7 @@ x-api-env: &api-env
   LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
   LANGFUSE_BASE_URL: ${LANGFUSE_BASE_URL:-http://langfuse:3000}
   HEALTH_REQUIRED_DEPS: ${HEALTH_REQUIRED_DEPS:-db,broker,neo4j,object_store}
+  CELERY_REQUIRE_STAGES: ${CELERY_REQUIRE_STAGES:-1}
 
 x-api-volumes: &api-volumes
   - model_cache:/models
@@ -268,7 +269,7 @@ services:
     command:
       - celery
       - -A
-      - api.tasks
+      - api.workers.app
       - worker
       - --loglevel=INFO
       - --concurrency=${CELERY_CONCURRENCY:-2}
