@@ -3,7 +3,7 @@ import { createSystem, defaultConfig, defineConfig } from "@chakra-ui/react";
 // Transcribed verbatim from design/DESIGN.md §3 pending DCR-1, which asks the
 // orchestrator to export `design-system/tokens.ts`. When that file lands this
 // block becomes `import { palette } from "./tokens"` and nothing else changes.
-const palette = {
+export const palette = {
   paper: { light: "#FAF7F2", dark: "#1C1815" },
   surface: { light: "#FFFDFA", dark: "#24201C" },
   sunken: { light: "#F2EDE4", dark: "#161311" },
@@ -53,7 +53,6 @@ const config = defineConfig({
     },
     body: {
       minHeight: "100dvh",
-      overflowX: "hidden",
     },
     "*::selection": {
       bg: "accent.subtle",
