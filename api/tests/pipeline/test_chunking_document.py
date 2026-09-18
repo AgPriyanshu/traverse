@@ -11,6 +11,8 @@ from docling_core.types.doc.document import (
 )
 
 from api.config.settings import Settings
+from api.contracts.enums import DetectionMethod
+from api.contracts.pipeline import ChapterInfo
 from api.pipeline.chunking import DocumentChunker
 from api.pipeline.errors import MissingProvenanceError, PageParseError
 
@@ -125,6 +127,82 @@ class TestChapterCarryForward:
         # before it does.
         assert numbers[0] == 1
         assert all(number is not None for number in numbers[: len(numbers)])
+
+
+class TestChapterDetectionFixes:
+    """Regression coverage for the three known S1 defects fixed in S2.3."""
+
+    def test_a_heading_not_first_on_its_page_is_still_detected(
+        self, chunker: DocumentChunker
+    ) -> None:
+        doc = DoclingDocument(name="novel")
+        doc.pages[1] = PageItem(page_no=1, size=Size(width=612, height=792))
+        # A running header (or leftover paragraph) occupies the first item on
+        # the page; the chapter heading itself is the second.
+        doc.add_text(label="text", text="Pride and Prejudice", prov=prov(1))
+        doc.add_heading("Chapter 5", level=1, prov=prov(1))
+        doc.add_text(label="text", text="Body text of chapter five.", prov=prov(1))
+
+        chapters = chunker.detect_chapters(doc)
+
+        assert [chapter.number for chapter in chapters] == [5]
+
+    def test_a_repeated_heading_text_binds_to_its_own_position_not_the_first(
+        self, chunker: DocumentChunker, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Two chapters that share heading text must not collapse into one.
+
+        Before the fix, ``generate_chunks`` matched a chunk's heading against
+        *any* entry with equal ``.text`` anywhere in the document. Once a
+        later, different heading appeared and then the same text recurred
+        (a plausible shape: two title-only sections both called "Interlude"),
+        the search re-bound to the *first* occurrence instead of the one at
+        the chunk's actual position, because the loop's
+        ``heading != previous_chapter.text`` guard was already satisfied by
+        the first match and never let the second one in.
+        """
+        doc = DoclingDocument(name="novel")
+        for page in (1, 2, 3):
+            doc.pages[page] = PageItem(page_no=page, size=Size(width=612, height=792))
+        doc.add_heading("Interlude", level=1, prov=prov(1))
+        doc.add_text(label="text", text="First interlude passage.", prov=prov(1))
+        doc.add_heading("Chapter 1", level=1, prov=prov(2))
+        doc.add_text(label="text", text="Chapter one passage.", prov=prov(2))
+        doc.add_heading("Interlude", level=1, prov=prov(3))
+        doc.add_text(label="text", text="Second interlude passage.", prov=prov(3))
+
+        # "Interlude" carries no number, so it never matches CHAPTER_RE and
+        # always falls to LLM classification in production. Two distinct
+        # return values per call stand in for that: the point under test is
+        # positional binding, not the classifier itself.
+        results = iter(
+            [
+                ChapterInfo(
+                    is_chapter=True,
+                    number=100,
+                    title="Interlude",
+                    text="Interlude",
+                    detection_method=DetectionMethod.LLM,
+                ),
+                ChapterInfo(
+                    is_chapter=True,
+                    number=200,
+                    title="Interlude",
+                    text="Interlude",
+                    detection_method=DetectionMethod.LLM,
+                ),
+            ]
+        )
+        monkeypatch.setattr(
+            chunker, "_classify_chapter_heading", lambda _text: next(results)
+        )
+
+        chunks = chunker.generate_chunks(doc, embed=False)
+        numbers_by_page = {chunk.page_start: chunk.chapter_number for chunk in chunks}
+
+        assert numbers_by_page[1] == 100
+        assert numbers_by_page[2] == 1
+        assert numbers_by_page[3] == 200
 
 
 def _load_with_retry(chunker: DocumentChunker, path: Path):

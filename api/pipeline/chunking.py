@@ -184,9 +184,7 @@ class DocumentChunker:
             One entry per detected chapter heading.
         """
         chapters = [
-            info
-            for _item, info in self._prepare_chapters(document).values()
-            if info.is_chapter
+            info for _item, info in self._prepare_chapters(document) if info.is_chapter
         ]
 
         return chapters
@@ -223,17 +221,23 @@ class DocumentChunker:
 
         previous_chapter = ChapterInfo(is_chapter=False)
         result_chunks: list[ChunkPayload] = []
-        chapters_map = self._prepare_chapters(document)
+        ordered_headings = self._prepare_chapters(document)
+        cursor = -1
 
         for chunk, embedding in zip(chunks, embeddings, strict=True):
-            if chunk.meta.headings:
-                for heading in chunk.meta.headings:
-                    for value in chapters_map.values():
-                        if (
-                            value[1].text == heading
-                            and heading != previous_chapter.text
-                        ):
-                            previous_chapter = value[1]
+            for heading in chunk.meta.headings or []:
+                # Advance strictly forward through the document's heading
+                # order rather than searching the whole list by text: two
+                # chapters that happen to share a title (a repeated "Prologue",
+                # a part-title reused per volume) must never re-match an
+                # earlier one just because their text is identical.
+                while (
+                    cursor + 1 < len(ordered_headings)
+                    and ordered_headings[cursor + 1][1].text == heading
+                ):
+                    cursor += 1
+                    if ordered_headings[cursor][1].is_chapter:
+                        previous_chapter = ordered_headings[cursor][1]
 
             provenance_list = [
                 provenance
@@ -303,24 +307,25 @@ class DocumentChunker:
 
     def _prepare_chapters(
         self, document: DoclingDocument
-    ) -> dict[str, tuple[object, ChapterInfo]]:
-        chapters_map: dict[str, tuple[object, ChapterInfo]] = {}
+    ) -> list[tuple[object, ChapterInfo]]:
+        """Return every heading-like item in the document, in document order.
+
+        Every item on a page is inspected, not just the first — a chapter
+        heading that opens partway down a page (after a running header or a
+        part-title) would otherwise be missed entirely.
+        """
+        chapters: list[tuple[object, ChapterInfo]] = []
 
         for page_no in document.pages:
-            for count, (doc_item, _level) in enumerate(
-                document.iterate_items(page_no=page_no)
-            ):
-                if count >= 1:
-                    break
-
+            for doc_item, _level in document.iterate_items(page_no=page_no):
                 if doc_item.label in {
                     DocItemLabel.SECTION_HEADER,
                     DocItemLabel.TITLE,
                 }:
                     chapter_info = self._parse_chapter_heading(doc_item.text)
-                    chapters_map[doc_item.self_ref] = (doc_item, chapter_info)
+                    chapters.append((doc_item, chapter_info))
 
-        return chapters_map
+        return chapters
 
     def _parse_chapter_heading(self, text: str) -> ChapterInfo:
         text = re.sub(r"\s+", " ", text).strip()
