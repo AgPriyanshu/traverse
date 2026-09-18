@@ -18,6 +18,7 @@ not grep for it.
 | `CHAPTER_RE`, `CHUNK_MAX_TOKENS`, `ChapterInfoStructuredOutput` | `api/pipeline/constants.py` | Built |
 | `_roman_to_int`, `_normalize_chapter_number` | `api/pipeline/chunking.py` | Built |
 | `DocumentParseError`, `MissingProvenanceError` | `api/pipeline/errors.py` | Built — both `PermanentError` |
+| `PageParseError` | same | Built — `TransientError`, see gotchas |
 | `celery_app`, `STAGES`, `ingestion_chain()` | `api/tasks.py` | **Built — frozen, orchestrator-owned** |
 | `TransientError` / `PermanentError`, `RETRY_POLICY` | `api/workers/errors.py`, `api/workers/policy.py` | Built — the retry contract for every agent's tasks |
 | `stage()`, `StageRecord`, `open_run`, `finish_run` | `api/workers/stages.py` | Built |
@@ -52,6 +53,12 @@ not grep for it.
 6. **`chapter` has no `human_verified` column**, so the repository cannot honour
    the never-overwrite rule for chapters that a human corrected (S7
    `confirm_chapter_split`). Raised as SCR-1; not blocking before S7.
+7. **The Docling PDF backend has a confirmed cold-start flake**: the identical
+   file converted twice in the same process can report a page as failed on the
+   first attempt and succeed on the second (~1/8 empirically). `load_document`
+   raises `PageParseError` (`TransientError`) rather than returning a document
+   with a silently missing page — Celery's `autoretry_for` absorbs it in
+   production. Not a bug to fix; a behaviour to retry around.
 
 ## Stage chain
 
@@ -88,6 +95,11 @@ implementations are not.**
   ([BRANCH.md](../../../BRANCH.md) §9).
 - Tokenizer for chunk budgeting is BGE-M3's own (`HuggingFaceTokenizer`,
   `max_tokens=1024`), not a characters/4 estimate.
+- **OCR is off by default** (`DocumentChunker(ocr=False)`). RapidOCR downloads
+  its own weights from `modelscope.cn` outside the HF cache and claims CUDA
+  device 0 regardless of `EMBEDDING_DEVICE` — both break a worktree run and the
+  offline-test contract. The corpus is digitally-typeset novels; a scanned book
+  opts in explicitly.
 
 ## Related
 
