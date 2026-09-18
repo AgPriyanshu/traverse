@@ -1,0 +1,75 @@
+# Hot-reload overlay. Use through `make up-dev`, which composes it on top of
+# docker-compose.yml:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# Source is bind-mounted over /app/api; the virtualenv stays at /opt/venv and is
+# untouched by the mount, so a reload never re-resolves dependencies.
+
+services:
+  api:
+    command:
+      - uvicorn
+      - api.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --reload
+      - --reload-dir
+      - /app/api
+    volumes:
+      - model_cache:/models
+      - media_data:/data
+      - ./api:/app/api
+
+  celery-worker:
+    # watchfiles restarts the worker on save; Celery's own --autoreload was
+    # removed in 4.x and does not come back.
+    command:
+      - watchfiles
+      - --filter
+      - python
+      - "celery -A api.tasks worker --loglevel=INFO --concurrency=${CELERY_CONCURRENCY:-2}"
+      - /app/api
+    volumes:
+      - model_cache:/models
+      - media_data:/data
+      - ./api:/app/api
+
+  web:
+    image: node:22-alpine
+    build: !reset null
+    working_dir: /app/web
+    command:
+      - sh
+      - -c
+      - corepack enable && pnpm install && pnpm dev --host 0.0.0.0 --port 5173
+    environment:
+      VITE_API_BASE_URL: http://localhost:${API_PORT:-8000}
+    ports: !override
+      - "${VITE_PORT:-5173}:5173"
+    volumes:
+      - ./web:/app/web
+      - web_node_modules:/app/web/node_modules
+
+  flower:
+    image: traverse-api:${TRAVERSE_TAG:-dev}
+    restart: unless-stopped
+    command:
+      - celery
+      - -A
+      - api.tasks
+      - flower
+      - --port=5555
+    environment:
+      RABBITMQ_URL: pyamqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/${RABBITMQ_VHOST:-%2Fint}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-rpc://}
+    ports:
+      - "${FLOWER_PORT:-5555}:5555"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+volumes:
+  web_node_modules:

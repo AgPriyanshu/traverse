@@ -27,3 +27,7 @@ sample_docs/
 
 # Design canvas — generated from design/canvas/gen.py + the seed helper (2.7 MB)
 design/canvas/traverse-ui.html
+
+# pnpm content-addressable store, created locally by `pnpm config set store-dir`
+.pnpm-store/
+**/.pnpm-store/

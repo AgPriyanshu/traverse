@@ -1,0 +1,22 @@
+# GPU overlay. `make up-gpu` composes this with --profile gpu.
+#
+# Compose has no way to vary an environment value by profile, so flipping
+# INFERENCE_MODE to local is done here rather than in the profile itself.
+# `docker compose --profile gpu up` on its own still needs INFERENCE_MODE=local
+# in .env.
+#
+# Nothing depends_on vllm: it takes ~3 minutes to load weights, and the llm
+# probe is deliberately non-gating in /health, so making the API wait on it
+# would only lengthen cold start.
+
+services:
+  api:
+    environment:
+      INFERENCE_MODE: local
+      VLLM_BASE_URL: http://vllm:8080/v1/
+
+  celery-worker:
+    environment:
+      INFERENCE_MODE: local
+      VLLM_BASE_URL: http://vllm:8080/v1/
+      EMBEDDING_DEVICE: ${EMBEDDING_DEVICE:-cuda}

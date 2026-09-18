@@ -1,0 +1,416 @@
+name: traverse
+
+# Host ports are all overridable, because a developer machine may already be
+# running another project's Postgres, MinIO or Langfuse. Nothing here assumes a
+# free well-known port.
+
+x-api-image: &api-image
+  build:
+    context: .
+    dockerfile: api/Dockerfile
+  image: traverse-api:${TRAVERSE_TAG:-dev}
+
+x-api-env: &api-env
+  ENV: ${ENV:-development}
+  API_PORT: "8000"
+  POSTGRES_DB_STRING: postgresql+psycopg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-postgres}
+  NEO4J_URI: neo4j://neo4j:7687
+  NEO4J_USER: ${NEO4J_USER:-neo4j}
+  NEO4J_PASSWORD: ${NEO4J_PASSWORD:-very_safe_password}
+  NEO4J_DATABASE: ${NEO4J_DATABASE:-neo4j}
+  RABBITMQ_URL: pyamqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/${RABBITMQ_VHOST:-%2Fint}
+  CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-rpc://}
+  MINIO_ENDPOINT: minio:9000
+  MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+  MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+  MINIO_BUCKET: ${MINIO_BUCKET:-traverse-int}
+  MINIO_SECURE: "false"
+  INFERENCE_MODE: ${INFERENCE_MODE:-api}
+  VLLM_BASE_URL: ${VLLM_BASE_URL:-http://vllm:8080/v1/}
+  LLM_MODEL: ${LLM_MODEL:-Qwen/Qwen3-8B-AWQ}
+  EMBEDDING_MODEL_ID: ${EMBEDDING_MODEL_ID:-BAAI/bge-m3}
+  EMBEDDING_DEVICE: ${EMBEDDING_DEVICE:-cpu}
+  MODELS_CACHE_DIR: /models
+  DOCLING_ARTIFACTS_DIR: /models/docling
+  MODELS_OFFLINE: ${MODELS_OFFLINE:-1}
+  HF_HUB_OFFLINE: ${MODELS_OFFLINE:-1}
+  TRANSFORMERS_OFFLINE: ${MODELS_OFFLINE:-1}
+  HF_HOME: /models/huggingface
+  SENTENCE_TRANSFORMERS_HOME: /models/sentence-transformers
+  LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+  LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+  LANGFUSE_BASE_URL: ${LANGFUSE_BASE_URL:-http://langfuse:3000}
+  HEALTH_REQUIRED_DEPS: ${HEALTH_REQUIRED_DEPS:-db,broker,neo4j,object_store}
+
+x-api-volumes: &api-volumes
+  - model_cache:/models
+  - media_data:/data
+
+services:
+  db:
+    image: pgvector/pgvector:pg18-trixie
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      AGENT_DATABASES: ${AGENT_DATABASES:-traverse_be1 traverse_be2 traverse_int}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # A reachable Postgres without pgvector accepts connections and then fails
+      # every embedding write — a much more expensive way to find out.
+      test:
+        - CMD-SHELL
+        - >-
+          pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -q &&
+          psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -tAc
+          "SELECT 1 FROM pg_extension WHERE extname='vector'" | grep -q 1
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  neo4j:
+    image: neo4j:5-community-trixie
+    restart: unless-stopped
+    ports:
+      - "${NEO4J_HTTP_PORT:-7474}:7474"
+      - "${NEO4J_BOLT_PORT:-7687}:7687"
+    environment:
+      NEO4J_AUTH: ${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-very_safe_password}
+      NEO4J_server_memory_pagecache_size: ${NEO4J_PAGECACHE:-512m}
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          cypher-shell -u "$${NEO4J_AUTH%%/*}" -p "$${NEO4J_AUTH#*/}"
+          "RETURN 1" >/dev/null
+      interval: 10s
+      timeout: 10s
+      # Neo4j takes ~20s to accept bolt connections; every agent hits this once.
+      retries: 15
+      start_period: 40s
+
+  rabbitmq:
+    image: rabbitmq:4-management
+    restart: unless-stopped
+    hostname: traverse-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MGMT_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+      - ./docker/rabbitmq/rabbitmq.conf:/etc/rabbitmq/conf.d/20-traverse.conf:ro
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  rabbitmq-init:
+    image: curlimages/curl:8.11.1
+    restart: "no"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      RABBITMQ_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
+      RABBITMQ_VHOSTS: ${RABBITMQ_VHOSTS:-be1 be2 int}
+    volumes:
+      - ./docker/rabbitmq/init-vhosts.sh:/init-vhosts.sh:ro
+    entrypoint: ["sh", "/init-vhosts.sh"]
+
+  minio:
+    image: quay.io/minio/minio:${MINIO_IMAGE_TAG:-RELEASE.2025-09-07T16-13-09Z}
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    ports:
+      - "${MINIO_PORT:-9002}:9000"
+      - "${MINIO_CONSOLE_PORT:-9003}:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  minio-init:
+    image: quay.io/minio/mc:${MC_IMAGE_TAG:-RELEASE.2025-08-13T08-35-41Z}
+    restart: "no"
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_INTERNAL_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_BUCKETS: ${MINIO_BUCKETS:-traverse-be1 traverse-be2 traverse-int}
+    volumes:
+      - ./docker/minio/init-buckets.sh:/init-buckets.sh:ro
+    entrypoint: ["sh", "/init-buckets.sh"]
+
+  langfuse-db:
+    # Observability is opt-in (`--profile obs`) so the default cold start needs
+    # no generated secrets and stays inside the 5-minute NFR-deploy budget.
+    profiles: ["obs"]
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${LANGFUSE_DB_USER:-langfuse}
+      POSTGRES_PASSWORD: ${LANGFUSE_DB_PASSWORD:-langfuse}
+      POSTGRES_DB: langfuse
+    volumes:
+      - langfuse_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d langfuse -q"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  langfuse:
+    # Langfuse gets its own Postgres on purpose: it runs its own Prisma
+    # migrations and sharing the app cluster makes `alembic downgrade` unsafe.
+    image: langfuse/langfuse:2
+    profiles: ["obs"]
+    restart: unless-stopped
+    depends_on:
+      langfuse-db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${LANGFUSE_DB_USER:-langfuse}:${LANGFUSE_DB_PASSWORD:-langfuse}@langfuse-db:5432/langfuse
+      NEXTAUTH_URL: http://localhost:${LANGFUSE_PORT:-3000}
+      NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:-}
+      SALT: ${LANGFUSE_SALT:-}
+      ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY:-}
+      TELEMETRY_ENABLED: "false"
+      # Generated into .env by `make env` — never committed, never defaulted to
+      # a real value.
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "false"
+    ports:
+      - "${LANGFUSE_PORT:-3000}:3000"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - >-
+          fetch('http://localhost:3000/api/public/health')
+          .then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  migrate:
+    <<: *api-image
+    restart: "no"
+    working_dir: /app/api
+    command: ["alembic", "upgrade", "head"]
+    environment: *api-env
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes: *api-volumes
+
+  api:
+    <<: *api-image
+    restart: unless-stopped
+    command:
+      - uvicorn
+      - api.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+    environment: *api-env
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes: *api-volumes
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-m", "api.ops.healthcheck", "api"]
+      interval: 15s
+      timeout: 15s
+      retries: 8
+      start_period: 30s
+
+  celery-worker:
+    <<: *api-image
+    restart: unless-stopped
+    command:
+      - celery
+      - -A
+      - api.tasks
+      - worker
+      - --loglevel=INFO
+      - --concurrency=${CELERY_CONCURRENCY:-2}
+    environment: *api-env
+    volumes: *api-volumes
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      rabbitmq-init:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      # Asserts every frozen stage in api/tasks.STAGES is registered, not just
+      # that a worker answers. Set CELERY_REQUIRE_STAGES=0 while the stages are
+      # still being written.
+      test: ["CMD", "python", "-m", "api.ops.healthcheck", "worker"]
+      interval: 20s
+      timeout: 20s
+      retries: 6
+      start_period: 60s
+
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    image: traverse-web:${TRAVERSE_TAG:-dev}
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-5174}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+  test:
+    profiles: ["test"]
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+      target: test
+    image: traverse-api-test:${TRAVERSE_TAG:-dev}
+    environment:
+      <<: *api-env
+      ENV: test
+      POSTGRES_DB_STRING: postgresql+psycopg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${TEST_POSTGRES_DB:-traverse_test}
+      HEALTH_REQUIRED_DEPS: db,broker
+      CELERY_REQUIRE_STAGES: "0"
+    volumes:
+      - model_cache:/models
+      - media_data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  test-web:
+    profiles: ["test"]
+    image: node:22-alpine
+    working_dir: /app/web
+    environment:
+      CI: "1"
+    command:
+      - sh
+      - -c
+      - >-
+        corepack enable && pnpm install --frozen-lockfile && pnpm lint &&
+        pnpm exec tsc -b --noEmit &&
+        if node -e "process.exit(require('./package.json').scripts.test?0:1)";
+        then pnpm run test; else echo "web: no test script yet (fe1)"; fi
+    volumes:
+      - ./web:/app/web
+      - web_test_node_modules:/app/web/node_modules
+
+  vllm:
+    profiles: ["gpu"]
+    image: vllm/vllm-openai:latest
+    restart: unless-stopped
+    ipc: host
+    ports:
+      - "${VLLM_PORT:-8080}:8080"
+    volumes:
+      - model_cache:/root/.cache/huggingface
+    environment:
+      PYTORCH_CUDA_ALLOC_CONF: expandable_segments:True
+      HF_TOKEN: ${HF_TOKEN:-}
+      VLLM_WSL2_ENABLE_PIN_MEMORY: "1"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://localhost:8080/v1/models')
+      interval: 20s
+      timeout: 10s
+      retries: 30
+      start_period: 180s
+    command:
+      - --model
+      - ${LLM_MODEL:-Qwen/Qwen3-8B-AWQ}
+      - --quantization
+      - awq_marlin
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - --max-model-len
+      - "16384"
+      - --gpu-memory-utilization
+      - "0.75"
+      # Pass 2 replays a byte-identical roster prefix across calls; prefix
+      # caching is what makes that cheap, and --max-num-seqs bounds the damage
+      # two agents sharing one GPU can do to each other's latency.
+      - --max-num-seqs
+      - "16"
+      - --dtype
+      - auto
+      - --kv-cache-dtype
+      - fp8_e4m3
+      - --enable-prefix-caching
+      - --enforce-eager
+      - --enable-auto-tool-choice
+      - --tool-call-parser
+      - hermes
+
+volumes:
+  web_test_node_modules:
+  postgres_data:
+  neo4j_data:
+  neo4j_logs:
+  rabbitmq_data:
+  minio_data:
+  langfuse_db_data:
+  media_data:
+  model_cache:
+    name: ${MODEL_CACHE_VOLUME:-traverse_model_cache}

@@ -1,0 +1,174 @@
+name: CI
+
+# Every agent branch is prefixed ai/ (BRANCH.md §5), which gives one glob here
+# and makes a human-authored branch sneaking through the agent train visible.
+on:
+  push:
+    branches: ["ai/**", "ai-master"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Nothing in CI may reach a model host. A download at import time is a bug,
+  # not a cache miss.
+  MODELS_OFFLINE: "1"
+  HF_HUB_OFFLINE: "1"
+  TRANSFORMERS_OFFLINE: "1"
+  UV_CACHE_DIR: /tmp/.uv-cache
+
+# The four jobs run in parallel and each has its own timeout, because the whole
+# point of the budget is that agents keep waiting for the result.
+jobs:
+  lint-api:
+    name: ruff
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: api/uv.lock
+      - name: Install the dev group only
+        working-directory: api
+        run: uv sync --frozen --only-group dev
+      - run: uv run ruff check .
+        working-directory: api
+      # Alembic writes the migrations and they are applied history; restyling
+      # one hides what actually changed, so they are excluded from format the
+      # same way api/pyproject.toml already excludes them from lint.
+      - run: uv run ruff format --check . --exclude db/migrations
+        working-directory: api
+
+  test-api:
+    name: pytest + OpenAPI drift
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      db:
+        image: pgvector/pgvector:pg18-trixie
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: traverse_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      rabbitmq:
+        image: rabbitmq:4
+        ports: ["5672:5672"]
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q check_running"
+          --health-interval 10s --health-timeout 10s --health-retries 10
+    env:
+      POSTGRES_DB_STRING: postgresql+psycopg://postgres:postgres@localhost:5432/traverse_test
+      RABBITMQ_URL: pyamqp://guest:guest@localhost:5672//
+      HEALTH_REQUIRED_DEPS: db,broker
+      CELERY_REQUIRE_STAGES: "0"
+      EMBEDDING_DEVICE: cpu
+      INFERENCE_MODE: api
+      MODELS_CACHE_DIR: /tmp/models
+      DOCLING_ARTIFACTS_DIR: /tmp/models/docling
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: api/uv.lock
+      - name: Restore the model cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/models
+          key: models-${{ hashFiles('api/uv.lock') }}
+          restore-keys: models-
+      - name: Install dependencies
+        working-directory: api
+        run: uv sync --frozen
+      - name: Enable pgvector
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -d traverse_test \
+            -c "CREATE EXTENSION IF NOT EXISTS vector;"
+      - name: Migrate
+        working-directory: api
+        run: uv run alembic upgrade head
+      - name: Tests
+        run: |
+          if [ -d api/tests ]; then
+            api/.venv/bin/python -m pip install --quiet pytest pytest-asyncio
+            api/.venv/bin/python -m pytest api/tests -q
+          else
+            echo "no api/tests yet — nothing to run"
+          fi
+      - name: OpenAPI drift
+        run: api/.venv/bin/python scripts/dump_openapi.py /tmp/openapi.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openapi
+          path: /tmp/openapi.json
+
+  web:
+    name: oxlint + tsc + build
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm exec tsc -b --noEmit
+      # A type-clean app that fails to build is still broken.
+      - run: pnpm build
+      # No accessibility gate this sprint. PRODUCT.md records a11y as best
+      # effort, deliberately not gated on merge, while plans/sprint-9/frontend-1.md
+      # asks for a passing axe audit in CI. Unresolved — see HANDOFF.
+
+  compose-smoke:
+    name: compose smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build the api image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: api/Dockerfile
+          target: runtime
+          tags: traverse-api:dev
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Bring up the CI subset
+        run: make ci-up
+      - name: /health reports per-dependency status
+        run: |
+          body=$(curl -fsS http://localhost:8000/health)
+          echo "$body"
+          python3 - "$body" <<'PY'
+          import json, sys
+          health = json.loads(sys.argv[1])
+          names = {d["name"] for d in health["dependencies"]}
+          missing = {"api", "db", "broker"} - names
+          assert not missing, f"/health is missing dependencies: {missing}"
+          print("health:", health["status"], "deps:", sorted(names))
+          PY
+      - name: Logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml logs --tail=100
+      - name: Tear down
+        if: always()
+        run: make ci-down

@@ -5,102 +5,138 @@ numbers.
 
 ## Current state
 
-**Built:** `api/docker-compose.yml` with three services — `db`
-(pgvector/pg18), `neo4j` (5-community), `vllm` (Qwen3-8B-AWQ, GPU). Volumes
-`postgres_data`, `neo4j_data`.
+**Built (S1):** `docker-compose.yml` at the **repo root** — it moved out of
+`api/` so one file builds both `api/` and `web/`. Project name `traverse`.
+Overlays `docker-compose.dev.yml`, `.gpu.yml`, `.ci.yml`. `api/Dockerfile`
+(multi-stage uv, non-root, `test` stage), `web/Dockerfile` + `web/nginx.conf`,
+`Makefile`, `.env.example`, `scripts/**`, `.github/workflows/ci.yml`,
+`api/ops/probes.py`.
 
-**Not built:** RabbitMQ (despite Celery pointing at
-`pyamqp://user:password@localhost:5672` — nothing serves that address), the API
-service, the Celery worker, the web service, MinIO, Langfuse, the migration
-runner, healthchecks, profiles, `Makefile`, `.env.example`, CI. All S1.
+**Broken / partial:** `/health` still returns the contract-freeze stub —
+`api/routes/ops.py` is not a do1 file and the four-line wiring to
+`api.ops.gather_health` is a HANDOFF item. `api/llm.py` `CACHE_DIR` is still a
+`/home/prinzz/...` absolute path and breaks in every container.
 
-The compose file also moves to the repo root in S1 so it can build both `api/`
-and `web/`.
+**Not built:** anything Sprint 2+.
 
-## Planned services (S1)
+## Services
 
-| Service | Image / build | Note |
-| --- | --- | --- |
-| `db` | `pgvector/pgvector:pg18-trixie` | port 5433 |
-| `neo4j` | `neo4j:5-community-trixie` | 7474 / 7687 — **single database only** |
-| `rabbitmq` | `rabbitmq:4-management` | vhosts `/be1`, `/be2`, `/int` |
-| `api` | `api/Dockerfile` | uvicorn :8000 |
-| `celery-worker` | same image | `--concurrency=2` |
-| `web` | `web/Dockerfile` | nginx; Vite in dev profile |
-| `minio` | `minio/minio` | PDFs + page renders |
-| `langfuse` | `langfuse/` | **its own Postgres**, not the app DB |
-| `migrate` | api image | one-shot `alembic upgrade head`, gates `api` and worker |
-| `vllm` | `vllm/vllm-openai` | GPU profile only |
+| Service | Image / build | In-network | Host port (env var) |
+| --- | --- | --- | --- |
+| `db` | `pgvector/pgvector:pg18-trixie` | `db:5432` | 5433 · `POSTGRES_PORT` |
+| `neo4j` | `neo4j:5-community-trixie` | `neo4j:7687` | 7687 · `NEO4J_BOLT_PORT`, 7474 · `NEO4J_HTTP_PORT` — **single database only** |
+| `rabbitmq` | `rabbitmq:4-management` | `rabbitmq:5672` | 5672 · `RABBITMQ_PORT`, 15672 · `RABBITMQ_MGMT_PORT` |
+| `minio` | `minio/minio` | `minio:9000` | **9002** · `MINIO_PORT`, 9003 console |
+| `api` | `api/Dockerfile` | `api:8000` | 8000 · `API_PORT` |
+| `celery-worker` | same image | — | — |
+| `web` | `web/Dockerfile` (nginx) | `web:80` | 5174 · `WEB_PORT` |
+| `langfuse` + `langfuse-db` | `langfuse/langfuse:2` | `langfuse:3000` | 3000 · `LANGFUSE_PORT` |
+| `vllm` | `vllm/vllm-openai` | `vllm:8080` | 8080 · `VLLM_PORT` |
+
+One-shots that gate the rest, via `service_completed_successfully`: `migrate`
+(`alembic upgrade head`), `rabbitmq-init` (vhosts), `minio-init` (buckets).
+
+**Every host port is an env var with a default.** Another project's stack
+already holds 9000 and 9090/9091 on this machine, which is why MinIO is on
+9002/9003 and not the 9000/9001 in BRANCH.md §4.
 
 ## Profiles
 
 | Profile | Contents |
 | --- | --- |
-| `default` | everything except vLLM; `INFERENCE_MODE=api` |
-| `gpu` | adds vLLM; `INFERENCE_MODE=local` |
-| `dev` | hot-reload API + Vite dev server, source bind-mounted, Flower |
-| `ci` | Postgres + RabbitMQ only, no models |
+| *(none)* | db, neo4j, rabbitmq, minio, their init jobs, migrate, api, celery-worker, web |
+| `gpu` | adds vLLM. Use `make up-gpu`, which also flips `INFERENCE_MODE=local` |
+| `obs` | Langfuse and its own Postgres. Opt-in: it needs generated secrets |
+| `test` | `test` (pytest) and `test-web` (oxlint + tsc) |
 
-The demo must run on a machine with no GPU (PRD NFR-deploy), so `default`
-excludes vLLM by design.
+`ci` is **not** a compose profile — a profile only *adds* services, so
+`--profile ci` could never mean "Postgres and RabbitMQ only". It is an explicit
+service subset: `make ci-up` plus the `docker-compose.ci.yml` overlay.
+
+Compose cannot vary an env value by profile, so `INFERENCE_MODE` is flipped by
+`docker-compose.gpu.yml`, not by the `gpu` profile.
 
 ## Agent isolation
 
 Infra containers are **host singletons** started once from the integration
 checkout. Isolation is at the database and port level, not the container level.
+`scripts/bootstrap_databases.sh` (or `make bootstrap`) creates all three slices
+and is idempotent and create-only, so it is safe to run while others are working.
 
 | Resource | Isolation |
 | --- | --- |
-| Postgres | `traverse_be1`, `traverse_be2`, `traverse_int` (`scripts/bootstrap_databases.sh`) |
+| Postgres | `traverse_be1`, `traverse_be2`, `traverse_int`, each with `vector` |
 | Neo4j | **be2 exclusive** — Community edition is single-database |
-| RabbitMQ | vhost per agent |
+| RabbitMQ | vhost per agent: `/be1`, `/be2`, `/int` |
 | MinIO | bucket per agent |
 | vLLM | **shared** — one GPU. Timings from a worktree are invalid. |
 | FastAPI | 8000 int · 8001 be1 · 8002 be2 · 8003 fe1-mock |
 | Vite | 5173 fe1 · 5174 int |
 
-Each worktree writes its own `api/.env` from `.env.example`. `.env` is
-gitignored and must never be committed.
-
-## Healthchecks that assert behaviour
+## Healthchecks assert behaviour
 
 | Service | Check |
 | --- | --- |
 | `db` | `pg_isready` **and** `SELECT 1 FROM pg_extension WHERE extname='vector'` |
 | `neo4j` | `cypher-shell "RETURN 1"` |
-| `api` | `/health` with per-dependency status, not a bare 200 |
-| `celery-worker` | `celery inspect ping` **plus** all 8 frozen task names in `inspect registered` |
+| `rabbitmq` | `rabbitmq-diagnostics check_running` |
+| `minio` | `mc ready local` |
+| `api` | `python -m api.ops.healthcheck api` — GETs `/health`, then runs the probes |
+| `celery-worker` | `celery inspect ping` **plus** all nine `api/tasks.STAGES` names in `inspect registered` |
 | `vllm` | `GET /v1/models` |
 
-Everything dependent uses `depends_on: {condition: service_healthy}`.
+Two env vars change what "healthy" means, and both are read from the
+environment rather than `settings.py` because that file is orchestrator-owned:
+`HEALTH_REQUIRED_DEPS` (default `db,broker,neo4j,object_store`) and
+`CELERY_REQUIRE_STAGES` (default `1`).
 
-## Make targets (S1)
+## Make targets
 
 ```
-make up / down / logs / ps        make migrate        make seed
-make test / test-integration      make reset-db       make warm-models
-make shell-api / shell-db / shell-neo4j
-make worktrees                    make graph-rebuild BOOK=<id>
-make revision m="..."             ORCHESTRATOR ONLY
+make help                         list everything
+make env                          .env from .env.example, secrets generated
+make up / up-dev / up-gpu / up-obs / down / down-hard / logs / ps / health
+make migrate                      make bootstrap        make reset-db
+make test / test-api / test-web / test-integration
+make lint / fmt / openapi         make seed             make warm-models
+make worktrees SPRINT=3 SLUG=…    make ci-up / ci-smoke / ci-down
+make revision m="…"               ORCHESTRATOR ONLY — typed confirmation
 ```
 
 ## Gotchas
 
-- **Neo4j takes ~20s to accept connections** after container start. Retry on
-  `ServiceUnavailable` with backoff; every agent hits this.
-- **`proxy_buffering off`** in nginx or SSE streaming silently hangs. Set in S1
-  with a comment saying why.
-- **Models are volume-mounted, not baked.** An image with BGE-M3 inside is ~4 GB.
-  `make warm-models` fills the shared volume once.
+- **Neo4j takes ~20s to accept connections** after container start; its
+  healthcheck carries a 40s `start_period`. Retry on `ServiceUnavailable`.
+- **`proxy_buffering off`** in `web/nginx.conf` or SSE streaming silently hangs.
+  Also `chunked_transfer_encoding off` and a 3600s read timeout.
+- **Models are volume-mounted, not baked.** `make warm-models` fills the shared
+  `/models` volume once, behind an flock so two worktrees cannot race. **Done
+  for Sprint 1** — the `traverse_model_cache` volume is warm (Docling 1.3G,
+  BGE-M3 2.6G); confirmed `SentenceTransformer("BAAI/bge-m3")` loads with
+  `HF_HUB_OFFLINE=1` and no network. Do not run `download_models()` again.
 - **Tests must not hit the network** — `MODELS_OFFLINE=1` sets `HF_HUB_OFFLINE`
-  and Docling's `artifacts_path`.
-- Never let two agents run Docling's `download_models()` concurrently.
-- Langfuse needs a **dedicated Postgres**; sharing the app DB causes schema
-  conflicts.
+  and `TRANSFORMERS_OFFLINE` and points Docling at `/models/docling`.
+- **`ruff format` ignores `per-file-ignores`.** The migrations are excluded with
+  `--exclude db/migrations` in CI and `make lint`; without it the four
+  pre-existing migrations fail a check the lint config exempts them from.
+- **`docker compose ps` hides exited containers.** `scripts/wait_for_healthy.sh`
+  uses `ps -a`, or the one-shot services look absent forever.
+- **`%2F` in an AMQP URL.** `pyamqp://…/%2Fbe1` is vhost `/be1`; `…/be1` is a
+  different vhost that does not exist.
+- **RabbitMQ 4 denies `transient_nonexcl_queues` by default.** Celery's pidbox
+  and reply queues are declared `durable=false exclusive=false`, and with the
+  feature denied the worker crashloops within a second of boot
+  (`amqp.exceptions.InternalError: (541) INTERNAL_ERROR`,
+  `RestartFreqExceeded`). Fixed by mounting
+  `docker/rabbitmq/rabbitmq.conf` (`deprecated_features.permit.*`) into
+  `/etc/rabbitmq/conf.d/`. If a worker crashloops on boot with that traceback,
+  check the broker has this file mounted before looking anywhere else.
+- Langfuse needs a **dedicated Postgres** — it runs its own Prisma migrations.
 - vLLM under WSL2 in compose may not start — the documented fallback is
-  `INFERENCE_MODE=api` so nobody is blocked on a GPU.
+  `INFERENCE_MODE=api`, which is the default, so nobody is blocked on a GPU.
 
 ## Related
 
 [llm-runtime.md](llm-runtime.md) · [BRANCH.md](../../../BRANCH.md) §4, §9 ·
-[plans/sprint-1/devops-1.md](../../../plans/sprint-1/devops-1.md)
+[plans/sprint-1/devops-1.md](../../../plans/sprint-1/devops-1.md) ·
+[plans/sprint-1/HANDOFF.md](../../../plans/sprint-1/HANDOFF.md)
