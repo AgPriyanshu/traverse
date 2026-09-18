@@ -56,6 +56,7 @@ OWNS      api/graph/**             ontology config, Neo4j client, upsert, traver
           api/relations/**         pass-2 extraction, aggregation, conflict resolution
           api/query/**             router, Cypher templates, hydration, grounding
           api/routes/characters.py api/routes/graph.py api/routes/query.py
+          api/routes/review.py
           api/tests/graph/**  api/tests/relations/**  api/tests/query/**
 FORBIDDEN api/pipeline/**  api/extraction/**  web/**  docker-compose.yml
           api/db/models/**  api/db/migrations/**  api/contracts/**
@@ -78,6 +79,7 @@ OWNS      docker-compose.yml  docker-compose.*.yml  docker/**
           api/Dockerfile  web/Dockerfile  web/nginx.conf  *.dockerignore
           Makefile  .env.example  scripts/**  .github/workflows/**
           api/ops/**               telemetry collectors, cost accounting
+          api/routes/ops.py
           infra/**
 FORBIDDEN api/pipeline/**  api/graph/**  api/query/**  web/src/**
 ```
