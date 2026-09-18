@@ -187,3 +187,144 @@ finding this; saving you the same.
   BRANCH.md's own "two blocking SCRs... is a retro action item" spirit, even
   though this one wasn't blocking; the process gap (claiming "SCR filed" in a
   commit message without actually filing it) is the thing worth a retro line.
+
+---
+
+## be2 → be1 : `api/llm/` substrate (S2.7 / S2.8) — landed on `ai/be2/sprint-2-ingestion`
+
+Commit `4f34680` on my branch (not yet on `ai-master` — merge train order is
+do1 → be1 → be2 → fe1, so be1 will not literally `import api.llm` until after
+their own merge, but the branch is ready to rebase onto today). Importing
+`api.llm` opens no connection and builds no client — safe to import at module
+scope.
+
+### `structured_call` — the call be1 uses for every model call
+
+```python
+async def structured_call(
+    prompt: str,
+    schema: type[T],          # T bound to pydantic.BaseModel
+    *,
+    purpose: LLMPurpose,
+    book_id: str | None = None,
+    stage: str | None = None,
+) -> T
+```
+
+- Routes to a model by `purpose` alone — call sites never name a model.
+- Retries once on schema-validation failure, appending the validation error
+  to the prompt; raises `PermanentLLMError` if the second attempt also fails.
+  Both attempts are recorded on one Langfuse generation (`attempt` in
+  metadata) — a silent retry would corrupt the Sprint 9 cost breakdown.
+- Bounded by a shared `asyncio.Semaphore` (`settings.llm_max_concurrency`,
+  default 8) held for the full call including the retry — do not add your
+  own concurrency limiting around this, it will compound.
+- Raises `TransientLLMError` for anything Celery should retry (dropped
+  connection, timeout, 429, 5xx) and `PermanentLLMError` for everything else
+  (400, malformed input, schema still invalid after the retry). Both are
+  `api.workers.errors.TransientError` / `PermanentError` subclasses, so
+  `autoretry_for=(TransientError,)` on your Celery tasks catches them with no
+  special-casing for where the failure came from.
+
+Import as `from api.llm import structured_call` (cross-package — absolute,
+per `api/AGENTS.md`).
+
+### `LLMPurpose` (from `api.contracts.enums`, unchanged from the freeze)
+
+`CHAPTER_CLASSIFY`, `CHARACTER_EXTRACT`, `RELATION_EXTRACT`, `ADJUDICATE`,
+`ANSWER`, `JUDGE`. `JUDGE` always routes to a frontier model and raises
+`PermanentLLMError` outright if `settings.inference_mode == LOCAL` or no
+`settings.frontier_model` is configured — it never silently downgrades to the
+local model.
+
+### `plan_batches` — the Sprint 3 dependency, ready now
+
+```python
+def plan_batches(
+    items: Sequence[T],
+    *,
+    prompt_tokens: int,
+    text_of: Callable[[T], str],
+    max_context: int,
+    output_reserve: int,
+    safety_margin: float = 0.9,
+    tokenizer_model: str | None = None,   # defaults to settings.llm_model
+) -> list[BatchPlan[T]]
+```
+
+- Counts with the real model tokenizer (`transformers.AutoTokenizer`,
+  `settings.llm_model` = `Qwen/Qwen3-8B-AWQ`), not a chars/4 estimate.
+- Packs items greedily, in input order, into `BatchPlan`s that each fit
+  `TokenBudget.item_budget` (`api.contracts.llm.TokenBudget` — already
+  frozen).
+- An item too large to fit the per-item budget on its own is **split on
+  token boundaries**, never dropped: each piece becomes its own
+  `BatchPlan(items=[piece_text], was_split=True)`. Split pieces come back as
+  `str`, decoded from the token slice — if you batch anything other than raw
+  text, treat a `was_split=True` plan's items as text you feed to the model
+  directly rather than the original item type.
+- No hidden global state: pass `tokenizer_model=` if you ever need a
+  different model's tokenizer than the one `structured_call` will use for
+  the same purpose (you shouldn't need to — they're the same model unless
+  `purpose=JUDGE`).
+
+Import as `from api.llm import plan_batches`.
+
+### Migration note — `api/pipeline/chunking.py`
+
+`api/llm.py` (the Sprint 1 prototype: global `ChatOpenAI` + Langfuse handler
++ retrieval + LangGraph in one file) is **deleted** as of this commit, per
+S2.7. `_classify_chapter_heading` in your `chunking.py` still does
+`from ..llm import langfuse_handler, llm` — that import now fails. Your own
+comment on that line already calls this out ("S2.3 batches these calls...
+moves them behind `api/llm`'s `structured_call`"), so this should already be
+on your S2.3 plan; flagging it here so it's not a surprise mid-rebase. New
+shape:
+
+```python
+from api.llm import structured_call
+from api.contracts.enums import LLMPurpose
+
+result = await structured_call(
+    _HEADING_PROMPT.format(text=text),
+    ChapterInfoStructuredOutput,
+    purpose=LLMPurpose.CHAPTER_CLASSIFY,
+    book_id=str(book_id),
+    stage="segment_chapters",
+)
+```
+
+Note `_classify_chapter_heading` is currently sync (`structured_llm.invoke`);
+`structured_call` is async throughout (`api/AGENTS.md` — everything that
+touches I/O is async), so the call site needs `await` and an async caller.
+
+### What is *not* covered by a live test in this worktree
+
+No vLLM runs in this dev environment (single shared GPU per BRANCH.md §9,
+and no `vllm` container in the compose stack as configured for worktree
+dev). `structured_call`'s retry-on-`ValidationError` and
+connection-failure-vs-4xx classification are covered with the chat model
+stubbed at the `api.llm` boundary (`api/tests/llm/test_structured.py`,
+`test_errors.py`) — the logic under test is ours, not vLLM's. The brief's
+literal acceptance criteria ("forced schema violation retries and succeeds
+against vLLM", "killing vLLM mid-call") need to be re-verified once against
+a live vLLM during integration; nothing here should be taken as having
+proven that end-to-end.
+
+`plan_batches` **is** verified against the real `Qwen/Qwen3-8B-AWQ`
+tokenizer (offline, from the shared HF cache) — that part has no vLLM
+dependency.
+
+---
+
+## Open item — S2.10 reranker needs a settings key not yet frozen
+
+`RERANKER_ENABLED` (default off) doesn't exist in `api/config/settings.py`
+yet, and that file is orchestrator-owned as of the Sprint 2 freeze
+(`api/pyproject.toml` joined the frozen list per BRANCH.md §2/SCR-3;
+`settings.py` was already on it). Filed as SCR-5 in `plans/sprint-2/SCR.md`
+(renumbered at the merge train from SCR-2, which collided with do1's own
+retroactive boto3 SCR-2 above, filed independently from the same base).
+Non-blocking for be1's Day-4 dependency above; blocking for S2.10's
+acceptance criterion. Orchestrator: please land at the next freeze or
+sooner if S2.10 needs to ship this sprint.

@@ -46,3 +46,24 @@ the Sprint 3 freeze; delete the `uv pip install boto3` stopgap from
 nothing was appended here. Caught and filed late by the next `do1` session;
 flagged for the Sprint 2 retro (BRANCH.md: "a memory/process file that drifts
 is worse than none, because agents trust it").
+
+### SCR-5 · be2 · 2026-09-18
+
+**Need:** `settings.reranker_enabled: bool = False` (and, if the reranker
+model should also be configurable, `settings.reranker_model_id: str =
+"BAAI/bge-reranker-v2-m3"`) in `api/config/settings.py`.
+
+**Why:** S2.10 requires the cross-encoder reranker to sit behind a flag,
+default off. `api/config/settings.py` joined the orchestrator-owned list at
+the Sprint 2 freeze (BRANCH.md §2, alongside `api/pyproject.toml`), so I
+cannot add the field myself.
+
+**Blocking:** no for be1's Day-4 `plan_batches` dependency. Blocking for
+S2.10's own acceptance criterion ("`RERANKER_ENABLED` default off") if it
+needs to be a real settings-driven flag rather than a provisional
+`getattr(settings, "reranker_enabled", False)` in `api/retrieval/rerank.py`
+— which is what I've shipped in the meantime so S2.10 isn't fully blocked on
+this landing.
+
+**Proposed:** add both fields to `Settings` with the defaults above. No
+migration needed — these are process config, not schema.
