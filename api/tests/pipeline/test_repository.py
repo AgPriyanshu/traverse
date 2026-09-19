@@ -186,6 +186,41 @@ class TestUpsertChapters:
 
         assert ranges == {1: (1, 6), 2: (11, 12)}
 
+    async def test_a_human_verified_chapter_survives_re_segmentation(
+        self, session: SQLModelAsyncSession, book: Book
+    ) -> None:
+        await repository.upsert_chapters(
+            session,
+            book.id,
+            [ChapterInfo(is_chapter=True, number=1, title="Verified Title")],
+            page_ranges={1: (1, 9)},
+        )
+        chapters = await repository.list_chapters(session, book.id)
+        chapters[0].human_verified = True
+        session.add(chapters[0])
+        await session.commit()
+
+        again = await repository.upsert_chapters(
+            session,
+            book.id,
+            [
+                ChapterInfo(is_chapter=True, number=1, title="Re-detected Title"),
+                ChapterInfo(is_chapter=True, number=2, title="Two"),
+            ],
+            page_ranges={1: (1, 20), 2: (21, 30)},
+        )
+        by_number = {chapter.number: chapter for chapter in again}
+
+        assert by_number[1].title == "Verified Title"
+        assert (by_number[1].page_start, by_number[1].page_end) == (1, 9)
+        assert by_number[1].human_verified is True
+        assert by_number[2].title == "Two"
+
+        refreshed = await session.get(Book, book.id)
+        await session.refresh(refreshed)
+
+        assert refreshed.chapter_count == 2
+
 
 class TestAssignChunkChapters:
     async def test_backfills_chapter_id_from_page_ranges(

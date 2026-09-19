@@ -206,29 +206,41 @@ async def upsert_chapters(
             "insert chunks first or pass page_ranges"
         )
 
-    await session.execute(delete(Chapter).where(Chapter.book_id == book_id))  # type: ignore[arg-type]
+    # Never overwrite a human-verified chapter (F5.4): only unverified rows are
+    # replaced, and a re-detection for an already-verified number is dropped
+    # rather than colliding with it on the (book_id, number) unique constraint.
+    verified_numbers = await _verified_chapter_numbers(session, book_id)
+    await session.execute(
+        delete(Chapter)  # type: ignore[arg-type]
+        .where(Chapter.book_id == book_id)  # type: ignore[arg-type]
+        .where(Chapter.human_verified.is_(False))  # type: ignore[union-attr]
+    )
 
-    rows = []
-    for info in chapters:
-        page_start, page_end = ranges[info.number]
-        rows.append(
-            {
-                "book_id": book_id,
-                "number": info.number,
-                "title": info.title,
-                "heading_text": info.text,
-                "page_start": page_start,
-                "page_end": page_end,
-                "detection_method": info.detection_method,
-                "confidence": info.confidence,
-            }
-        )
+    rows = [
+        {
+            "book_id": book_id,
+            "number": info.number,
+            "title": info.title,
+            "heading_text": info.text,
+            "page_start": ranges[info.number][0],
+            "page_end": ranges[info.number][1],
+            "detection_method": info.detection_method,
+            "confidence": info.confidence,
+        }
+        for info in chapters
+        if info.number not in verified_numbers
+    ]
 
-    await session.execute(insert(Chapter), rows)
+    if rows:
+        await session.execute(insert(Chapter), rows)
+
     book = await session.get(Book, book_id)
 
     if book is not None:
-        book.chapter_count = len(rows)
+        count_statement = (
+            select(func.count()).select_from(Chapter).where(Chapter.book_id == book_id)  # type: ignore[arg-type]
+        )
+        book.chapter_count = (await session.execute(count_statement)).scalar_one()
         session.add(book)
 
     await session.commit()
@@ -239,6 +251,19 @@ async def upsert_chapters(
     persisted = await list_chapters(session, book_id)
 
     return persisted
+
+
+async def _verified_chapter_numbers(
+    session: SQLModelAsyncSession, book_id: UUID
+) -> set[int | None]:
+    statement = (
+        select(Chapter.number)
+        .where(Chapter.book_id == book_id)  # type: ignore[arg-type]
+        .where(Chapter.human_verified.is_(True))  # type: ignore[union-attr]
+    )
+    numbers = set((await session.execute(statement)).scalars().all())
+
+    return numbers
 
 
 async def list_chapters(session: SQLModelAsyncSession, book_id: UUID) -> list[Chapter]:
@@ -433,6 +458,52 @@ async def list_chunks(
     chunks = list((await session.execute(statement)).scalars().all())
 
     return chunks
+
+
+async def list_chunks_needing_embedding(
+    session: SQLModelAsyncSession, book_id: UUID
+) -> list[DocumentChunk]:
+    """Return a book's chunks that have no embedding yet, in document order.
+
+    Restricting to ``text_embedding IS NULL`` rather than fetching everything
+    is what makes a restart resume instead of re-embedding a book from
+    scratch (F1.2): a chunk already written keeps its vector no matter how
+    many times this is called.
+    """
+    statement = (
+        select(DocumentChunk)
+        .where(DocumentChunk.book_id == book_id)  # type: ignore[arg-type]
+        .where(DocumentChunk.text_embedding.is_(None))  # type: ignore[union-attr]
+        .order_by(DocumentChunk.page_start, DocumentChunk.created_at)  # type: ignore[arg-type]
+    )
+    chunks = list((await session.execute(statement)).scalars().all())
+
+    return chunks
+
+
+async def set_chunk_embeddings(
+    session: SQLModelAsyncSession, embeddings: dict[UUID, list[float]]
+) -> int:
+    """Write one embedding per chunk id, in a single statement.
+
+    Args:
+        session: Open session; this function commits.
+        embeddings: ``chunk id -> unit vector``.
+
+    Returns:
+        The number of rows updated.
+    """
+    if not embeddings:
+        return 0
+
+    rows = [
+        {"id": chunk_id, "text_embedding": vector}
+        for chunk_id, vector in embeddings.items()
+    ]
+    await session.execute(update(DocumentChunk), rows)
+    await session.commit()
+
+    return len(rows)
 
 
 async def get_stage_statuses(
