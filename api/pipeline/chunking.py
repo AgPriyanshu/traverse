@@ -181,19 +181,41 @@ class DocumentChunker:
 
         return result.document
 
-    async def detect_chapters(
+    async def prepare_chapters(
         self, document: DoclingDocument, *, book_id: str | None = None
+    ) -> list[tuple[object, ChapterInfo]]:
+        """Public entry to the heading pass shared by ``detect_chapters`` and
+        ``generate_chunks``.
+
+        A caller needing both (``pipeline.tasks._parse_and_chunk`` does, to
+        write chunks and the chapter side-artifact from one document) should
+        call this once and pass the result to both as ``prepared=`` — each
+        recomputes it internally otherwise, doubling the LLM classification
+        calls the batching in ``_classify_headings`` exists to minimise.
+        """
+        return await self._prepare_chapters(document, book_id=book_id)
+
+    async def detect_chapters(
+        self,
+        document: DoclingDocument,
+        *,
+        book_id: str | None = None,
+        prepared: list[tuple[object, ChapterInfo]] | None = None,
     ) -> list[ChapterInfo]:
         """Return the chapter headings found in a document, in document order.
 
         Args:
             document: A converted document.
             book_id: Tags the Langfuse trace of any LLM classification call.
+            prepared: Reuse a prior ``prepare_chapters`` call instead of
+                redoing the heading pass.
 
         Returns:
             One entry per detected chapter heading.
         """
-        prepared = await self._prepare_chapters(document, book_id=book_id)
+        if prepared is None:
+            prepared = await self.prepare_chapters(document, book_id=book_id)
+
         chapters = [info for _item, info in prepared if info.is_chapter]
 
         return chapters
@@ -204,6 +226,7 @@ class DocumentChunker:
         *,
         embed: bool = True,
         book_id: str | None = None,
+        prepared: list[tuple[object, ChapterInfo]] | None = None,
     ) -> list[ChunkPayload]:
         """Split a document into persistable chunks carrying page provenance.
 
@@ -215,6 +238,8 @@ class DocumentChunker:
             embed: Whether to compute embeddings. ``False`` skips loading
                 BGE-M3 entirely, which is what the chunk-only stage wants.
             book_id: Tags the Langfuse trace of any LLM classification call.
+            prepared: Reuse a prior ``prepare_chapters`` call instead of
+                redoing the heading pass.
 
         Returns:
             Chunks in document order.
@@ -235,7 +260,9 @@ class DocumentChunker:
 
         previous_chapter = ChapterInfo(is_chapter=False)
         result_chunks: list[ChunkPayload] = []
-        ordered_headings = await self._prepare_chapters(document, book_id=book_id)
+        if prepared is None:
+            prepared = await self.prepare_chapters(document, book_id=book_id)
+        ordered_headings = prepared
         cursor = -1
 
         for chunk, embedding in zip(chunks, embeddings, strict=True):
