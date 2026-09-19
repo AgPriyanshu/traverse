@@ -13,7 +13,7 @@ const ROUTES: [path: string, heading: RegExp][] = [
   ["/books", /library/i],
   ["/books/upload", /add a book/i],
   ["/books/abc-123", /ingestion/i],
-  ["/books/abc-123/chapters", /chapters and chunks is not built yet/i],
+  ["/books/abc-123/chapters", /chapters/i],
   ["/books/abc-123/pages/12", /the page viewer is not built yet/i],
   ["/books/abc-123/characters", /the character roster is not built yet/i],
   ["/books/abc-123/characters/c-1", /character detail is not built yet/i],
@@ -38,7 +38,9 @@ beforeEach(() => {
   vi.stubGlobal(
     "fetch",
     vi.fn((input: RequestInfo | URL) => {
-      const url = String(input);
+      // `openapi-fetch` calls the configured `fetch` with a `Request`
+      // instance, not a bare URL string — `.url` has the real address.
+      const url = input instanceof Request ? input.url : String(input);
       if (url.includes("/api/health")) {
         return Promise.resolve(
           new Response(JSON.stringify({ status: "degraded", dependencies: [] }), {

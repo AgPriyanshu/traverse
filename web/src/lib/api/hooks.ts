@@ -236,20 +236,29 @@ export const useChapters = (bookId: string | undefined) => {
   });
 };
 
-type ChunksParams = QueryParams<"/api/books/{book_id}/chunks", "get">;
+export type ChunksParams = QueryParams<"/api/books/{book_id}/chunks", "get">;
+
+/**
+ * Shared with the chunk inspector's manual pagination (`useQueries` over
+ * several offsets at once), so that "load one more page" is one more query
+ * object rather than a second copy of this fetch.
+ */
+export const chunksQueryOptions = (bookId: string, params?: ChunksParams) => ({
+  queryKey: queryKeys.bookChunks(bookId, params),
+  queryFn: () =>
+    request(() =>
+      client.GET("/api/books/{book_id}/chunks", {
+        params: { path: { book_id: bookId }, query: params },
+      }),
+    ),
+});
 
 export const useChunks = (
   bookId: string | undefined,
   params?: ChunksParams,
 ) => {
   return useQuery({
-    queryKey: queryKeys.bookChunks(bookId ?? "", params),
-    queryFn: () =>
-      request(() =>
-        client.GET("/api/books/{book_id}/chunks", {
-          params: { path: { book_id: bookId as string }, query: params },
-        }),
-      ),
+    ...chunksQueryOptions(bookId ?? "", params),
     enabled: Boolean(bookId),
   });
 };
