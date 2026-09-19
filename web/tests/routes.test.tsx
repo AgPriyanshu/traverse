@@ -14,7 +14,7 @@ const ROUTES: [path: string, heading: RegExp][] = [
   ["/books/upload", /add a book/i],
   ["/books/abc-123", /ingestion/i],
   ["/books/abc-123/chapters", /chapters/i],
-  ["/books/abc-123/pages/12", /the page viewer is not built yet/i],
+  ["/books/abc-123/pages/12", /page 12/i],
   ["/books/abc-123/characters", /the character roster is not built yet/i],
   ["/books/abc-123/characters/c-1", /character detail is not built yet/i],
   ["/books/abc-123/graph", /the graph explorer is not built yet/i],

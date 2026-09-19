@@ -263,18 +263,27 @@ export const useChunks = (
   });
 };
 
+/**
+ * Shared with the page viewer's neighbour prefetch (`queryClient.prefetchQuery`
+ * for page ± 1), so a page it will probably need next is already warm without
+ * a second copy of this fetch.
+ */
+export const pageRenderQueryOptions = (bookId: string, page: number) => ({
+  queryKey: queryKeys.bookPage(bookId, page),
+  queryFn: () =>
+    request(() =>
+      client.GET("/api/books/{book_id}/pages/{page}", {
+        params: { path: { book_id: bookId, page } },
+      }),
+    ),
+});
+
 export const usePageRender = (
   bookId: string | undefined,
   page: number | undefined,
 ) => {
   return useQuery({
-    queryKey: queryKeys.bookPage(bookId ?? "", page ?? 0),
-    queryFn: () =>
-      request(() =>
-        client.GET("/api/books/{book_id}/pages/{page}", {
-          params: { path: { book_id: bookId as string, page: page as number } },
-        }),
-      ),
+    ...pageRenderQueryOptions(bookId ?? "", page ?? 0),
     enabled: Boolean(bookId) && page !== undefined,
   });
 };

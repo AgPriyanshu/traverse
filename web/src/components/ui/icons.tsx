@@ -76,3 +76,19 @@ export const GaugeIcon = (props: IconProps) => {
     </Glyph>
   );
 };
+
+export const ChevronLeftIcon = (props: IconProps) => {
+  return (
+    <Glyph {...props}>
+      <path {...stroke} d="m15 5-7 7 7 7" />
+    </Glyph>
+  );
+};
+
+export const ChevronRightIcon = (props: IconProps) => {
+  return (
+    <Glyph {...props}>
+      <path {...stroke} d="m9 5 7 7-7 7" />
+    </Glyph>
+  );
+};

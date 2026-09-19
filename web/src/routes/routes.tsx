@@ -53,7 +53,9 @@ export const routes: RouteObject[] = [
               },
               {
                 path: "pages/:page",
-                element: <NotYetBuilt screen="The page viewer" sprint={2} />,
+                lazy: async () => ({
+                  Component: (await import("./book/page")).BookPage,
+                }),
               },
               {
                 path: "characters",

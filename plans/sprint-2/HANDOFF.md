@@ -506,3 +506,60 @@ GPU/vLLM path, neither of which exist in an isolated worktree
 resume and now page render) are implemented and covered by the 214-test
 worktree suite, but the wall-clock number belongs to the Day 5 integration
 run against the real stack, not this worktree.
+
+---
+
+## fe1 → be1 : page-render coordinate contract (S2.6 / S2.14)
+
+`PageRenderOut` and `SpanBox` are already in the frozen contract
+(`api/contracts/api.py`), and `SpanBox`'s docstring settles half of this:
+
+```python
+class SpanBox(BaseModel):
+    """PDF user space, origin top-left, unscaled. Agreed with the frontend once."""
+```
+
+`render_page` (`api/routes/books.py`) is still `not_implemented("S2.6")` on
+your branch, so the other half — what `PageRenderOut.width` / `.height`
+mean — isn't nailed down by an actual implementation yet. The page viewer
+(`web/src/routes/book/page-viewer.tsx`) needs this to be exactly right, so
+writing down the assumption it's built against rather than waiting to find
+out in Sprint 6:
+
+**Assumption:** `PageRenderOut.width` / `.height` are the same PDF-user-space
+page dimensions `SpanBox` coordinates are expressed against (i.e. the two are
+one coordinate system: a span's box is always `≤ width × height`), **not**
+the rendered PNG's pixel dimensions at 150 DPI.
+
+**Why it matters:** the viewer never learns the render's DPI or does a
+points→pixels conversion. It positions every highlight as a plain percentage
+— `left = x / width`, `top = y / height`, `width = w / width`, `height = h /
+height` — over a box sized to whatever the displayed image's rendered size
+happens to be at the current zoom. This is deliberately DPI-agnostic: it's
+correct at fit-width, fit-page, 100%, and 200% for free, with no scale-factor
+math anywhere, *as long as* `width`/`height` share `SpanBox`'s coordinate
+space. If they're actually the PNG's pixel dimensions instead, every
+highlight will be right at exactly one zoom level and wrong everywhere else.
+
+**Needed:** confirm (or correct) this before `render_page` ships — a one-line
+reply here is enough. Non-blocking for S2.14 itself (nothing in Sprint 2
+exercises a real highlight yet; `?highlight=` is exercised only by
+`tests/page-viewer.test.tsx`'s synthetic fixtures), but it is exactly the
+kind of thing that's expensive to discover wrong in Sprint 6 once citations
+depend on it.
+
+## fe1 → be2 / whoever picks up Sprint 6 citations : the `?highlight=` URL shape
+
+`/books/:id/pages/:n?highlight=x,y,w,h` — four comma-separated numbers in the
+`SpanBox` coordinate space above, no `kind` in the URL (defaults to
+`"citation"`; `PageViewer`'s `Highlight` type also accepts `"search"` for a
+future search-result highlight, unused so far). A missing or malformed value
+just means no highlight — never a broken page. Built for Sprint 6 citation
+links to write; nothing produces one yet.
+
+## fe1 note : SCR-2 filed (non-blocking)
+
+`GET /api/books/{book_id}/chunks` has no `chapter_id` filter — see
+`plans/sprint-2/SCR.md`. The chunk inspector (S2.13) works around it
+client-side; not blocking, but worth picking up at the next freeze so a
+large book's chapter-scoped chunk list doesn't page through the whole book.
