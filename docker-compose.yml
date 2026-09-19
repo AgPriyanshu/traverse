@@ -231,6 +231,25 @@ services:
         condition: service_healthy
     volumes: *api-volumes
 
+  migrate-test:
+    # `traverse_test` is a database of its own (AGENT_DATABASES,
+    # .env.example) — never traverse_int — so the `test` service can TRUNCATE
+    # between runs without touching live integration data. On a warm
+    # singleton this still needs its own head, same as `migrate` does for the
+    # app database.
+    <<: *api-image
+    profiles: ["test"]
+    restart: "no"
+    working_dir: /app/api
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      <<: *api-env
+      POSTGRES_DB_STRING: postgresql+psycopg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${TEST_POSTGRES_DB:-traverse_test}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes: *api-volumes
+
   api:
     <<: *api-image
     restart: unless-stopped
@@ -327,6 +346,10 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+      migrate-test:
+        condition: service_completed_successfully
 
   test-web:
     profiles: ["test"]

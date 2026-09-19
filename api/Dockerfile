@@ -43,6 +43,13 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 FROM base AS runtime
 COPY --from=builder /opt/venv /opt/venv
+COPY --from=ghcr.io/astral-sh/uv:0.9 /uv /bin/uv
+# boto3 is not in api/pyproject.toml (orchestrator-owned; see plans/sprint-2/SCR.md)
+# so it lands here — the same stopgap the `test` stage below already uses for
+# pytest. Delete this layer once the dependency lands at a freeze.
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --python /opt/venv/bin/python boto3 \
+ && rm /bin/uv
 
 ENV PATH=/opt/venv/bin:$PATH \
     PYTHONPATH=/app \

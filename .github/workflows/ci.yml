@@ -65,6 +65,16 @@ jobs:
         options: >-
           --health-cmd "rabbitmq-diagnostics -q check_running"
           --health-interval 10s --health-timeout 10s --health-retries 10
+      # bitnami's image (unlike quay.io/minio/minio, used everywhere else in
+      # this repo) boots from env vars alone — a GitHub Actions service
+      # container cannot override the image's CMD to pass `server /data`.
+      minio:
+        image: bitnami/minio:2025.9.7
+        env:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
+          MINIO_DEFAULT_BUCKETS: traverse-be1,traverse-be2,traverse-int
+        ports: ["9000:9000"]
     env:
       POSTGRES_DB_STRING: postgresql+psycopg://postgres:postgres@localhost:5432/traverse_test
       RABBITMQ_URL: pyamqp://guest:guest@localhost:5672//
@@ -96,10 +106,20 @@ jobs:
       - name: Migrate
         working-directory: api
         run: uv run alembic upgrade head
+      - name: Wait for MinIO
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:9000/minio/health/live && exit 0
+            sleep 2
+          done
+          echo "minio never became reachable" >&2
+          exit 1
       - name: Tests
         run: |
           if [ -d api/tests ]; then
-            api/.venv/bin/python -m pip install --quiet pytest pytest-asyncio
+            # boto3 is not in api/pyproject.toml yet (orchestrator-owned; see
+            # plans/sprint-2/SCR.md) — the same stopgap api/Dockerfile uses.
+            api/.venv/bin/python -m pip install --quiet pytest pytest-asyncio boto3
             api/.venv/bin/python -m pytest api/tests -q
           else
             echo "no api/tests yet — nothing to run"

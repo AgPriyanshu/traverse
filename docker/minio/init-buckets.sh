@@ -21,4 +21,21 @@ done
 for bucket in $BUCKETS; do
   mc mb --ignore-existing "local/${bucket}"
   echo "minio-init: bucket ${bucket} ready"
+  # `mc ilm import` replaces the whole lifecycle config in one call, unlike
+  # `mc ilm rule add`, which appends a new randomly-ID'd rule every run and
+  # is not safe to re-run on every `docker compose up`. Page renders are a
+  # cache the pipeline regenerates on demand, not a database (S2.15).
+  mc ilm import "local/${bucket}" <<'ILM_JSON'
+{
+  "Rules": [
+    {
+      "ID": "traverse-page-render-cache-expiry",
+      "Status": "Enabled",
+      "Filter": {"Prefix": "books/*/pages/*"},
+      "Expiration": {"Days": 30}
+    }
+  ]
+}
+ILM_JSON
+  echo "minio-init: bucket ${bucket} lifecycle set (books/*/pages/* expires after 30d)"
 done
