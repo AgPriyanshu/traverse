@@ -3,14 +3,18 @@ from pathlib import Path
 import pytest
 
 from api.config.settings import Settings
-from api.contracts.enums import DetectionMethod
+from api.contracts.enums import DetectionMethod, LLMPurpose
 from api.contracts.pipeline import ChunkPayload
+from api.pipeline import chunking
 from api.pipeline.chunking import (
     DocumentChunker,
     _normalize_chapter_number,
-    _plan_heading_batches,
     _roman_to_int,
     resolve_device,
+)
+from api.pipeline.constants import (
+    ChapterBatchStructuredOutput,
+    ChapterInfoStructuredOutput,
 )
 
 
@@ -48,10 +52,10 @@ class TestChapterHeadings:
             ("chap. 7", 7, None),
         ],
     )
-    def test_parses_a_chapter_heading(
+    async def test_parses_a_chapter_heading(
         self, chunker: DocumentChunker, heading: str, number: int, title: str | None
     ) -> None:
-        info = chunker._parse_chapter_heading(heading)
+        info = await chunker._parse_chapter_heading(heading)
 
         assert info.is_chapter
         assert info.number == number
@@ -59,19 +63,78 @@ class TestChapterHeadings:
         assert info.detection_method is DetectionMethod.REGEX
 
     @pytest.mark.parametrize("heading", ["Contents", "About the Author", "Prologue"])
-    def test_rejects_a_non_chapter_when_the_llm_is_off(
+    async def test_rejects_a_non_chapter_when_the_llm_is_off(
         self, chunker: DocumentChunker, heading: str
     ) -> None:
-        info = chunker._parse_chapter_heading(heading)
+        info = await chunker._parse_chapter_heading(heading)
 
         assert not info.is_chapter
 
-    def test_collapses_whitespace_into_the_heading_text(
+    async def test_collapses_whitespace_into_the_heading_text(
         self, chunker: DocumentChunker
     ) -> None:
-        info = chunker._parse_chapter_heading("  Chapter\n 2 \t Onward  ")
+        info = await chunker._parse_chapter_heading("  Chapter\n 2 \t Onward  ")
 
         assert info.text == "Chapter 2 Onward"
+
+
+class TestHeadingClassificationCallsStructuredCall:
+    """``_classify_heading_batch`` against ``api.llm.structured_call``.
+
+    Stubbed at the same boundary as the rest of the project
+    (``api/AGENTS.md``): no vLLM runs in this worktree, so the interesting
+    behaviour to cover here is the call's own shape and how a mismatched or
+    failing response degrades, not the model's output.
+    """
+
+    @pytest.fixture
+    def chunker(self) -> DocumentChunker:
+        return DocumentChunker(Settings(embedding_device="cpu"), llm_classify=True)
+
+    async def test_classifies_an_ambiguous_heading_via_structured_call(
+        self, chunker: DocumentChunker, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        captured: dict[str, object] = {}
+
+        async def fake_structured_call(prompt, schema, *, purpose, book_id, stage):
+            captured.update(
+                prompt=prompt,
+                schema=schema,
+                purpose=purpose,
+                book_id=book_id,
+                stage=stage,
+            )
+
+            return ChapterBatchStructuredOutput(
+                items=[
+                    ChapterInfoStructuredOutput(
+                        is_chapter=True, number=None, title="Prologue"
+                    )
+                ]
+            )
+
+        monkeypatch.setattr(chunking, "structured_call", fake_structured_call)
+
+        results = await chunker._classify_heading_batch(["Prologue"], book_id="book-1")
+
+        assert results[0].is_chapter
+        assert results[0].title == "Prologue"
+        assert captured["purpose"] is LLMPurpose.CHAPTER_CLASSIFY
+        assert captured["schema"] is ChapterBatchStructuredOutput
+        assert captured["book_id"] == "book-1"
+        assert captured["stage"] == "segment_chapters"
+
+    async def test_a_mismatched_item_count_discards_the_batch(
+        self, chunker: DocumentChunker, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        async def fake_structured_call(prompt, schema, *, purpose, book_id, stage):
+            return ChapterBatchStructuredOutput(items=[])
+
+        monkeypatch.setattr(chunking, "structured_call", fake_structured_call)
+
+        results = await chunker._classify_heading_batch(["Prologue", "Interlude"])
+
+        assert [r.is_chapter for r in results] == [False, False]
 
 
 class TestDeviceResolution:
@@ -103,39 +166,6 @@ class TestNoHostPaths:
         chunker = DocumentChunker(cpu_settings(models_cache_dir=tmp_path / "absent"))
 
         assert chunker._artifacts_path() is None
-
-
-class TestHeadingBatching:
-    """The stopgap batcher ahead of be2's ``api.llm.plan_batches`` (S2.7)."""
-
-    def test_an_empty_input_needs_no_calls(self) -> None:
-        assert _plan_heading_batches([], max_context=1000, output_reserve=100) == []
-
-    def test_short_headings_fit_in_one_batch(self) -> None:
-        headings = [f"Chapter {n}" for n in range(1, 21)]
-
-        batches = _plan_heading_batches(headings, max_context=4000, output_reserve=500)
-
-        assert len(batches) == 1
-        assert batches[0].items == headings
-
-    def test_a_tight_budget_splits_into_several_calls(self) -> None:
-        headings = [f"Chapter {n}: A Very Long Chapter Title Indeed" for n in range(20)]
-
-        batches = _plan_heading_batches(headings, max_context=200, output_reserve=50)
-
-        assert len(batches) > 1
-        # Every heading is covered exactly once, in order, none dropped.
-        assert [h for batch in batches for h in batch.items] == headings
-
-    def test_a_single_heading_is_never_split(self) -> None:
-        batches = _plan_heading_batches(
-            ["Chapter One"], max_context=50, output_reserve=45
-        )
-
-        assert len(batches) == 1
-        assert batches[0].items == ["Chapter One"]
-        assert batches[0].was_split is False
 
 
 class TestChunkPayloadContract:

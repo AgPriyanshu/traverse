@@ -66,10 +66,10 @@ def chunker() -> DocumentChunker:
 
 
 class TestGenerateChunks:
-    def test_every_chunk_carries_page_provenance(
+    async def test_every_chunk_carries_page_provenance(
         self, chunker: DocumentChunker
     ) -> None:
-        chunks = chunker.generate_chunks(novel(), embed=False)
+        chunks = await chunker.generate_chunks(novel(), embed=False)
 
         assert chunks
         for chunk in chunks:
@@ -78,27 +78,29 @@ class TestGenerateChunks:
             assert chunk.page_start == min(chunk.pages)
             assert chunk.page_end == max(chunk.pages)
 
-    def test_chunks_span_the_whole_document(self, chunker: DocumentChunker) -> None:
-        chunks = chunker.generate_chunks(novel(), embed=False)
+    async def test_chunks_span_the_whole_document(
+        self, chunker: DocumentChunker
+    ) -> None:
+        chunks = await chunker.generate_chunks(novel(), embed=False)
         covered = {page for chunk in chunks for page in chunk.pages}
 
         assert covered == {1, 2, 3}
 
-    def test_token_counts_come_from_the_model_tokenizer(
+    async def test_token_counts_come_from_the_model_tokenizer(
         self, chunker: DocumentChunker
     ) -> None:
-        chunks = chunker.generate_chunks(novel(), embed=False)
+        chunks = await chunker.generate_chunks(novel(), embed=False)
 
         assert all(chunk.token_count and chunk.token_count > 0 for chunk in chunks)
 
-    def test_skipping_embedding_leaves_the_vector_unset(
+    async def test_skipping_embedding_leaves_the_vector_unset(
         self, chunker: DocumentChunker
     ) -> None:
-        chunks = chunker.generate_chunks(novel(), embed=False)
+        chunks = await chunker.generate_chunks(novel(), embed=False)
 
         assert all(chunk.text_embedding is None for chunk in chunks)
 
-    def test_a_chunk_with_no_provenance_is_refused(
+    async def test_a_chunk_with_no_provenance_is_refused(
         self, chunker: DocumentChunker
     ) -> None:
         doc = DoclingDocument(name="orphan")
@@ -108,19 +110,21 @@ class TestGenerateChunks:
         # Page-exact citation is the product: a chunk that cannot be cited must
         # not reach the database, however tempting a default of 0 is.
         with pytest.raises(MissingProvenanceError):
-            chunker.generate_chunks(doc, embed=False)
+            await chunker.generate_chunks(doc, embed=False)
 
 
 class TestChapterCarryForward:
-    def test_headings_are_detected_as_chapters(self, chunker: DocumentChunker) -> None:
-        chapters = chunker.detect_chapters(novel())
+    async def test_headings_are_detected_as_chapters(
+        self, chunker: DocumentChunker
+    ) -> None:
+        chapters = await chunker.detect_chapters(novel())
 
         assert [chapter.number for chapter in chapters] == [1, 2]
 
-    def test_a_mid_chapter_chunk_inherits_the_last_chapter_seen(
+    async def test_a_mid_chapter_chunk_inherits_the_last_chapter_seen(
         self, chunker: DocumentChunker
     ) -> None:
-        chunks = chunker.generate_chunks(novel(), embed=False)
+        chunks = await chunker.generate_chunks(novel(), embed=False)
         numbers = [chunk.chapter_number for chunk in chunks]
 
         # Everything after the first heading belongs to a chapter; nothing
@@ -132,7 +136,7 @@ class TestChapterCarryForward:
 class TestChapterDetectionFixes:
     """Regression coverage for the three known S1 defects fixed in S2.3."""
 
-    def test_a_heading_not_first_on_its_page_is_still_detected(
+    async def test_a_heading_not_first_on_its_page_is_still_detected(
         self, chunker: DocumentChunker
     ) -> None:
         doc = DoclingDocument(name="novel")
@@ -143,11 +147,11 @@ class TestChapterDetectionFixes:
         doc.add_heading("Chapter 5", level=1, prov=prov(1))
         doc.add_text(label="text", text="Body text of chapter five.", prov=prov(1))
 
-        chapters = chunker.detect_chapters(doc)
+        chapters = await chunker.detect_chapters(doc)
 
         assert [chapter.number for chapter in chapters] == [5]
 
-    def test_a_repeated_heading_text_binds_to_its_own_position_not_the_first(
+    async def test_a_repeated_heading_text_binds_to_its_own_position_not_the_first(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Two chapters that share heading text must not collapse into one.
@@ -183,7 +187,9 @@ class TestChapterDetectionFixes:
         # than a real, deterministic classifier) is what makes the point
         # under test — positional binding, not the classifier itself —
         # observable at all.
-        def fake_batch(texts: list[str]) -> list[ChapterInfo]:
+        async def fake_batch(
+            texts: list[str], *, book_id: str | None = None
+        ) -> list[ChapterInfo]:
             return [
                 ChapterInfo(
                     is_chapter=True,
@@ -197,7 +203,7 @@ class TestChapterDetectionFixes:
 
         monkeypatch.setattr(chunker, "_classify_heading_batch", fake_batch)
 
-        chunks = chunker.generate_chunks(doc, embed=False)
+        chunks = await chunker.generate_chunks(doc, embed=False)
         numbers_by_page = {chunk.page_start: chunk.chapter_number for chunk in chunks}
 
         assert numbers_by_page[1] == 100
@@ -225,24 +231,24 @@ def _load_with_retry(chunker: DocumentChunker, path: Path):
 class TestAgainstTheFixturePdf:
     """Runs the real Docling backend. Needs the model cache; never the network."""
 
-    def test_the_fixture_converts_and_chunks_on_cpu(
+    async def test_the_fixture_converts_and_chunks_on_cpu(
         self, chunker: DocumentChunker
     ) -> None:
         document = _load_with_retry(chunker, FIXTURE)
 
         assert len(document.pages) == 3
 
-        chunks = chunker.generate_chunks(document, embed=False)
+        chunks = await chunker.generate_chunks(document, embed=False)
 
         assert chunks
         for chunk in chunks:
             assert chunk.pages
             assert chunk.page_start >= 1
 
-    def test_the_first_chapter_heading_is_found_by_regex(
+    async def test_the_first_chapter_heading_is_found_by_regex(
         self, chunker: DocumentChunker
     ) -> None:
         document = _load_with_retry(chunker, FIXTURE)
-        chapters = chunker.detect_chapters(document)
+        chapters = await chunker.detect_chapters(document)
 
         assert 1 in [chapter.number for chapter in chapters]
