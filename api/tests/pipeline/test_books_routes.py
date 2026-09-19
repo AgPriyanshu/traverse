@@ -7,6 +7,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
 from api.contracts.enums import BookStatus, StageName, StageState
+from api.contracts.pipeline import ChapterInfo, ChunkPayload
 from api.db.engine import get_session
 from api.db.models import Book, Project
 from api.main import app
@@ -18,6 +19,17 @@ from api.workers.stages import stage
 from ._pdf_helpers import minimal_pdf_with_metadata
 
 FIXTURE = Path(__file__).parent.parent / "fixtures" / "three_page_novel.pdf"
+
+
+def _payload(page: int, chapter: int | None = None) -> ChunkPayload:
+    return ChunkPayload(
+        text=f"Passage on page {page}.",
+        pages=[page, page + 1],
+        page_start=page,
+        page_end=page + 1,
+        chapter_number=chapter,
+        token_count=7,
+    )
 
 
 @pytest_asyncio.fixture
@@ -230,6 +242,74 @@ class TestUploadBook:
             f"/api/projects/{uuid.uuid4()}/books",
             files={"file": ("novel.pdf", FIXTURE.read_bytes(), "application/pdf")},
         )
+
+        assert response.status_code == 404
+
+
+class TestListChapters:
+    async def test_returns_chapters_with_chunk_counts(
+        self, client: AsyncClient, session: SQLModelAsyncSession, book: Book
+    ) -> None:
+        await repository.upsert_chapters(
+            session,
+            book.id,
+            [
+                ChapterInfo(is_chapter=True, number=1, title="One"),
+                ChapterInfo(is_chapter=True, number=2, title="Two"),
+            ],
+            page_ranges={1: (1, 9), 2: (10, 20)},
+        )
+        await repository.bulk_insert_chunks(
+            session,
+            book.id,
+            [
+                _payload(page=3, chapter=1),
+                _payload(page=5, chapter=1),
+                _payload(page=12, chapter=2),
+            ],
+        )
+        await repository.assign_chunk_chapters(session, book.id)
+
+        response = await client.get(f"/api/books/{book.id}/chapters")
+        body = response.json()
+
+        assert response.status_code == 200
+        assert [entry["number"] for entry in body] == [1, 2]
+        assert [entry["chunk_count"] for entry in body] == [2, 1]
+
+    async def test_an_unknown_book_is_404(self, client: AsyncClient) -> None:
+        response = await client.get(f"/api/books/{uuid.uuid4()}/chapters")
+
+        assert response.status_code == 404
+
+
+class TestListChunks:
+    async def test_returns_chunks_in_page_order(
+        self, client: AsyncClient, session: SQLModelAsyncSession, book: Book
+    ) -> None:
+        await repository.bulk_insert_chunks(
+            session, book.id, [_payload(page=5), _payload(page=2)]
+        )
+
+        response = await client.get(f"/api/books/{book.id}/chunks")
+        body = response.json()
+
+        assert response.status_code == 200
+        assert [entry["page_start"] for entry in body] == [2, 5]
+
+    async def test_limit_is_respected(
+        self, client: AsyncClient, session: SQLModelAsyncSession, book: Book
+    ) -> None:
+        await repository.bulk_insert_chunks(
+            session, book.id, [_payload(page=1), _payload(page=3)]
+        )
+
+        response = await client.get(f"/api/books/{book.id}/chunks?limit=1")
+
+        assert len(response.json()) == 1
+
+    async def test_an_unknown_book_is_404(self, client: AsyncClient) -> None:
+        response = await client.get(f"/api/books/{uuid.uuid4()}/chunks")
 
         assert response.status_code == 404
 

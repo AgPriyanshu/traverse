@@ -12,7 +12,7 @@ from sqlalchemy import delete, func, insert, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
-from ..contracts.api import BookOut, ProjectDetailOut, ProjectOut
+from ..contracts.api import BookOut, ChapterOut, ChunkOut, ProjectDetailOut, ProjectOut
 from ..contracts.enums import BookStatus, StageName, StageState
 from ..contracts.pipeline import ChapterInfo, ChunkPayload, StageStatus
 from ..db.models import (
@@ -597,6 +597,79 @@ def derive_book_status(statuses: list[StageStatus]) -> BookStatus:
 
 
 # ── Read models for the HTTP layer ──────────────────────────────────────────
+
+
+async def list_chapters_out(
+    session: SQLModelAsyncSession, book_id: UUID
+) -> list[ChapterOut]:
+    """Return a book's chapters as their HTTP contract, each with its chunk count."""
+    chapters = await list_chapters(session, book_id)
+
+    if not chapters:
+        return []
+
+    chapter_ids = [chapter.id for chapter in chapters]
+    statement = (
+        select(DocumentChunk.chapter_id, func.count())
+        .where(DocumentChunk.chapter_id.in_(chapter_ids))  # type: ignore[union-attr]
+        .group_by(DocumentChunk.chapter_id)  # type: ignore[arg-type]
+    )
+    counts = {
+        chapter_id: total
+        for chapter_id, total in (await session.execute(statement)).all()
+    }
+
+    out = [
+        ChapterOut(
+            id=chapter.id,
+            book_id=chapter.book_id,
+            number=chapter.number,
+            title=chapter.title,
+            page_start=chapter.page_start,
+            page_end=chapter.page_end,
+            detection_method=chapter.detection_method,
+            chunk_count=counts.get(chapter.id, 0),
+        )
+        for chapter in chapters
+    ]
+
+    return out
+
+
+async def list_chunks_out(
+    session: SQLModelAsyncSession,
+    book_id: UUID,
+    *,
+    limit: int = 50,
+    offset: int = 0,
+) -> list[ChunkOut]:
+    """Return a page of a book's chunks as their HTTP contract, in document order."""
+    statement = (
+        select(DocumentChunk, Chapter.number)
+        .join(Chapter, Chapter.id == DocumentChunk.chapter_id, isouter=True)  # type: ignore[arg-type]
+        .where(DocumentChunk.book_id == book_id)  # type: ignore[arg-type]
+        .order_by(DocumentChunk.page_start, DocumentChunk.created_at)  # type: ignore[arg-type]
+        .limit(limit)
+        .offset(offset)
+    )
+    rows = (await session.execute(statement)).all()
+
+    out = [
+        ChunkOut(
+            id=chunk.id,
+            book_id=chunk.book_id,
+            chapter_id=chunk.chapter_id,
+            chapter_number=chapter_number,
+            text=chunk.text,
+            pages=chunk.pages,
+            page_start=chunk.page_start,
+            page_end=chunk.page_end,
+            token_count=chunk.token_count,
+        )
+        for chunk, chapter_number in rows
+    ]
+
+    return out
 
 
 def _book_out(book: Book, *, character_count: int = 0) -> BookOut:

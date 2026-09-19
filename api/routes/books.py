@@ -273,15 +273,42 @@ async def delete_book(book_id: UUID) -> None:
 
 
 @router.get("/books/{book_id}/chapters", response_model=list[ChapterOut])
-async def list_chapters(book_id: UUID) -> list[ChapterOut]:
-    not_implemented(OWNER, "S2.3")
+async def list_chapters(
+    book_id: UUID, session: SQLModelAsyncSession = Depends(get_session)
+) -> list[ChapterOut]:
+    """Return a book's chapters, in page order, each with its chunk count."""
+    book = await repository.get_book(session, book_id)
+
+    if book is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="book not found"
+        )
+
+    chapters = await repository.list_chapters_out(session, book_id)
+
+    return chapters
 
 
 @router.get("/books/{book_id}/chunks", response_model=list[ChunkOut])
 async def list_chunks(
-    book_id: UUID, limit: int = Query(default=50, le=500), offset: int = 0
+    book_id: UUID,
+    limit: int = Query(default=50, le=500),
+    offset: int = 0,
+    session: SQLModelAsyncSession = Depends(get_session),
 ) -> list[ChunkOut]:
-    not_implemented(OWNER, "S2.2")
+    """Return a page of a book's chunks, in document order."""
+    book = await repository.get_book(session, book_id)
+
+    if book is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="book not found"
+        )
+
+    chunks = await repository.list_chunks_out(
+        session, book_id, limit=limit, offset=offset
+    )
+
+    return chunks
 
 
 @router.get("/books/{book_id}/pages/{page}", response_model=PageRenderOut)
