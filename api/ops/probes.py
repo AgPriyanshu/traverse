@@ -64,10 +64,24 @@ async def probe_neo4j() -> DependencyHealth:
             settings.neo4j_uri,
             auth=(settings.neo4j_user, settings.neo4j_password.get_secret_value()),
             connection_acquisition_timeout=PROBE_TIMEOUT_S,
+            # Retries are for real transient errors on a server we know is
+            # there, not for a host that never resolves — the CI subset never
+            # runs neo4j at all. Without disabling this, execute_query()
+            # below retries a failed DNS lookup for the driver's default 30s
+            # per /health call, starving the event loop and making the whole
+            # process unresponsive.
+            max_transaction_retry_time=0,
         )
         try:
-            records, _, _ = await driver.execute_query(
-                "RETURN 1 AS ok", database_=settings.neo4j_database
+            # Belt-and-braces on top of max_transaction_retry_time=0: a slow
+            # first DNS/connect attempt (observed 15s+ under WSL2's resolver)
+            # is not a "retry" and isn't bounded by that setting, so wall-clock
+            # this probe to PROBE_TIMEOUT_S regardless of driver internals.
+            records, _, _ = await asyncio.wait_for(
+                driver.execute_query(
+                    "RETURN 1 AS ok", database_=settings.neo4j_database
+                ),
+                timeout=PROBE_TIMEOUT_S,
             )
         finally:
             await driver.close()

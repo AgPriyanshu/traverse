@@ -5,7 +5,7 @@ COMPOSE      ?= docker compose
 COMPOSE_DEV  := $(COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml
 COMPOSE_GPU  := $(COMPOSE) -f docker-compose.yml -f docker-compose.gpu.yml --profile gpu
 COMPOSE_CI   := $(COMPOSE) -f docker-compose.yml -f docker-compose.ci.yml
-CI_SERVICES  := db rabbitmq rabbitmq-init migrate api
+CI_SERVICES  := db rabbitmq rabbitmq-init migrate api celery-worker
 WAIT         := scripts/wait_for_healthy.sh
 
 .DEFAULT_GOAL := help
@@ -174,6 +174,9 @@ ci-smoke: ## Assert /health reports ok on the CI subset
 		bad=[x['name'] for x in d['dependencies'] if not x['ok']]; \
 		print('health:', d['status'], 'failing:', bad or 'none'); \
 		sys.exit(0)"
+
+ci-worker-check: ## A-1.3: assert `celery inspect registered` against the REAL worker container
+	$(COMPOSE_CI) run --rm --no-deps api python /app/scripts/assert_worker_registered.py
 
 ci-down: ## Tear the CI subset down, volumes included
 	$(COMPOSE_CI) down -v --remove-orphans
