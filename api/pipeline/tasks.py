@@ -16,6 +16,7 @@ from uuid import UUID
 from ..contracts.enums import StageName
 from ..contracts.pipeline import ChapterInfo
 from ..db.engine import db_session
+from ..db.models import DocumentChunk
 from ..tasks import celery_app
 from ..workers.errors import PermanentError, TransientError
 from ..workers.policy import RETRY_POLICY
@@ -181,8 +182,66 @@ async def _segment_chapters(book_id: UUID, record: StageRecord) -> None:
     record.rows_written = updated
 
 
+# BGE-M3's own context is 8192 tokens; a wide margin below that keeps one
+# batch's total input comfortably inside memory on CPU (worktree) and GPU
+# (integration) alike without needing a per-row cap.
+_EMBED_BATCH_TOKEN_BUDGET = 8000
+
+
 async def _embed_chunks(book_id: UUID, record: StageRecord) -> None:
-    raise NotImplementedError("pipeline.embed_chunks lands in S2.4")
+    """Embed every chunk of a book that does not have a vector yet.
+
+    Batched by cumulative ``token_count`` rather than row count: a handful of
+    near-max-length chunks costs as much compute as many short ones, so
+    sizing by row count alone under- or over-shoots memory depending on the
+    prose. Each batch commits before the next one starts, so a worker killed
+    mid-book leaves whatever finished actually persisted rather than
+    discarding it — ``list_chunks_needing_embedding`` is what lets a restart
+    resume from there instead of re-embedding the whole book (F1.2).
+
+    Embeds each chunk's stored ``text`` rather than a heading-contextualized
+    version. ``chunker.contextualize`` (used when ``parse_and_chunk`` embeds
+    inline) needs the chunk's headings, which live only on the transient
+    Docling ``DocChunk`` from parsing and never reach ``ChunkPayload`` — see
+    SCR-4 in ``plans/sprint-2/SCR.md``. Known, documented quality gap, not a
+    silent one; not blocking for this sprint.
+    """
+    async with db_session() as session:
+        pending = await repository.list_chunks_needing_embedding(session, book_id)
+
+    chunker = DocumentChunker()
+    total_written = 0
+    batch: list[DocumentChunk] = []
+    batch_tokens = 0
+
+    async def flush() -> None:
+        nonlocal total_written, batch, batch_tokens
+
+        if not batch:
+            return
+
+        vectors = chunker.embed_texts([chunk.text for chunk in batch])
+        embeddings = dict(zip((chunk.id for chunk in batch), vectors, strict=True))
+
+        async with db_session() as flush_session:
+            total_written += await repository.set_chunk_embeddings(
+                flush_session, embeddings
+            )
+
+        batch, batch_tokens = [], 0
+
+    for chunk in pending:
+        tokens = chunk.token_count or 0
+
+        if batch and batch_tokens + tokens > _EMBED_BATCH_TOKEN_BUDGET:
+            await flush()
+
+        batch.append(chunk)
+        batch_tokens += tokens
+
+    await flush()
+
+    record.rows_written = total_written
 
 
 async def _extract_characters(book_id: UUID, record: StageRecord) -> None:
