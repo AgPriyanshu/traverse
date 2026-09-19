@@ -246,6 +246,61 @@ class TestUploadBook:
         assert response.status_code == 404
 
 
+class TestReprocessBook:
+    async def test_resumes_from_the_first_incomplete_stage_by_default(
+        self, client: AsyncClient, book: Book
+    ) -> None:
+        async with stage(book.id, StageName.PARSE_AND_CHUNK):
+            pass
+        try:
+            async with stage(book.id, StageName.SEGMENT_CHAPTERS):
+                raise PermanentError("boom")
+        except PermanentError:
+            pass
+
+        response = await client.post(f"/api/books/{book.id}/reprocess")
+        body = response.json()
+
+        assert response.status_code == 200
+        assert body["status"] == BookStatus.PROCESSING.value
+
+    async def test_an_explicit_stage_is_honoured(
+        self, client: AsyncClient, book: Book
+    ) -> None:
+        response = await client.post(
+            f"/api/books/{book.id}/reprocess",
+            params={"from_stage": StageName.EMBED_CHUNKS.value},
+        )
+
+        assert response.status_code == 200
+
+    async def test_an_unknown_stage_name_is_a_400(
+        self, client: AsyncClient, book: Book
+    ) -> None:
+        response = await client.post(
+            f"/api/books/{book.id}/reprocess",
+            params={"from_stage": "not.a.real.stage"},
+        )
+
+        assert response.status_code == 400
+
+    async def test_nothing_to_reprocess_once_everything_succeeded(
+        self, client: AsyncClient, book: Book
+    ) -> None:
+        for stage_name in StageName:
+            async with stage(book.id, stage_name):
+                pass
+
+        response = await client.post(f"/api/books/{book.id}/reprocess")
+
+        assert response.status_code == 400
+
+    async def test_an_unknown_book_is_404(self, client: AsyncClient) -> None:
+        response = await client.post(f"/api/books/{uuid.uuid4()}/reprocess")
+
+        assert response.status_code == 404
+
+
 class TestListChapters:
     async def test_returns_chapters_with_chunk_counts(
         self, client: AsyncClient, session: SQLModelAsyncSession, book: Book

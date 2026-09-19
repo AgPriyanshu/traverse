@@ -21,7 +21,8 @@ from ..contracts.api import (
     ProjectDetailOut,
     ProjectOut,
 )
-from ..contracts.enums import BookStatus
+from ..contracts.enums import BookStatus, StageName, StageState
+from ..contracts.pipeline import StageStatus
 from ..db.engine import get_session
 from ..db.models import Project
 from ..pipeline import repository
@@ -260,11 +261,84 @@ async def get_book_status(
     )
 
 
+def _parse_stage(raw: str) -> StageName:
+    try:
+        return StageName(raw)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=f"unknown stage: {raw!r}"
+        ) from exc
+
+
+def _first_incomplete_stage(statuses: list[StageStatus]) -> StageName | None:
+    """Return the earliest stage that has not already succeeded or been skipped.
+
+    ``None`` means every stage this pipeline currently reports on has
+    finished — a caller wanting to force a full re-run must name a stage
+    explicitly rather than relying on the default, since restarting from
+    ``parse_and_chunk`` deletes and re-parses every chunk (F1.5).
+    """
+    by_stage = {entry.stage: entry for entry in statuses}
+
+    for stage_name in StageName:
+        entry = by_stage.get(stage_name)
+        if entry is None or entry.state not in (
+            StageState.SUCCEEDED,
+            StageState.SKIPPED,
+        ):
+            return stage_name
+
+    return None
+
+
 @router.post("/books/{book_id}/reprocess", response_model=BookStatusOut)
 async def reprocess_book(
-    book_id: UUID, from_stage: str | None = Query(default=None)
+    book_id: UUID,
+    from_stage: str | None = Query(default=None),
+    session: SQLModelAsyncSession = Depends(get_session),
 ) -> BookStatusOut:
-    not_implemented(OWNER, "S2.5")
+    """Re-run ingestion for a book from a named stage onward.
+
+    Everything before ``from_stage`` is left untouched, and any chapter a
+    human has since verified survives regardless of where the re-run starts
+    — ``upsert_chapters`` never overwrites one (F5.4). Omitting ``from_stage``
+    resumes from this book's first stage that has not already succeeded, so
+    a "Retry" action does not require the caller to already know which stage
+    is dead-lettered.
+    """
+    book = await repository.get_book(session, book_id)
+
+    if book is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="book not found"
+        )
+
+    if from_stage is not None:
+        stage_name = _parse_stage(from_stage)
+    else:
+        statuses = await repository.get_stage_statuses(session, book_id)
+        stage_name = _first_incomplete_stage(statuses)
+
+        if stage_name is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="every stage has already succeeded; pass from_stage explicitly",
+            )
+
+    await repository.set_book_status(session, book_id, BookStatus.PROCESSING)
+    await anyio.to_thread.run_sync(
+        ingestion_chain(book_id, from_stage=stage_name).apply_async
+    )
+
+    stages = await repository.get_stage_statuses(session, book_id)
+    run = await repository.get_latest_run(session, book_id)
+
+    return BookStatusOut(
+        book_id=book_id,
+        status=BookStatus.PROCESSING,
+        stages=stages,
+        trace_url=run.trace_url if run else None,
+    )
 
 
 @router.delete("/books/{book_id}", status_code=status.HTTP_204_NO_CONTENT)
