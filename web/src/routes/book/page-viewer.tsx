@@ -182,7 +182,7 @@ export const PageViewer = ({
         borderColor="border"
         paddingBlockEnd="3"
       >
-        <HStack gap="2">
+        <HStack gap="2" wrap="wrap">
           <IconButton
             aria-label="Previous page"
             title="Previous page"
@@ -246,7 +246,7 @@ export const PageViewer = ({
           </IconButton>
         </HStack>
 
-        <HStack gap="1" role="group" aria-label="Zoom">
+        <HStack gap="1" wrap="wrap" role="group" aria-label="Zoom">
           {ZOOM_MODES.map(({ mode, label }) => (
             <Button
               key={mode}
