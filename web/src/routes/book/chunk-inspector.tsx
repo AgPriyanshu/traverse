@@ -7,7 +7,7 @@ import { chunksQueryOptions } from "@/lib/api";
 import { formatChapterLabel, formatCount } from "@/lib/format";
 
 // The contract has no `chapter_id` filter on `GET /books/{id}/chunks` yet
-// (SCR-11) — this pages through the book's chunks (500 at a time, the
+// (SCR-2) — this pages through the book's chunks (500 at a time, the
 // server's own cap) and filters client-side, stopping once it has at least
 // as many matches as the chapter's own `chunk_count` says exist.
 const PAGE_SIZE = 500;
