@@ -139,6 +139,35 @@ async def set_book_status(
     await session.refresh(book)
 
 
+async def set_book_page_count(
+    session: SQLModelAsyncSession, book_id: UUID, page_count: int
+) -> None:
+    """Record a book's page count, as read off the converted document.
+
+    Args:
+        session: Open session; this function commits.
+        book_id: Book to update.
+        page_count: Page count from the Docling document.
+    """
+    book = await session.get(Book, book_id)
+
+    if book is None:
+        raise ValueError(f"no such book: {book_id}")
+
+    book.page_count = page_count
+    session.add(book)
+    await session.commit()
+
+
+async def delete_chunks(session: SQLModelAsyncSession, book_id: UUID) -> None:
+    """Delete every chunk of a book, so a re-run of ``parse_and_chunk`` replaces
+    rather than appends (idempotent re-ingest, F1.5)."""
+    await session.execute(
+        delete(DocumentChunk).where(DocumentChunk.book_id == book_id)  # type: ignore[arg-type]
+    )
+    await session.commit()
+
+
 async def upsert_chapters(
     session: SQLModelAsyncSession,
     book_id: UUID,
