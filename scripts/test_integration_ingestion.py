@@ -174,8 +174,15 @@ def upload_book(project_id: str, pdf_bytes: bytes) -> tuple[int, dict]:
     )
 
 
-def poll_status(book_id: str) -> dict:
-    deadline = time.monotonic() + POLL_TIMEOUT_S
+def poll_status(book_id: str, *, timeout_s: float = POLL_TIMEOUT_S) -> dict:
+    """Poll `/status` to a terminal state.
+
+    `timeout_s` is a parameter, not just the module constant, so
+    `scripts/nightly_corpus_ingestion.py` can reuse this against a real
+    350-page novel (NFR-perf budgets 25 minutes) instead of the ~20-page CI
+    fixture's much tighter window.
+    """
+    deadline = time.monotonic() + timeout_s
     last: dict = {}
     while time.monotonic() < deadline:
         status_code, last = _request("GET", f"/api/books/{book_id}/status")
@@ -188,7 +195,7 @@ def poll_status(book_id: str) -> dict:
         )
         time.sleep(POLL_INTERVAL_S)
     raise TimeoutError(
-        f"book {book_id} did not reach a terminal status within {POLL_TIMEOUT_S}s: {last}"
+        f"book {book_id} did not reach a terminal status within {timeout_s}s: {last}"
     )
 
 
