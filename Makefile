@@ -98,8 +98,8 @@ reset-db: ## Drop, recreate, migrate and seed the integration database
 	$(MAKE) migrate
 	$(MAKE) seed
 
-seed: ## Fetch the public-domain demo corpus
-	./scripts/seed_corpus.sh
+seed: ## Fetch, license and paginate the public-domain demo corpus (S2.16)
+	python3 scripts/seed_corpus.py
 
 # ── Shells ────────────────────────────────────────────────────────────────────
 

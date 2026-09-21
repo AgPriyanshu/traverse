@@ -1,0 +1,125 @@
+{
+  "books": {
+    "anna-karenina": {
+      "author": "Leo Tolstoy",
+      "built_at": "2026-09-21T17:42:00.528911+00:00",
+      "conversion_command": "python3 scripts/seed_corpus.py",
+      "gutenberg_id": 1399,
+      "layout": {
+        "chars_per_line": 78,
+        "font": "Courier",
+        "font_size_pt": 10,
+        "lines_per_page": 54,
+        "margin_pt": 72,
+        "page_size_pt": [
+          612,
+          792
+        ]
+      },
+      "license": "Public Domain (Project Gutenberg)",
+      "page_count": 685,
+      "pdf_path": "corpus/downloads/anna-karenina.pdf",
+      "pdf_sha256": "db7fc10d12d4feee6c4159f92ba2aeb5f430baa012346675bd44c50e80ca5c4d",
+      "source_sha256": "a3e29e08c15c63bb22069f4256316c2ebebd422ecb5c33462ddc00ae00b27571",
+      "source_url": "https://www.gutenberg.org/cache/epub/1399/pg1399.txt",
+      "title": "Anna Karenina"
+    },
+    "frankenstein": {
+      "author": "Mary Wollstonecraft Shelley",
+      "built_at": "2026-09-21T17:41:54.956443+00:00",
+      "conversion_command": "python3 scripts/seed_corpus.py",
+      "gutenberg_id": 84,
+      "layout": {
+        "chars_per_line": 78,
+        "font": "Courier",
+        "font_size_pt": 10,
+        "lines_per_page": 54,
+        "margin_pt": 72,
+        "page_size_pt": [
+          612,
+          792
+        ]
+      },
+      "license": "Public Domain (Project Gutenberg)",
+      "page_count": 124,
+      "pdf_path": "corpus/downloads/frankenstein.pdf",
+      "pdf_sha256": "9d20e28da97501d8f7e7dceefa17241aef4c2afaa9cd9c5bf1bd9814b32ab275",
+      "source_sha256": "7810cd483cffcf2cc8a1d8f0d5807931e69d4f48cd14149b8c76f88af82fead3",
+      "source_url": "https://www.gutenberg.org/cache/epub/84/pg84.txt",
+      "title": "Frankenstein; or, the Modern Prometheus"
+    },
+    "pride-and-prejudice": {
+      "author": "Jane Austen",
+      "built_at": "2026-09-21T17:53:36.576532+00:00",
+      "conversion_command": "python3 scripts/seed_corpus.py",
+      "gutenberg_id": 1342,
+      "layout": {
+        "chars_per_line": 78,
+        "font": "Courier",
+        "font_size_pt": 10,
+        "lines_per_page": 54,
+        "margin_pt": 72,
+        "page_size_pt": [
+          612,
+          792
+        ]
+      },
+      "license": "Public Domain (Project Gutenberg)",
+      "page_count": 245,
+      "pdf_path": "corpus/downloads/pride-and-prejudice.pdf",
+      "pdf_sha256": "f30e1437e690682933cf014bbc689b463f67bb999b78a4dacf0d52b57575e74e",
+      "source_sha256": "3f6bb9d6f78e0293b56acd4714dd68cb7d6d1d293402031ce9d5a216bcaf9d75",
+      "source_url": "https://www.gutenberg.org/cache/epub/1342/pg1342.txt",
+      "title": "Pride and Prejudice"
+    },
+    "the-great-gatsby": {
+      "author": "F. Scott Fitzgerald",
+      "built_at": "2026-09-21T17:41:57.131930+00:00",
+      "conversion_command": "python3 scripts/seed_corpus.py",
+      "gutenberg_id": 64317,
+      "layout": {
+        "chars_per_line": 78,
+        "font": "Courier",
+        "font_size_pt": 10,
+        "lines_per_page": 54,
+        "margin_pt": 72,
+        "page_size_pt": [
+          612,
+          792
+        ]
+      },
+      "license": "Public Domain (Project Gutenberg)",
+      "page_count": 111,
+      "pdf_path": "corpus/downloads/the-great-gatsby.pdf",
+      "pdf_sha256": "4a9b9348576ec3879f885ec14786a1b1e578ed4176a0b8711d6b3536c0a62105",
+      "source_sha256": "ce760ec377accd352b41bb8f64504a72d7aa18ab3afb42ded2b56cecacf29e35",
+      "source_url": "https://www.gutenberg.org/cache/epub/64317/pg64317.txt",
+      "title": "The Great Gatsby"
+    },
+    "wuthering-heights": {
+      "author": "Emily Bronte",
+      "built_at": "2026-09-21T17:41:52.773243+00:00",
+      "conversion_command": "python3 scripts/seed_corpus.py",
+      "gutenberg_id": 768,
+      "layout": {
+        "chars_per_line": 78,
+        "font": "Courier",
+        "font_size_pt": 10,
+        "lines_per_page": 54,
+        "margin_pt": 72,
+        "page_size_pt": [
+          612,
+          792
+        ]
+      },
+      "license": "Public Domain (Project Gutenberg)",
+      "page_count": 211,
+      "pdf_path": "corpus/downloads/wuthering-heights.pdf",
+      "pdf_sha256": "3d0924f69d97a4ed6ef5759c039bf37ce29cdff1e550a6e8e4f1ab541ba0c536",
+      "source_sha256": "e533fe750589f0421d5d744576315f5c2b9b0d69e981179ea0551bbf134c5e02",
+      "source_url": "https://www.gutenberg.org/cache/epub/768/pg768.txt",
+      "title": "Wuthering Heights"
+    }
+  },
+  "generated_at": "2026-09-21T17:53:36.576556+00:00"
+}
