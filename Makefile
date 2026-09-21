@@ -126,12 +126,13 @@ test-api: ## Backend tests, in the container that matches CI
 test-web: ## Frontend lint, typecheck and tests
 	$(COMPOSE) --profile test run --rm test-web
 
-test-integration: ## The merge-train gate: cold stack, healthy, /health is ok
+test-integration: ## The merge-train gate: cold stack + unit tests + fixture-novel ingestion (S2.18)
 	$(MAKE) down
 	$(COMPOSE) up -d --build
 	$(WAIT) --timeout 600
 	$(MAKE) health
 	$(COMPOSE) --profile test run --rm test
+	python3 scripts/test_integration_ingestion.py
 
 lint: ## ruff + oxlint
 	$(COMPOSE) --profile test run --rm --no-deps --entrypoint sh test -c \
