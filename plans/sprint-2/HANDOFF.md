@@ -328,3 +328,181 @@ retroactive boto3 SCR-2 above, filed independently from the same base).
 Non-blocking for be1's Day-4 dependency above; blocking for S2.10's
 acceptance criterion. Orchestrator: please land at the next freeze or
 sooner if S2.10 needs to ship this sprint.
+
+---
+
+## be1 → fe1 · the page-span coordinate contract (S2.6)
+
+`GET /api/books/{id}/pages/{n}` → `PageRenderOut` is implemented
+(`api/pipeline/render.py`). The coordinate space, frozen in `contracts/api.py`'s
+`SpanBox` docstring, is:
+
+**PDF user space, origin top-left, unscaled** — i.e. **PDF points** (1/72
+inch), not the pixel space of the rendered PNG.
+
+```jsonc
+{
+  "book_id": "…",
+  "page": 12,
+  "image_url": "http://…/traverse-be1/books/{id}/pages/12.png?X-Amz-…",  // presigned, 5 min TTL
+  "width": 612.0,     // page width in PDF points (e.g. 612×792 = US Letter)
+  "height": 792.0,    // page height in PDF points
+  "spans": [
+    { "page": 12, "x": 72.5, "y": 83.9, "width": 262.0, "height": 10.5 }
+    // one per pdfium "text rect" (roughly a line), in document order
+  ]
+}
+```
+
+**What fe1 needs to do to overlay a span on the rendered image:** the PNG is
+rendered at 150 DPI, so it is `width * 150/72` pixels wide (e.g. a 612pt-wide
+page renders to a 1275px PNG). To draw a span box on top of the image at any
+zoom level:
+
+```
+scale = renderedImageWidthPx / pageWidthPts   // 150/72 at 100%, adjust by your own zoom factor on top
+pixelX = span.x * scale
+pixelY = span.y * scale
+pixelW = span.width * scale
+pixelH = span.height * scale
+```
+
+`span.y` is already flipped to top-left origin server-side (pdfium itself
+returns bottom-left-origin rects; `render._render_sync` converts once via
+`y = page_height - top` so no consumer has to). **No `text` field on
+`SpanBox`** — the contract is frozen from the Sprint 1 freeze and only carries
+boxes. If Sprint 6's citation highlighting needs to match a quote to a
+specific span rather than just drawing every box, that is a new field and
+needs an SCR against `contracts/api.py`; nothing here does that matching yet.
+
+Caching: first request for a page is a cold render (fetches the whole source
+PDF, ~<2s target); every subsequent request for that page — from any
+book/session — hits the MinIO-cached PNG + JSON sidecar and does not touch
+the source PDF at all (~<200ms target, verified against the 3-page fixture in
+`api/tests/pipeline/test_render.py::TestRenderPageModule::test_a_cached_render_does_not_touch_the_source_pdf`).
+Real numbers against a 430-page novel are an integration-time measurement,
+not a worktree one (BRANCH.md §9) — nobody should quote a timing claim from
+this worktree as the sprint's answer.
+
+`404` if the book doesn't exist, has no stored source, or the page number is
+out of range (checked against `book.page_count` when known, otherwise against
+the PDF's own page count on the fly).
+
+---
+
+## be1 → be2 · chunk/chapter query shapes for Sprint 4 pass-2 batching
+
+Everything below is in `api/pipeline/repository.py` — `from api.pipeline
+import repository`, cross-package per `api/AGENTS.md`. This extends (does not
+replace) the repository summary already in `plans/sprint-1/HANDOFF.md`.
+
+### Reading chunks for extraction
+
+```python
+async def list_chunks(session, book_id, *, limit=50, offset=0) -> list[DocumentChunk]
+```
+
+Returns the **raw ORM row**, not the HTTP contract — `text_embedding` is
+included (a normalised unit vector once `pipeline.embed_chunks` has run, else
+`None`), which `list_chunks_out` deliberately drops before it reaches the
+client. Pass-2 batching should read from `list_chunks`, not from the HTTP
+route, if it wants embeddings or wants to avoid the N+1 `Chapter.number` join
+`list_chunks_out` does for display purposes.
+
+`DocumentChunk` carries `pages: list[int]`, `page_start`, `page_end`,
+`chapter_id` (a real FK, `None` until `assign_chunk_chapters` has run for that
+book — see below), `token_count`, `tsv` (generated column, BM25 arm — be2's
+S2.9 hybrid retrieval already knows about this from the Sprint 1 freeze).
+
+```python
+async def list_chunks_needing_embedding(session, book_id) -> list[DocumentChunk]
+```
+
+Exists for `pipeline.embed_chunks`'s own resumability (`WHERE text_embedding
+IS NULL`); useful if be2 ever needs to check "has this book finished
+embedding" without re-deriving it from stage status.
+
+### Chapters — unchanged shape, now actually populated
+
+`list_chapters`, `upsert_chapters`, `chapter_ids_by_number`,
+`chapter_page_ranges` (documented in `plans/sprint-1/HANDOFF.md`) are no
+longer stubs — `pipeline.segment_chapters` populates real `Chapter` rows with
+`page_start`/`page_end`/`detection_method`/`confidence` for every book that
+finishes that stage. **`Chapter.human_verified`** (migration `0007`, SCR-1)
+is enforced at the repository layer: `upsert_chapters` never overwrites a
+verified row's `title`, even when re-segmentation runs and the detector
+reports a different title for the same chapter number
+(`api/tests/pipeline/test_failures.py::TestHumanVerifiedChaptersSurviveReprocessing`).
+Nothing be2 needs to do differently — just don't write to `Chapter` directly
+and bypass this.
+
+### Ingestion status — `book.status` is not authoritative
+
+```python
+async def get_stage_statuses(session, book_id) -> list[StageStatus]
+def derive_book_status(statuses: list[StageStatus]) -> BookStatus   # pure
+```
+
+**Nothing currently updates the `book.status` column as stages run or fail**
+— only `POST /reprocess` sets it (to `PROCESSING`, optimistically, before
+dispatching). `GET /books/{id}/status` derives the reported status from stage
+state via `derive_book_status` rather than reading the column, specifically
+so a dead-lettered book reports `FAILED` instead of `QUEUED` forever. If be2's
+`relations.extract` or anything else needs to gate on "has ingestion actually
+finished for this book," call `get_stage_statuses` +
+`derive_book_status`/`get_latest_run`, not `book.status` directly — the
+column will lie. Flagged here rather than filed as an SCR because fixing it
+properly (a status-transition hook stages call into) is bigger than this
+sprint's scope for either of us; worth a Sprint 3 story if it starts causing
+real confusion.
+
+---
+
+## be1 → orchestrator · `api/pipeline/storage.py` stopgap, still standing
+
+`ObjectStore` (streaming `put_stream`/`get_object`, plus this sprint's
+`put_bytes`/`get_bytes` for small payloads, `presigned_get`, `exists`,
+`delete_prefix`) is still a stopgap for `api/ops/storage.py` (do1, not yet
+landed in this worktree per its own docstring). Every S2 story that touches
+object storage — upload, parse-and-chunk's fetch, and now the page-render
+cache — imports `from .storage import store`. Swapping to `api.ops.storage`
+once it exists should be a one-line import change at each call site (same
+four original names; `put_bytes`/`get_bytes` are new this sprint and do1
+should carry them over too, or the page-render cache breaks).
+
+---
+
+## be1 → orchestrator / do1 · S2.3's hand-labelled accuracy number is blocked on a real corpus
+
+The sprint plan's S2.3 acceptance criterion (≥95% chapter-boundary recall,
+≤2% false positives against `api/tests/fixtures/chapter_truth/*.json`, hand
+labelled against "the seeded corpus") cannot be produced from this worktree:
+**no `chapter_truth/` fixtures exist yet**, and the only PDF fixture present
+is the synthetic 3-page `three_page_novel.pdf` used for unit tests — there is
+no real, multi-chapter public-domain novel to hand-label against. Real corpus
+seeding is do1's S2.16, not yet landed here either.
+
+What **is** covered from this worktree: extensive unit-level coverage of the
+chapter-detection logic itself (`api/tests/pipeline/test_chunking.py`,
+`test_chunking_document.py`) — the three fixed defects (heading-not-first-on
+page, text-equality collision, per-heading LLM calls) each have a regression
+test. The percentage acceptance number is a Day 5 integration-time
+measurement once a real seeded corpus exists, not something this worktree can
+honestly report — any number produced against 3 synthetic pages would not
+mean anything, and BRANCH.md §9 already warns against reporting performance
+numbers taken from a worktree as the sprint's answer. Recommend this becomes
+an explicit Day 5 checklist item run against do1's seeded corpus rather than
+staying an implicit be1 DoD box.
+
+---
+
+## be1 → orchestrator · full ingestion wall-clock (sprint README DoD)
+
+Same shape of issue as above: "full ingestion unattended on the seeded
+corpus, wall clock recorded" needs a real 430-page-scale novel and the shared
+GPU/vLLM path, neither of which exist in an isolated worktree
+(`EMBEDDING_DEVICE=cpu` here per BRANCH.md §9). All six pipeline stages
+(`parse_and_chunk`, `segment_chapters`, `embed_chunks`, plus retry/dead-letter/
+resume and now page render) are implemented and covered by the 214-test
+worktree suite, but the wall-clock number belongs to the Day 5 integration
+run against the real stack, not this worktree.
