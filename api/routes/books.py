@@ -25,7 +25,7 @@ from ..contracts.enums import BookStatus, StageName, StageState
 from ..contracts.pipeline import StageStatus
 from ..db.engine import get_session
 from ..db.models import Project
-from ..pipeline import repository
+from ..pipeline import render, repository
 from ..pipeline.metadata import extract_title_author
 from ..pipeline.storage import store
 from ..tasks import ingestion_chain
@@ -390,5 +390,34 @@ async def list_chunks(
 
 
 @router.get("/books/{book_id}/pages/{page}", response_model=PageRenderOut)
-async def render_page(book_id: UUID, page: int) -> PageRenderOut:
-    not_implemented(OWNER, "S2.6")
+async def render_page(
+    book_id: UUID, page: int, session: SQLModelAsyncSession = Depends(get_session)
+) -> PageRenderOut:
+    """Return a page's rendered image, dimensions and text-span boxes.
+
+    Rendered lazily from the source PDF and cached on first request (S2.6);
+    a re-request for the same page never re-touches the source. See
+    ``pipeline/render.py`` and the coordinate contract in ``HANDOFF.md``.
+    """
+    book = await repository.get_book(session, book_id)
+
+    if book is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="book not found"
+        )
+
+    if book.storage_key is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="book has no stored source"
+        )
+
+    try:
+        rendered = await render.render_page(
+            book_id, book.storage_key, page, book.page_count
+        )
+    except render.PageOutOfRangeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
+
+    return rendered

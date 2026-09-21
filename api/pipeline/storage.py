@@ -200,6 +200,36 @@ class ObjectStore:
                 f"PUT {key} failed: {response.status_code} {response.text[:200]}"
             )
 
+    async def put_bytes(
+        self, key: str, data: bytes, *, content_type: str = "application/octet-stream"
+    ) -> None:
+        """Upload an in-memory payload to ``key``.
+
+        For objects small enough that a temp file would be pure overhead — a
+        rendered page PNG or its span-metadata sidecar (S2.6), not a 200 MB
+        source PDF; see ``put_stream`` for that.
+
+        Raises:
+            StorageError: If the upload does not succeed.
+        """
+        path = self._object_path(key)
+        headers = self._signed_headers(
+            "PUT",
+            path,
+            _UNSIGNED_PAYLOAD,
+            {"content-type": content_type, "content-length": str(len(data))},
+        )
+
+        async with httpx.AsyncClient(timeout=None) as client:
+            response = await client.put(
+                f"{self._base_url}{path}", content=data, headers=headers
+            )
+
+        if response.status_code >= 300:
+            raise StorageError(
+                f"PUT {key} failed: {response.status_code} {response.text[:200]}"
+            )
+
     async def get_object(self, key: str, dest: Path) -> None:
         """Download ``key`` to a local path, streaming the response body.
 
@@ -230,6 +260,28 @@ class ObjectStore:
                     await anyio.to_thread.run_sync(handle.write, part)
             finally:
                 await anyio.to_thread.run_sync(handle.close)
+
+    async def get_bytes(self, key: str) -> bytes:
+        """Download ``key`` fully into memory.
+
+        For small cached objects only (see ``put_bytes``) — a page render's
+        span metadata, not the source PDF.
+
+        Raises:
+            StorageError: If the object does not exist or the request fails.
+        """
+        path = self._object_path(key)
+        headers = self._signed_headers("GET", path, _UNSIGNED_PAYLOAD, {})
+
+        async with httpx.AsyncClient(timeout=None) as client:
+            response = await client.get(f"{self._base_url}{path}", headers=headers)
+
+        if response.status_code >= 300:
+            raise StorageError(
+                f"GET {key} failed: {response.status_code} {response.text[:200]!r}"
+            )
+
+        return response.content
 
     async def exists(self, key: str) -> bool:
         """Return whether ``key`` is present in the bucket."""
