@@ -242,6 +242,10 @@ async def get_book_status(
 
     The stages come from the latest ingestion run, so a re-process reports its
     own attempt rather than a merge of every run the book has ever had.
+    ``status`` is derived from those stages rather than read off the stored
+    column: nothing currently updates ``book.status`` as stages complete or
+    fail, so the column alone would report every book "queued" forever,
+    including one already dead-lettered (see HANDOFF.md).
     """
     book = await repository.get_book(session, book_id)
 
@@ -255,7 +259,7 @@ async def get_book_status(
 
     return BookStatusOut(
         book_id=book_id,
-        status=book.status,
+        status=repository.derive_book_status(stages),
         stages=stages,
         trace_url=run.trace_url if run else None,
     )
