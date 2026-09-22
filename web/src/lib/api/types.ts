@@ -46,7 +46,9 @@ export type CharacterDetail = Schemas["CharacterDetailOut"];
 export type Alias = Schemas["AliasOut"];
 export type Mention = Schemas["MentionOut"];
 export type Appearance = Schemas["AppearanceOut"];
+export type Attribute = Schemas["AttributeOut"];
 export type ImportanceTier = Schemas["ImportanceTier"];
+export type ResolutionMethod = Schemas["ResolutionMethod"];
 
 export type Graph = Schemas["GraphOut"];
 export type GraphNode = Schemas["GraphNodeOut"];

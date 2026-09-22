@@ -223,3 +223,63 @@ tiering_method: str = "mention_count"  # or TieringMethod enum
 
 in `Settings`, plus `TIERING_METHOD=mention_count` in `.env.example` with a
 one-line comment pointing at PRD §12.5.
+
+---
+
+### SCR-8 · fe1 · 2026-09-22
+
+**Need:** `CharacterOut` (the roster list contract, `GET
+/projects/{id}/characters`) carries no per-chapter mention histogram — only
+`CharacterDetailOut` (a single-character fetch) has `mentions_per_chapter`.
+
+**Why:** S3.10's roster row sparkline is specified to show "at a glance
+whether someone is present throughout or confined to a stretch." Building
+that per row from the frozen contract as it stands means either an N+1 fetch
+of `GET /characters/{id}` per roster row (defeats "renders in <100ms after
+data arrives," and is exactly the "do not compute it from paginated
+mentions" anti-pattern the sprint brief itself warns against, just one layer
+up) or fabricating a chart from data the row doesn't have. Neither is
+acceptable, so `character-row.tsx` renders a labelled placeholder instead
+(`<SparklineBars data={[]} />`) and this SCR is what turns it into a real
+chart.
+
+**Blocking:** no — the roster is fully usable without it (mention count,
+first appearance, and the detail page's full timeline all work today); the
+row-level sparkline is the one piece of the S3.10 spec not met this sprint.
+Also gated on do1's chapter-detection fix (`plans/sprint-2/RETRO.md` §4) —
+even with the field, real per-chapter shape needs that fix to land first, so
+there's no urgency to rush this one through mid-sprint.
+
+**Proposed:** add `mentions_per_chapter: dict[str, int] = {}` to
+`CharacterOut` (same shape already on `CharacterDetailOut`), computed the
+same way. If a full histogram per roster row is judged too heavy for a list
+endpoint, a cheaper alternative that still satisfies the acceptance
+criterion: `chapter_span: tuple[int, int] | None` (min/max chapter with a
+mention) plus keeping the full breakdown as a detail-page-only feature — flag
+which one lands so the frontend knows which shape to build against.
+
+---
+
+### SCR-9 · fe1 · 2026-09-22
+
+**Need:** `MentionOut` (`GET /characters/{id}/mentions`) carries `page: int`
+but no `SpanBox` — there is nothing to draw a `?highlight=x,y,w,h` box
+around, unlike the citation highlighting the page viewer already supports
+(`plans/sprint-2/HANDOFF.md`, be1 → fe1).
+
+**Why:** S3.11's acceptance bar is "every displayed fact clicks through to a
+page in one click" — met today via a plain `<PageRef page={mention.page}>` —
+but S3.11's own spec asks for "click → page viewer with the mention
+highlighted," which needs a span. `PageRenderOut.spans` lists every text rect
+on the page but nothing ties a specific rect to a specific mention's surface
+form, so the frontend cannot derive one client-side.
+
+**Blocking:** no — the one-click-to-a-page bar is met without it; this is
+the highlight itself, a nice-to-have not in this sprint's literal DoD.
+
+**Proposed:** an optional `span: SpanBox | None` on `MentionOut`, populated
+by whichever pass-1/pass-2 stage already has the mention's exact text rect
+(be1's `extract_characters` or be2's mention-context embedding stage — flag
+which one owns it). Mirrors the note already left in
+`plans/sprint-2/HANDOFF.md` ("If Sprint 6's citation highlighting needs to
+match a quote to a specific span... that is a new field and needs an SCR").

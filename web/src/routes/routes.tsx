@@ -59,11 +59,15 @@ export const routes: RouteObject[] = [
               },
               {
                 path: "characters",
-                element: <NotYetBuilt screen="The character roster" sprint={3} />,
+                lazy: async () => ({
+                  Component: (await import("./book/characters")).Characters,
+                }),
               },
               {
                 path: "characters/:characterId",
-                element: <NotYetBuilt screen="Character detail" sprint={3} />,
+                lazy: async () => ({
+                  Component: (await import("./book/character-detail")).CharacterDetail,
+                }),
               },
               {
                 path: "graph",

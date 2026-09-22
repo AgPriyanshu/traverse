@@ -17,6 +17,28 @@ percentage-based highlight API, deep-linkable (S2.14). 128 Vitest tests
 (`web/tests/*.test.{ts,tsx}`), all passing; `pnpm tsc --noEmit`, `pnpm lint`,
 `pnpm build` all clean.
 
+**Built (S3, fe1):** the character roster (S3.10, `/books/:id/characters`) —
+tier-grouped (protagonists first), alias-aware client-side search, tier
+filter, sort by mentions/first-appearance/name, all as URL search params.
+Character detail (S3.11, `/books/:id/characters/:characterId`) — header with
+tier badge and chapter span, an aliases card built from `alias_detail`
+(surface form, count, `resolution_method` in plain English), a cited
+attributes card, an interactive per-chapter mentions timeline
+(`mentions-timeline.tsx` — click a bar to filter the mention list, synced via
+the `?chapter=` search param), a paginated mention list, and an empty
+Relationships panel placeholder for S4. The alias/mention inspector drawer
+(S3.12, `mention-inspector-drawer.tsx`) audits every mention grouped by
+surface form with `resolution_method` shown per mention as the trust
+affordance the brief asks for. 136 Vitest tests, all passing; `pnpm
+tsc --noEmit`, `pnpm lint`, `pnpm build` all clean.
+
+**Known gap, not fixed this sprint — see Gotchas below:** `CharacterOut` (the
+roster list contract) carries no per-chapter histogram, so the roster row's
+"across the book" sparkline renders a labelled placeholder, not real data
+(SCR-1, `plans/sprint-3/SCR.md`). `MentionOut` carries a page but no
+`SpanBox`, so a mention's click-through lands on the page without a
+highlight, unlike a citation's `?highlight=` (SCR-2, same file).
+
 `web/src/design-system/tokens.ts` **exists** (DCR-1, landed at the Sprint 2
 freeze) — `palette`, `shadow`, `type`, `space`, `radius`, `motion`. `theme.ts`
 imports `{ palette, shadow }` from it; shadows are now real `semanticTokens`
@@ -144,6 +166,55 @@ src/
     book/page.tsx, book/page-viewer.tsx   the route wrapper (parses `:page` and
                               `?highlight=`) and the reusable `<PageViewer>` — see
                               below.
+    book/characters.tsx        the roster (S3.10). Fetches the project's full
+                              character list once (`useCharacters(projectId, {
+                              book_id })`) and does search/tier-filter/sort
+                              client-side (`useMemo`, no per-keystroke refetch) —
+                              a roster tops out in the hundreds, not worth a
+                              server round-trip per keystroke. Filter/sort state
+                              lives in `?q=&tier=&sort=`.
+    book/character-row.tsx     one roster row. Aliases render as the italic
+                              serif run `formatAliasRun` already produced for
+                              S2 (design/DESIGN.md §2 — not chips, overriding
+                              the sprint brief's own wording).
+    book/character-tier-badge.tsx, book/character-labels.ts   `TIER_ORDER`,
+                              `TIER_LABEL`, `RESOLUTION_METHOD_LABEL` (e.g.
+                              `nickname` → "nickname table") — the plain-English
+                              strings the S3.12 trust affordance depends on.
+    book/character-detail.tsx  S3.11. Header, an aliases card off
+                              `CharacterDetailOut.alias_detail`, a cited
+                              attributes card, `<MentionsTimeline>`, a paginated
+                              mention list (`use-paged-mentions.ts`) kept in
+                              sync with the timeline via `?chapter=`, and an
+                              empty Relationships placeholder card for S4.
+    book/mentions-timeline.tsx, book/sparkline-bars.tsx   the interactive
+                              per-chapter bar chart (dataviz skill followed —
+                              single-hue magnitude series, no legend needed,
+                              selection carries a visible ring so colour is
+                              never the only channel) and the presentational
+                              SVG bar renderer it and the roster row's mini
+                              sparkline both share. The roster row always
+                              passes an empty histogram (SCR-1 below) and gets
+                              `<SparklineBars>`'s labelled placeholder state.
+    book/chapter-lookup.ts     `chapterForPage`/`chapterKeyForPage` — buckets a
+                              `MentionOut.page` into a chapter via the book's
+                              own `Chapter.page_start`/`page_end` ranges, the
+                              same join the backend's `mentions_per_chapter`
+                              must do server-side. Returns `undefined`/`"null"`
+                              on the carried chapter-detection gap
+                              (plans/sprint-2/RETRO.md §4) rather than guessing.
+    book/use-paged-mentions.ts  incremental pagination over
+                              `GET /characters/{id}/mentions`, same shape as
+                              `chunk-inspector.tsx`'s manual `useQueries`
+                              pagination — a character can carry 1,000+
+                              mentions. Shared by the detail page's mention
+                              list and the drawer below.
+    book/mention-inspector-drawer.tsx   S3.12. Every mention grouped by
+                              surface form (from `alias_detail`), each group
+                              expandable to its individual mentions —
+                              `resolution_method` shown per mention, not just
+                              per group, since a mention's own method can differ
+                              from the alias's aggregate in principle.
 ```
 
 ## Routes
@@ -163,8 +234,8 @@ book-local views (pages, chapters).
 | `/books/:id` | ingestion progress stepper, retry-from-stage, local ETA | Built |
 | `/books/:id/chapters` | chapters + chunk inspector | Built |
 | `/books/:id/pages/:n` | page viewer | Built |
-| `/books/:id/characters` | roster | S3 |
-| `/books/:id/characters/:cid` | character detail | S3 |
+| `/books/:id/characters` | roster | Built |
+| `/books/:id/characters/:cid` | character detail | Built |
 | `/books/:id/graph` | graph explorer | S4 |
 | `/books/:id/ask` | Q&A with citations | S6 |
 | `/books/:id/review` | review queue | S7 |
@@ -189,6 +260,10 @@ book-local views (pages, chapters).
 | `<AppearanceStrip>` | per-book presence band; needs a text equivalent — a coloured band alone is not an answer | S5 |
 | Graph explorer | Cytoscape.js + `fcose`. Layout cached — recomputing on every filter makes it jump. **List view is an equal, not a stub.** | S4 |
 | Review queue | `j/k/a/e/m/s/x/u`. Prefetch next 3; optimistic with undo. Target: 50 tasks in <8 min, no mouse. | S7 |
+| `<CharacterTierBadge>` | Built. Accent treatment only for `protagonist`; every other tier is a neutral `bg.sunken`/`fg.muted` badge — there is no per-tier token, and one was not invented for this. | S3 |
+| `<SparklineBars>` | Built (`routes/book/sparkline-bars.tsx`). A single-hue magnitude bar chart, `interactive` (keyboard-operable `rect`s, click-to-select, a stroke ring on the selected bar) or not (the roster row's mini chart). `responsive` stretches to its container at a fixed height via `viewBox` + `preserveAspectRatio="none"`. | S3 |
+| `<MentionsTimeline>` | Built (`routes/book/mentions-timeline.tsx`). Wraps `<SparklineBars>` with `CharacterDetailOut.mentions_per_chapter` → sorted points (numeric chapter keys first, non-numeric — an unbucketed mention — last) and a handful of evenly-spaced axis labels, never one per chapter. | S3 |
+| `<MentionInspectorDrawer>` | Built (`routes/book/mention-inspector-drawer.tsx`). Groups mentions by surface form off `alias_detail`; `resolution_method` shown per mention as the trust affordance, not summarised away at the group level. | S3 |
 
 ## Gotchas
 
@@ -209,8 +284,28 @@ book-local views (pages, chapters).
   through it rather than re-deriving books from `useProjects` + N detail calls.
 - Chakra v3's `<Icon>` defaults to `asChild` — see `components/ui/icons.tsx`.
 - URL search params hold filters, selected entity, page, and the spoiler chapter
-  limit — citations are links and must survive a reload. Not yet exercised;
-  no screen in S1 has filter state.
+  limit — citations are links and must survive a reload. First exercised at
+  S3: the roster's `?q=&tier=&sort=` and the detail page's `?chapter=`
+  (the timeline-to-mention-list sync).
+- **`CharacterOut` (the roster list contract) has no per-chapter histogram** —
+  only `CharacterDetailOut` (a single-character fetch) carries
+  `mentions_per_chapter`. The roster row's sparkline can't show real data
+  without either an SCR or an N+1 detail fetch per row; SCR-1
+  (`plans/sprint-3/SCR.md`) asks for the former. Until it lands,
+  `character-row.tsx` passes `<SparklineBars>` an empty histogram on purpose —
+  it renders a labelled placeholder rather than fabricating a chapter shape.
+- **`MentionOut` has a `page` but no `SpanBox`** — a mention's click-through is
+  a plain `<PageRef>`, not a `?highlight=` deep link, because there is no
+  span to highlight. SCR-2 (`plans/sprint-3/SCR.md`) asks for an optional
+  `span` field, mirroring the citation highlighting `?highlight=` already
+  supports (`plans/sprint-2/HANDOFF.md`).
+- The chapter-detection carried gap (`plans/sprint-2/RETRO.md` §4 — zero
+  chapters found on the real corpus until do1's Sprint 3 fix lands) means
+  `mentions_per_chapter` and `chapterForPage`/`chapterKeyForPage`
+  (`routes/book/chapter-lookup.ts`) may see one degenerate bucket or no
+  chapters at all on real data. Both degrade correctly (a one-bar timeline,
+  an unfiltered mention list) rather than crashing — this is expected
+  Sprint 3 data, not a frontend bug.
 - `localStorage` only for per-viewer conveniences (theme, reader's chapter
   position). Wrap in try/catch; it throws in private windows. `next-themes`
   already does this internally for the theme.
