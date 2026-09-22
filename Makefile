@@ -5,7 +5,7 @@ COMPOSE      ?= docker compose
 COMPOSE_DEV  := $(COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml
 COMPOSE_GPU  := $(COMPOSE) -f docker-compose.yml -f docker-compose.gpu.yml --profile gpu
 COMPOSE_CI   := $(COMPOSE) -f docker-compose.yml -f docker-compose.ci.yml
-CI_SERVICES  := db rabbitmq rabbitmq-init migrate api
+CI_SERVICES  := db rabbitmq rabbitmq-init migrate api celery-worker
 WAIT         := scripts/wait_for_healthy.sh
 
 .DEFAULT_GOAL := help
@@ -98,8 +98,8 @@ reset-db: ## Drop, recreate, migrate and seed the integration database
 	$(MAKE) migrate
 	$(MAKE) seed
 
-seed: ## Fetch the public-domain demo corpus
-	./scripts/seed_corpus.sh
+seed: ## Fetch, license and paginate the public-domain demo corpus (S2.16)
+	python3 scripts/seed_corpus.py
 
 # ── Shells ────────────────────────────────────────────────────────────────────
 
@@ -126,12 +126,13 @@ test-api: ## Backend tests, in the container that matches CI
 test-web: ## Frontend lint, typecheck and tests
 	$(COMPOSE) --profile test run --rm test-web
 
-test-integration: ## The merge-train gate: cold stack, healthy, /health is ok
+test-integration: ## The merge-train gate: cold stack + unit tests + fixture-novel ingestion (S2.18)
 	$(MAKE) down
 	$(COMPOSE) up -d --build
 	$(WAIT) --timeout 600
 	$(MAKE) health
 	$(COMPOSE) --profile test run --rm test
+	python3 scripts/test_integration_ingestion.py
 
 lint: ## ruff + oxlint
 	$(COMPOSE) --profile test run --rm --no-deps --entrypoint sh test -c \
@@ -174,6 +175,9 @@ ci-smoke: ## Assert /health reports ok on the CI subset
 		bad=[x['name'] for x in d['dependencies'] if not x['ok']]; \
 		print('health:', d['status'], 'failing:', bad or 'none'); \
 		sys.exit(0)"
+
+ci-worker-check: ## A-1.3: assert `celery inspect registered` against the REAL worker container
+	$(COMPOSE_CI) run --rm --no-deps api python /app/scripts/assert_worker_registered.py
 
 ci-down: ## Tear the CI subset down, volumes included
 	$(COMPOSE_CI) down -v --remove-orphans

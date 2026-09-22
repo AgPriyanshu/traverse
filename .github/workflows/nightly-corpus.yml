@@ -1,0 +1,63 @@
+name: Nightly corpus ingestion
+
+# The PRD NFR-perf trend line (devops-1.md S2.18): ingest the real five-novel
+# corpus end to end and post wall clock + cost, starting Sprint 2 rather than
+# waiting for Sprint 9. Runs against ai-master only — a worktree branch mid-
+# sprint has no working upload endpoint yet, and this job says so and exits 0
+# rather than failing a schedule for a dependency it does not control (see
+# scripts/nightly_corpus_ingestion.py).
+#
+# KNOWN LIMITATION: `runs-on: ubuntu-latest` has no GPU, so this runs with
+# INFERENCE_MODE=api. The wall clock it reports is an API-inference number,
+# not the local-vLLM number NFR-perf (<=25 min / 350pp) is ultimately judged
+# on. Point `runs-on` at a GPU-labelled self-hosted runner once Sprint 9
+# stands one up — scripts/nightly_corpus_ingestion.py needs no change.
+on:
+  schedule:
+    - cron: "0 8 * * *" # 08:00 UTC nightly
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-corpus
+  cancel-in-progress: false
+
+env:
+  # Unlike ci.yml's per-push jobs, a fresh GitHub-hosted runner has no
+  # pre-warmed model cache and this job tolerates the extra minutes a nightly
+  # schedule affords — so, unlike CI, this deliberately does NOT set
+  # MODELS_OFFLINE=1.
+  INFERENCE_MODE: api
+  EMBEDDING_DEVICE: cpu
+
+jobs:
+  ingest:
+    name: Ingest the S2.16 corpus and report wall clock + cost
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ai-master
+
+      - name: .env from .env.example
+        run: make env
+
+      - name: Fetch, license and paginate the corpus (S2.16)
+        run: make seed
+
+      - name: Bring up the full stack
+        run: docker compose up -d --build
+
+      - name: Wait for healthy
+        run: ./scripts/wait_for_healthy.sh --timeout 900
+
+      - name: Ingest every book and report wall clock + cost
+        run: python3 scripts/nightly_corpus_ingestion.py
+
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs --tail=200
+
+      - name: Tear down
+        if: always()
+        run: docker compose down --remove-orphans

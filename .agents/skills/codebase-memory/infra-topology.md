@@ -10,14 +10,37 @@ numbers.
 Overlays `docker-compose.dev.yml`, `.gpu.yml`, `.ci.yml`. `api/Dockerfile`
 (multi-stage uv, non-root, `test` stage), `web/Dockerfile` + `web/nginx.conf`,
 `Makefile`, `.env.example`, `scripts/**`, `.github/workflows/ci.yml`,
-`api/ops/probes.py`.
+`api/ops/probes.py`. `api/routes/ops.py` is do1-owned as of the Sprint 2
+freeze (BRANCH.md) — `/health` wiring to `api.ops.gather_health` landed in
+Sprint 1, not a gap.
 
-**Broken / partial:** `/health` still returns the contract-freeze stub —
-`api/routes/ops.py` is not a do1 file and the four-line wiring to
-`api.ops.gather_health` is a HANDOFF item. `api/llm.py` `CACHE_DIR` is still a
-`/home/prinzz/...` absolute path and breaks in every container.
+**Built (S2):** `api/ops/storage.py` (S2.15 — MinIO `put_stream`/`exists`/
+`presigned_get`/`delete_prefix`, a 30-day lifecycle rule on `books/*/pages/*`).
+`api/ops/metrics.py` + `api/ops/tracing.py` (S2.17 — cost table and Langfuse
+trace/span helpers; wiring the two call sites into `api/workers/stages.py` is
+be1's, see `plans/sprint-2/HANDOFF.md`). `api/ops/pipeline_status.py` wired
+into real `GET /api/ops/metrics` / `/ops/pipeline/runs` /
+`/ops/pipeline/dead-letter` handlers (S2.17/S2.18 — no more 501s). `make seed`
+→ `scripts/seed_corpus.py` (S2.16 — the real five-novel PRD §7 corpus, stdlib
+PDF writer, `corpus/manifest.json` + `corpus/LICENSES.md` committed,
+`corpus/downloads/*` gitignored). `make test-integration` now runs a fixture-
+novel ingestion through the real API (`scripts/test_integration_ingestion.py`,
+S2.18) in addition to the cold-boot health check; `.github/workflows/
+nightly-corpus.yml` + `scripts/nightly_corpus_ingestion.py` post the real
+corpus's wall clock/cost nightly. Both ingestion scripts currently skip with
+exit 0 on a 501 from `POST /api/projects/{id}/books` — that's S2.1 (be1) not
+merged into the checkout being tested yet, not a bug; see HANDOFF.md.
 
-**Not built:** anything Sprint 2+.
+**Broken / partial:** the Sprint 1 `api/llm.py` `CACHE_DIR` absolute-path
+defect is gone — fixed by the Sprint 2 contract freeze (`3cdc9fb`), confirmed
+by `grep -rn "/home/" .` returning nothing outside `.gitignore`d files.
+`make test-integration`'s <8-minute budget is unverified end to end (tearing
+down the shared singleton stack to time it would have disrupted every other
+worktree mid-sprint — see HANDOFF.md). The nightly corpus job's wall clock is
+API-inference, not the local-vLLM number NFR-perf is judged on (no GPU on
+`ubuntu-latest`).
+
+**Not built:** anything Sprint 3+.
 
 ## Services
 
@@ -131,6 +154,11 @@ make revision m="…"               ORCHESTRATOR ONLY — typed confirmation
   `docker/rabbitmq/rabbitmq.conf` (`deprecated_features.permit.*`) into
   `/etc/rabbitmq/conf.d/`. If a worker crashloops on boot with that traceback,
   check the broker has this file mounted before looking anywhere else.
+- **SQLAlchemy's native `Enum` column stores the Python member NAME, not its
+  `.value`.** `project.kind` in Postgres holds the literal string
+  `'STANDALONE'`, not `ProjectKind.STANDALONE.value` (`'standalone'`). Bites
+  anyone hand-seeding a row with raw SQL (`docker compose exec db psql`) —
+  found while writing `scripts/test_integration_ingestion.py` (S2.18).
 - Langfuse needs a **dedicated Postgres** — it runs its own Prisma migrations.
 - vLLM under WSL2 in compose may not start — the documented fallback is
   `INFERENCE_MODE=api`, which is the default, so nobody is blocked on a GPU.

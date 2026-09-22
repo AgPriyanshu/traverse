@@ -12,9 +12,15 @@ import sys
 import httpx
 
 from ..tasks import STAGES, celery_app
-from .probes import gather_health
+from .probes import PROBE_TIMEOUT_S, gather_health
 
-HTTP_TIMEOUT_S = 5.0
+# Must exceed PROBE_TIMEOUT_S with real margin: /health runs every probe
+# concurrently and returns once the slowest one settles, so a client timeout
+# equal to (or barely above) PROBE_TIMEOUT_S races the response and produces a
+# false "unreachable" on a healthy-but-degraded container (observed: an
+# absent neo4j — normal for the CI subset — took the probe to ~4.6s against a
+# 5.0s client timeout).
+HTTP_TIMEOUT_S = PROBE_TIMEOUT_S + 5.0
 # `inspect()` without a `destination=` uses a fanout and, having no way to know
 # how many workers might still reply, waits the FULL timeout on every call —
 # it does not return early just because the one worker on this host already

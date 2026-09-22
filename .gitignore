@@ -31,3 +31,7 @@ design/canvas/traverse-ui.html
 # pnpm content-addressable store, created locally by `pnpm config set store-dir`
 .pnpm-store/
 **/.pnpm-store/
+
+# S2.16 seeded corpus — `make seed` rebuilds these deterministically from
+# corpus/manifest.json (tracked); the fetched .txt and built .pdf are not.
+corpus/downloads/

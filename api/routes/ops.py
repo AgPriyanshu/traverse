@@ -2,7 +2,8 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
+from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
 from ..contracts.api import (
     DeadLetterOut,
@@ -11,7 +12,8 @@ from ..contracts.api import (
     RoutingPolicyOut,
 )
 from ..contracts.pipeline import IngestionRunOut
-from ..ops import gather_health
+from ..db.engine import get_session
+from ..ops import gather_health, pipeline_status
 from ._stub import not_implemented
 
 router = APIRouter(tags=["ops"])
@@ -30,20 +32,30 @@ async def health() -> HealthOut:
 
 
 @router.get("/ops/metrics", response_model=MetricsOut)
-async def metrics(book_id: UUID | None = Query(default=None)) -> MetricsOut:
-    not_implemented(OWNER, "S2.17 / S9.1")
+async def metrics(
+    book_id: UUID | None = Query(default=None),
+    session: SQLModelAsyncSession = Depends(get_session),
+) -> MetricsOut:
+    """Per-stage cost and timing (S2.17). ``prefix_cache_hit_rate`` waits on S9.1."""
+    return await pipeline_status.get_metrics(session, book_id=book_id)
 
 
 @router.get("/ops/pipeline/runs", response_model=list[IngestionRunOut])
 async def pipeline_runs(
-    book_id: UUID | None = Query(default=None), limit: int = Query(default=50, le=200)
+    book_id: UUID | None = Query(default=None),
+    limit: int = Query(default=50, le=200),
+    session: SQLModelAsyncSession = Depends(get_session),
 ) -> list[IngestionRunOut]:
-    not_implemented(OWNER, "S2.18")
+    """Most recent ingestion runs, newest first, each with its stages and trace."""
+    return await pipeline_status.list_runs(session, book_id=book_id, limit=limit)
 
 
 @router.get("/ops/pipeline/dead-letter", response_model=list[DeadLetterOut])
-async def dead_letter() -> list[DeadLetterOut]:
-    not_implemented(OWNER, "S2.18")
+async def dead_letter(
+    session: SQLModelAsyncSession = Depends(get_session),
+) -> list[DeadLetterOut]:
+    """Every book whose latest run has a stage currently `failed`."""
+    return await pipeline_status.list_dead_letters(session)
 
 
 @router.get("/ops/routing-policy", response_model=RoutingPolicyOut)

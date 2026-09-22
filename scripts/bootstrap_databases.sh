@@ -23,6 +23,19 @@ for agent in $AGENTS; do
   echo "    $database ready with pgvector"
 done
 
+echo "==> Postgres test database"
+# Not one of $AGENTS: it belongs to the `test` compose service (truncated
+# between runs), never to an agent's own traverse_<agent> database. A cold
+# volume gets it from AGENT_DATABASES (docker/postgres/init); this is the
+# idempotent counterpart for a cluster that was already running when
+# AGENT_DATABASES grew this entry.
+$COMPOSE exec -T db psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d postgres \
+  -tAc "SELECT 'CREATE DATABASE traverse_test' \
+        WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname='traverse_test')\gexec"
+$COMPOSE exec -T db psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d traverse_test \
+  -c "CREATE EXTENSION IF NOT EXISTS vector;" >/dev/null
+echo "    traverse_test ready with pgvector"
+
 echo "==> RabbitMQ vhosts"
 RABBITMQ_VHOSTS="$AGENTS" $COMPOSE run --rm --no-deps \
   -e RABBITMQ_VHOSTS="$AGENTS" rabbitmq-init
