@@ -16,6 +16,31 @@ line for the extraction stage.
 
 ---
 
+## Day 1/2 priority — chapter detection finds zero chapters (carried from Sprint 2, A-2.5)
+
+Before S3.13's gold labels lean on it: `scripts/seed_corpus.py::build_pdf()`
+renders the entire novel — headings included — in one uniform, unstyled
+Courier. Docling's layout model labels a heading from visual cues alone
+(verified directly against the fixture PDF: every line comes back `text`,
+never `SECTION_HEADER`/`TITLE`), so `DocumentChunker._segment_chapters`
+(be1-owned, only considers those two labels) finds no candidates on either
+the CI fixture or the real corpus. `plans/sprint-2/RETRO.md` §4/§5 has the
+full writeup, including two things already tried and ruled out (a
+heading-specific font size, then a bold Courier variant — same character
+width, no re-wrap needed — neither changed Docling's classification).
+
+This does not block S3.13/S3.14 directly (gold labels are page-based, not
+chapter-based) but it does block fe1's S3.11 mentions timeline and be2's
+S3.6 per-chapter histogram from ever showing real chapter groupings, and it
+blocks S3's own DoD line "Extraction stage cost and wall clock per novel
+recorded" from meaning anything chapter-scoped. Worth a real fix — more
+structural PDF markup (an actual `/StructTree`, or spacing/margin cues
+Docling's model responds to, not just font weight/size) rather than another
+guess-and-check pass — or an explicit decision that chapter grouping is
+deferred until a real-scan-derived corpus replaces the stdlib PDF writer.
+File whichever way you land as a fresh SCR either way; do not let it stay an
+undocumented gap into Sprint 4.
+
 ## S3.13 — Labelling harness
 
 Ground truth for two novels (*Pride and Prejudice*, *Wuthering Heights*):
