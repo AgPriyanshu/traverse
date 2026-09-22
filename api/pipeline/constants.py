@@ -18,6 +18,12 @@ class ChapterInfoStructuredOutput(BaseModel):
     title: str | None = None
 
 
+class ChapterBatchStructuredOutput(BaseModel):
+    """One classification per heading in a batch, in the same order sent."""
+
+    items: list[ChapterInfoStructuredOutput]
+
+
 CHAPTER_RE = re.compile(
     r"""
     ^\s*

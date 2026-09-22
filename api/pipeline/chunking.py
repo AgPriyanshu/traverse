@@ -15,11 +15,18 @@ from docling_core.types.doc.labels import DocItemLabel
 from sentence_transformers import SentenceTransformer
 from transformers import AutoTokenizer
 
+from api.llm import plan_batches, structured_call
+
 from ..config.settings import Settings
 from ..config.settings import settings as default_settings
-from ..contracts.enums import DetectionMethod
+from ..contracts.enums import DetectionMethod, LLMPurpose
 from ..contracts.pipeline import ChapterInfo, ChunkPayload
-from .constants import CHAPTER_RE, CHUNK_MAX_TOKENS, ROMAN_VALUES
+from .constants import (
+    CHAPTER_RE,
+    CHUNK_MAX_TOKENS,
+    ROMAN_VALUES,
+    ChapterBatchStructuredOutput,
+)
 from .errors import DocumentParseError, MissingProvenanceError, PageParseError
 
 logger = logging.getLogger(__name__)
@@ -174,25 +181,52 @@ class DocumentChunker:
 
         return result.document
 
-    def detect_chapters(self, document: DoclingDocument) -> list[ChapterInfo]:
+    async def prepare_chapters(
+        self, document: DoclingDocument, *, book_id: str | None = None
+    ) -> list[tuple[object, ChapterInfo]]:
+        """Public entry to the heading pass shared by ``detect_chapters`` and
+        ``generate_chunks``.
+
+        A caller needing both (``pipeline.tasks._parse_and_chunk`` does, to
+        write chunks and the chapter side-artifact from one document) should
+        call this once and pass the result to both as ``prepared=`` — each
+        recomputes it internally otherwise, doubling the LLM classification
+        calls the batching in ``_classify_headings`` exists to minimise.
+        """
+        return await self._prepare_chapters(document, book_id=book_id)
+
+    async def detect_chapters(
+        self,
+        document: DoclingDocument,
+        *,
+        book_id: str | None = None,
+        prepared: list[tuple[object, ChapterInfo]] | None = None,
+    ) -> list[ChapterInfo]:
         """Return the chapter headings found in a document, in document order.
 
         Args:
             document: A converted document.
+            book_id: Tags the Langfuse trace of any LLM classification call.
+            prepared: Reuse a prior ``prepare_chapters`` call instead of
+                redoing the heading pass.
 
         Returns:
             One entry per detected chapter heading.
         """
-        chapters = [
-            info
-            for _item, info in self._prepare_chapters(document).values()
-            if info.is_chapter
-        ]
+        if prepared is None:
+            prepared = await self.prepare_chapters(document, book_id=book_id)
+
+        chapters = [info for _item, info in prepared if info.is_chapter]
 
         return chapters
 
-    def generate_chunks(
-        self, document: DoclingDocument, *, embed: bool = True
+    async def generate_chunks(
+        self,
+        document: DoclingDocument,
+        *,
+        embed: bool = True,
+        book_id: str | None = None,
+        prepared: list[tuple[object, ChapterInfo]] | None = None,
     ) -> list[ChunkPayload]:
         """Split a document into persistable chunks carrying page provenance.
 
@@ -203,6 +237,9 @@ class DocumentChunker:
             document: A converted document.
             embed: Whether to compute embeddings. ``False`` skips loading
                 BGE-M3 entirely, which is what the chunk-only stage wants.
+            book_id: Tags the Langfuse trace of any LLM classification call.
+            prepared: Reuse a prior ``prepare_chapters`` call instead of
+                redoing the heading pass.
 
         Returns:
             Chunks in document order.
@@ -223,17 +260,25 @@ class DocumentChunker:
 
         previous_chapter = ChapterInfo(is_chapter=False)
         result_chunks: list[ChunkPayload] = []
-        chapters_map = self._prepare_chapters(document)
+        if prepared is None:
+            prepared = await self.prepare_chapters(document, book_id=book_id)
+        ordered_headings = prepared
+        cursor = -1
 
         for chunk, embedding in zip(chunks, embeddings, strict=True):
-            if chunk.meta.headings:
-                for heading in chunk.meta.headings:
-                    for value in chapters_map.values():
-                        if (
-                            value[1].text == heading
-                            and heading != previous_chapter.text
-                        ):
-                            previous_chapter = value[1]
+            for heading in chunk.meta.headings or []:
+                # Advance strictly forward through the document's heading
+                # order rather than searching the whole list by text: two
+                # chapters that happen to share a title (a repeated "Prologue",
+                # a part-title reused per volume) must never re-match an
+                # earlier one just because their text is identical.
+                while (
+                    cursor + 1 < len(ordered_headings)
+                    and ordered_headings[cursor + 1][1].text == heading
+                ):
+                    cursor += 1
+                    if ordered_headings[cursor][1].is_chapter:
+                        previous_chapter = ordered_headings[cursor][1]
 
             provenance_list = [
                 provenance
@@ -301,33 +346,51 @@ class DocumentChunker:
 
         return str(configured)
 
-    def _prepare_chapters(
-        self, document: DoclingDocument
-    ) -> dict[str, tuple[object, ChapterInfo]]:
-        chapters_map: dict[str, tuple[object, ChapterInfo]] = {}
+    async def _prepare_chapters(
+        self, document: DoclingDocument, *, book_id: str | None = None
+    ) -> list[tuple[object, ChapterInfo]]:
+        """Return every heading-like item in the document, in document order.
+
+        Every item on a page is inspected, not just the first — a chapter
+        heading that opens partway down a page (after a running header or a
+        part-title) would otherwise be missed entirely.
+
+        Every heading that regex cannot resolve is classified in as few LLM
+        calls as fit the model's context window, not one call per heading —
+        against a shared vLLM server that is the difference between seconds
+        and minutes on a heading-heavy novel.
+        """
+        items = []
 
         for page_no in document.pages:
-            for count, (doc_item, _level) in enumerate(
-                document.iterate_items(page_no=page_no)
-            ):
-                if count >= 1:
-                    break
-
+            for doc_item, _level in document.iterate_items(page_no=page_no):
                 if doc_item.label in {
                     DocItemLabel.SECTION_HEADER,
                     DocItemLabel.TITLE,
                 }:
-                    chapter_info = self._parse_chapter_heading(doc_item.text)
-                    chapters_map[doc_item.self_ref] = (doc_item, chapter_info)
+                    items.append(doc_item)
 
-        return chapters_map
+        texts = [re.sub(r"\s+", " ", item.text).strip() for item in items]
+        results: list[ChapterInfo | None] = [
+            self._match_chapter_regex(t) for t in texts
+        ]
+        ambiguous = [index for index, result in enumerate(results) if result is None]
 
-    def _parse_chapter_heading(self, text: str) -> ChapterInfo:
-        text = re.sub(r"\s+", " ", text).strip()
+        if ambiguous:
+            classified = await self._classify_headings(
+                [texts[index] for index in ambiguous], book_id=book_id
+            )
+            for index, info in zip(ambiguous, classified, strict=True):
+                results[index] = info
+
+        return list(zip(items, cast(list[ChapterInfo], results), strict=True))
+
+    def _match_chapter_regex(self, text: str) -> ChapterInfo | None:
+        """Return a regex-matched chapter, or ``None`` if ``text`` needs the LLM."""
         match = CHAPTER_RE.match(text)
 
         if not match:
-            return self._classify_chapter_heading(text)
+            return None
 
         number = _normalize_chapter_number(match.group("number"))
         title = match.group("title").strip(" :-–—.")
@@ -341,51 +404,98 @@ class DocumentChunker:
             confidence=1.0,
         )
 
-    def _classify_chapter_heading(self, text: str) -> ChapterInfo:
+    async def _parse_chapter_heading(
+        self, text: str, *, book_id: str | None = None
+    ) -> ChapterInfo:
+        text = re.sub(r"\s+", " ", text).strip()
+        matched = self._match_chapter_regex(text)
+
+        if matched is not None:
+            return matched
+
+        return await self._classify_chapter_heading(text, book_id=book_id)
+
+    async def _classify_headings(
+        self, texts: list[str], *, book_id: str | None = None
+    ) -> list[ChapterInfo]:
+        """Classify every heading regex could not resolve, batched per call.
+
+        Args:
+            texts: Normalised heading strings, in document order.
+            book_id: Tags the Langfuse trace of each batch's call.
+
+        Returns:
+            One ``ChapterInfo`` per input text, in the same order.
+        """
         if not self.llm_classify:
-            return ChapterInfo(is_chapter=False, text=text)
+            return [ChapterInfo(is_chapter=False, text=text) for text in texts]
 
-        # Imported here, not at module scope: importing ``api.llm`` constructs a
-        # client and a Langfuse handler, and the chunker must stay importable in
-        # a test process that has neither. S2.3 batches these calls — one
-        # request per heading against a shared vLLM is the slowest possible
-        # shape — and moves them behind ``api/llm``'s structured_call.
-        from langchain.messages import SystemMessage
-
-        from ..llm import langfuse_handler, llm
-        from .constants import ChapterInfoStructuredOutput
-
-        structured_llm = llm.with_structured_output(ChapterInfoStructuredOutput)
-        callbacks = [langfuse_handler] if langfuse_handler else []
-
-        try:
-            result = cast(
-                ChapterInfoStructuredOutput,
-                structured_llm.invoke(
-                    [SystemMessage(_HEADING_PROMPT.format(text=text))],
-                    config={"callbacks": callbacks},
-                ),
+        results: list[ChapterInfo] = []
+        for batch in plan_batches(
+            texts,
+            prompt_tokens=len(_BATCH_HEADING_PROMPT) // 4,
+            text_of=lambda text: text,
+            max_context=self.settings.llm_max_context,
+            output_reserve=self.settings.llm_output_reserve,
+        ):
+            results.extend(
+                await self._classify_heading_batch(batch.items, book_id=book_id)
             )
-        except Exception:
-            logger.warning("heading classification failed for %r", text, exc_info=True)
 
-            return ChapterInfo(is_chapter=False, text=text)
+        return results
 
-        if not result.is_chapter:
-            return ChapterInfo(is_chapter=False, text=text)
+    async def _classify_chapter_heading(
+        self, text: str, *, book_id: str | None = None
+    ) -> ChapterInfo:
+        results = await self._classify_heading_batch([text], book_id=book_id)
 
-        return ChapterInfo(
-            is_chapter=True,
-            number=result.number,
-            title=result.title,
-            text=text,
-            detection_method=DetectionMethod.LLM,
+        return results[0]
+
+    async def _classify_heading_batch(
+        self, texts: list[str], *, book_id: str | None = None
+    ) -> list[ChapterInfo]:
+        if not self.llm_classify:
+            return [ChapterInfo(is_chapter=False, text=text) for text in texts]
+
+        prompt = _BATCH_HEADING_PROMPT.format(
+            headings="\n".join(f"{i + 1}. {text}" for i, text in enumerate(texts))
+        )
+        result = await structured_call(
+            prompt,
+            ChapterBatchStructuredOutput,
+            purpose=LLMPurpose.CHAPTER_CLASSIFY,
+            book_id=book_id,
+            stage="segment_chapters",
         )
 
+        if len(result.items) != len(texts):
+            logger.warning(
+                "classifier returned %d results for %d headings; discarding batch",
+                len(result.items),
+                len(texts),
+            )
 
-_HEADING_PROMPT = (
-    "You are analyzing a heading extracted from a novel to decide "
-    "whether it marks the start of a new chapter, as opposed to a "
+            return [ChapterInfo(is_chapter=False, text=text) for text in texts]
+
+        classified = [
+            ChapterInfo(
+                is_chapter=True,
+                number=item.number,
+                title=item.title,
+                text=text,
+                detection_method=DetectionMethod.LLM,
+            )
+            if item.is_chapter
+            else ChapterInfo(is_chapter=False, text=text)
+            for item, text in zip(result.items, texts, strict=True)
+        ]
+
+        return classified
+
+
+_BATCH_HEADING_PROMPT = (
+    "You are analyzing headings extracted from a novel to decide, for each "
+    "one, whether it marks the start of a new chapter, as opposed to a "
     "sub-heading, running header, or other non-chapter text.\n\n"
     "Rules:\n"
     "- A chapter heading may be a number word or digit alone (e.g. "
@@ -412,5 +522,7 @@ _HEADING_PROMPT = (
     '"Prologue" -> is_chapter=true, number=null, title="Prologue"\n'
     '"Contents" -> is_chapter=false\n'
     '"About the Author" -> is_chapter=false\n\n'
-    'Heading to classify: "{text}"'
+    "Return exactly one classification per heading below, in the same order, "
+    "as `items`.\n\n"
+    "Headings to classify:\n{headings}"
 )

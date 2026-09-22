@@ -67,3 +67,38 @@ this landing.
 
 **Proposed:** add both fields to `Settings` with the defaults above. No
 migration needed — these are process config, not schema.
+
+### SCR-4 · be1 · 2026-09-19
+
+**Need:** `ChunkPayload` (`api/contracts/pipeline.py`) carries no per-chunk
+heading list.
+
+**Why:** `pipeline.parse_and_chunk` calls `generate_chunks(document,
+embed=False)` deliberately (S2.4 splits embedding into its own stage so an
+embedding failure does not force a re-parse). By the time `pipeline.embed_chunks`
+runs, the only per-chunk text available is the persisted `documentchunk.text`
+column — the *clean* text, per `chunking.py`'s own documented invariant
+("contextualize before embedding, store clean text"). `chunker.contextualize`
+needs the chunk's headings, which live only on the transient Docling
+`DocChunk` object generated during parsing and are never captured in
+`ChunkPayload`. `documentchunk.headings` (the DB column) exists but
+`bulk_insert_chunks` has always written `[]` to it — there is nothing to put
+there without this field.
+
+Net effect: `embed_chunks` currently embeds each chunk's bare `text`, without
+the heading context `contextualize()` would have prepended. Not a crash, not
+a missing citation — a retrieval-quality gap (heading-less passages are
+harder to place semantically) that will show up as recall loss once Sprint 4
+starts measuring pass-1/pass-2 candidate quality, not before.
+
+**Blocking:** no. `embed_chunks` ships this sprint with the gap documented
+in code (`pipeline/tasks.py::_embed_chunks`) and here; worth closing before
+Sprint 4 leans on embedding quality for character-mention retrieval.
+
+**Proposed:** add `headings: list[str] = []` to `ChunkPayload`, threaded
+through from `DocChunk.meta.headings` in `generate_chunks`, persisted into
+the existing `documentchunk.headings` column by `bulk_insert_chunks`.
+`embed_chunks` then embeds `"\n".join(chunk.headings + [chunk.text])` (or
+whatever join `contextualize` itself uses — worth checking be2/orchestrator
+has no stronger opinion) instead of bare `text`. No migration needed; the
+column already exists, unused.

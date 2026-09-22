@@ -25,8 +25,9 @@ not grep for it.
 | `celery_app` re-export, `import_task_modules`, `missing_stage_tasks`, `warm_models` | `api/workers/app.py` | Built — worker entry point |
 | repository (`create_book`, `get_book_by_hash`, `bulk_insert_chunks`, `upsert_chapters`, `set_book_status`, `get_stage_statuses`) | `api/pipeline/repository.py` | Built |
 | `pipeline.*` task registrations (6) | `api/pipeline/tasks.py` | Built — registered; bodies raise `NotImplementedError` until S2/S3 |
-| `pipeline.parse_and_chunk` / `segment_chapters` / `embed_chunks` bodies | `api/pipeline/tasks.py` | S2 |
-| page render service | `api/pipeline/render.py` | S2 |
+| `pipeline.parse_and_chunk` / `segment_chapters` / `embed_chunks` bodies | `api/pipeline/tasks.py` | Built |
+| `render_page`, `PageOutOfRangeError` | `api/pipeline/render.py` | Built — renders straight from the source PDF via `pypdfium2`, not Docling; caches PNG + span JSON at `books/{id}/pages/{n}.{png,json}` |
+| `ObjectStore.put_bytes` / `get_bytes` | `api/pipeline/storage.py` | Built — small in-memory payloads (page renders, span metadata), alongside the streaming `put_stream`/`get_object` pair |
 | `pass2_candidates` prefilter | `api/pipeline/` | S4 |
 | scene segmentation, speaker attribution | `api/pipeline/` | S4 |
 
@@ -100,6 +101,15 @@ implementations are not.**
   device 0 regardless of `EMBEDDING_DEVICE` — both break a worktree run and the
   offline-test contract. The corpus is digitally-typeset novels; a scanned book
   opts in explicitly.
+- **Page render never goes through Docling.** `pypdfium2` opens and renders
+  only the requested page directly from the source PDF — re-converting a
+  430-page book through Docling to serve one page would blow the <2s cold
+  budget (S2.6). `pypdfium2` and `Pillow` are already locked transitive deps
+  of `docling`; no new dependency was declared.
+- **`pypdfium2`'s text rects are bottom-left origin, PDF points.** The
+  `SpanBox` contract is top-left origin (frozen, `contracts/api.py`) — convert
+  once in `render._render_sync` (`y = page_height - top`), never push the
+  flip onto a caller.
 
 ## Related
 

@@ -3,17 +3,26 @@ from pathlib import Path
 import pytest
 
 from api.config.settings import Settings
-from api.contracts.enums import DetectionMethod
+from api.contracts.enums import DetectionMethod, LLMPurpose
 from api.contracts.pipeline import ChunkPayload
+from api.pipeline import chunking
 from api.pipeline.chunking import (
     DocumentChunker,
     _normalize_chapter_number,
     _roman_to_int,
     resolve_device,
 )
+from api.pipeline.constants import (
+    ChapterBatchStructuredOutput,
+    ChapterInfoStructuredOutput,
+)
 
 
 def cpu_settings(**overrides) -> Settings:
+    # `docling_artifacts_dir` takes priority over `models_cache_dir` in
+    # `_artifacts_path()`; without pinning it here, DOCLING_ARTIFACTS_DIR from
+    # the host/container environment leaks in and shadows a test's override.
+    overrides.setdefault("docling_artifacts_dir", None)
     return Settings(embedding_device="cpu", **overrides)
 
 
@@ -47,10 +56,10 @@ class TestChapterHeadings:
             ("chap. 7", 7, None),
         ],
     )
-    def test_parses_a_chapter_heading(
+    async def test_parses_a_chapter_heading(
         self, chunker: DocumentChunker, heading: str, number: int, title: str | None
     ) -> None:
-        info = chunker._parse_chapter_heading(heading)
+        info = await chunker._parse_chapter_heading(heading)
 
         assert info.is_chapter
         assert info.number == number
@@ -58,19 +67,78 @@ class TestChapterHeadings:
         assert info.detection_method is DetectionMethod.REGEX
 
     @pytest.mark.parametrize("heading", ["Contents", "About the Author", "Prologue"])
-    def test_rejects_a_non_chapter_when_the_llm_is_off(
+    async def test_rejects_a_non_chapter_when_the_llm_is_off(
         self, chunker: DocumentChunker, heading: str
     ) -> None:
-        info = chunker._parse_chapter_heading(heading)
+        info = await chunker._parse_chapter_heading(heading)
 
         assert not info.is_chapter
 
-    def test_collapses_whitespace_into_the_heading_text(
+    async def test_collapses_whitespace_into_the_heading_text(
         self, chunker: DocumentChunker
     ) -> None:
-        info = chunker._parse_chapter_heading("  Chapter\n 2 \t Onward  ")
+        info = await chunker._parse_chapter_heading("  Chapter\n 2 \t Onward  ")
 
         assert info.text == "Chapter 2 Onward"
+
+
+class TestHeadingClassificationCallsStructuredCall:
+    """``_classify_heading_batch`` against ``api.llm.structured_call``.
+
+    Stubbed at the same boundary as the rest of the project
+    (``api/AGENTS.md``): no vLLM runs in this worktree, so the interesting
+    behaviour to cover here is the call's own shape and how a mismatched or
+    failing response degrades, not the model's output.
+    """
+
+    @pytest.fixture
+    def chunker(self) -> DocumentChunker:
+        return DocumentChunker(Settings(embedding_device="cpu"), llm_classify=True)
+
+    async def test_classifies_an_ambiguous_heading_via_structured_call(
+        self, chunker: DocumentChunker, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        captured: dict[str, object] = {}
+
+        async def fake_structured_call(prompt, schema, *, purpose, book_id, stage):
+            captured.update(
+                prompt=prompt,
+                schema=schema,
+                purpose=purpose,
+                book_id=book_id,
+                stage=stage,
+            )
+
+            return ChapterBatchStructuredOutput(
+                items=[
+                    ChapterInfoStructuredOutput(
+                        is_chapter=True, number=None, title="Prologue"
+                    )
+                ]
+            )
+
+        monkeypatch.setattr(chunking, "structured_call", fake_structured_call)
+
+        results = await chunker._classify_heading_batch(["Prologue"], book_id="book-1")
+
+        assert results[0].is_chapter
+        assert results[0].title == "Prologue"
+        assert captured["purpose"] is LLMPurpose.CHAPTER_CLASSIFY
+        assert captured["schema"] is ChapterBatchStructuredOutput
+        assert captured["book_id"] == "book-1"
+        assert captured["stage"] == "segment_chapters"
+
+    async def test_a_mismatched_item_count_discards_the_batch(
+        self, chunker: DocumentChunker, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        async def fake_structured_call(prompt, schema, *, purpose, book_id, stage):
+            return ChapterBatchStructuredOutput(items=[])
+
+        monkeypatch.setattr(chunking, "structured_call", fake_structured_call)
+
+        results = await chunker._classify_heading_batch(["Prologue", "Interlude"])
+
+        assert [r.is_chapter for r in results] == [False, False]
 
 
 class TestDeviceResolution:

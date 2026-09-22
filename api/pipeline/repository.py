@@ -12,7 +12,7 @@ from sqlalchemy import delete, func, insert, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
-from ..contracts.api import BookOut, ProjectDetailOut, ProjectOut
+from ..contracts.api import BookOut, ChapterOut, ChunkOut, ProjectDetailOut, ProjectOut
 from ..contracts.enums import BookStatus, StageName, StageState
 from ..contracts.pipeline import ChapterInfo, ChunkPayload, StageStatus
 from ..db.models import (
@@ -44,6 +44,7 @@ async def create_book(
     page_count: int | None = None,
     series_order: int | None = None,
     storage_key: str | None = None,
+    id: UUID | None = None,
 ) -> Book:
     """Create a book, or return the existing one with the same content hash.
 
@@ -60,6 +61,9 @@ async def create_book(
         page_count: Page count, if already known.
         series_order: Position in a series; ``None`` for a standalone.
         storage_key: Object-storage key of the uploaded file.
+        id: Explicit primary key. Upload needs the id before the row exists,
+            since the object-storage key is ``books/{id}/source.pdf`` — passed
+            through rather than left to the default factory so the two agree.
 
     Returns:
         The new book, or the pre-existing one with that ``content_hash``.
@@ -72,6 +76,7 @@ async def create_book(
         page_count=page_count,
         series_order=series_order,
         storage_key=storage_key,
+        **({"id": id} if id is not None else {}),
     )
     session.add(book)
 
@@ -134,6 +139,35 @@ async def set_book_status(
     await session.refresh(book)
 
 
+async def set_book_page_count(
+    session: SQLModelAsyncSession, book_id: UUID, page_count: int
+) -> None:
+    """Record a book's page count, as read off the converted document.
+
+    Args:
+        session: Open session; this function commits.
+        book_id: Book to update.
+        page_count: Page count from the Docling document.
+    """
+    book = await session.get(Book, book_id)
+
+    if book is None:
+        raise ValueError(f"no such book: {book_id}")
+
+    book.page_count = page_count
+    session.add(book)
+    await session.commit()
+
+
+async def delete_chunks(session: SQLModelAsyncSession, book_id: UUID) -> None:
+    """Delete every chunk of a book, so a re-run of ``parse_and_chunk`` replaces
+    rather than appends (idempotent re-ingest, F1.5)."""
+    await session.execute(
+        delete(DocumentChunk).where(DocumentChunk.book_id == book_id)  # type: ignore[arg-type]
+    )
+    await session.commit()
+
+
 async def upsert_chapters(
     session: SQLModelAsyncSession,
     book_id: UUID,
@@ -172,29 +206,41 @@ async def upsert_chapters(
             "insert chunks first or pass page_ranges"
         )
 
-    await session.execute(delete(Chapter).where(Chapter.book_id == book_id))  # type: ignore[arg-type]
+    # Never overwrite a human-verified chapter (F5.4): only unverified rows are
+    # replaced, and a re-detection for an already-verified number is dropped
+    # rather than colliding with it on the (book_id, number) unique constraint.
+    verified_numbers = await _verified_chapter_numbers(session, book_id)
+    await session.execute(
+        delete(Chapter)  # type: ignore[arg-type]
+        .where(Chapter.book_id == book_id)  # type: ignore[arg-type]
+        .where(Chapter.human_verified.is_(False))  # type: ignore[union-attr]
+    )
 
-    rows = []
-    for info in chapters:
-        page_start, page_end = ranges[info.number]
-        rows.append(
-            {
-                "book_id": book_id,
-                "number": info.number,
-                "title": info.title,
-                "heading_text": info.text,
-                "page_start": page_start,
-                "page_end": page_end,
-                "detection_method": info.detection_method,
-                "confidence": info.confidence,
-            }
-        )
+    rows = [
+        {
+            "book_id": book_id,
+            "number": info.number,
+            "title": info.title,
+            "heading_text": info.text,
+            "page_start": ranges[info.number][0],
+            "page_end": ranges[info.number][1],
+            "detection_method": info.detection_method,
+            "confidence": info.confidence,
+        }
+        for info in chapters
+        if info.number not in verified_numbers
+    ]
 
-    await session.execute(insert(Chapter), rows)
+    if rows:
+        await session.execute(insert(Chapter), rows)
+
     book = await session.get(Book, book_id)
 
     if book is not None:
-        book.chapter_count = len(rows)
+        count_statement = (
+            select(func.count()).select_from(Chapter).where(Chapter.book_id == book_id)  # type: ignore[arg-type]
+        )
+        book.chapter_count = (await session.execute(count_statement)).scalar_one()
         session.add(book)
 
     await session.commit()
@@ -205,6 +251,19 @@ async def upsert_chapters(
     persisted = await list_chapters(session, book_id)
 
     return persisted
+
+
+async def _verified_chapter_numbers(
+    session: SQLModelAsyncSession, book_id: UUID
+) -> set[int | None]:
+    statement = (
+        select(Chapter.number)
+        .where(Chapter.book_id == book_id)  # type: ignore[arg-type]
+        .where(Chapter.human_verified.is_(True))  # type: ignore[union-attr]
+    )
+    numbers = set((await session.execute(statement)).scalars().all())
+
+    return numbers
 
 
 async def list_chapters(session: SQLModelAsyncSession, book_id: UUID) -> list[Chapter]:
@@ -401,6 +460,52 @@ async def list_chunks(
     return chunks
 
 
+async def list_chunks_needing_embedding(
+    session: SQLModelAsyncSession, book_id: UUID
+) -> list[DocumentChunk]:
+    """Return a book's chunks that have no embedding yet, in document order.
+
+    Restricting to ``text_embedding IS NULL`` rather than fetching everything
+    is what makes a restart resume instead of re-embedding a book from
+    scratch (F1.2): a chunk already written keeps its vector no matter how
+    many times this is called.
+    """
+    statement = (
+        select(DocumentChunk)
+        .where(DocumentChunk.book_id == book_id)  # type: ignore[arg-type]
+        .where(DocumentChunk.text_embedding.is_(None))  # type: ignore[union-attr]
+        .order_by(DocumentChunk.page_start, DocumentChunk.created_at)  # type: ignore[arg-type]
+    )
+    chunks = list((await session.execute(statement)).scalars().all())
+
+    return chunks
+
+
+async def set_chunk_embeddings(
+    session: SQLModelAsyncSession, embeddings: dict[UUID, list[float]]
+) -> int:
+    """Write one embedding per chunk id, in a single statement.
+
+    Args:
+        session: Open session; this function commits.
+        embeddings: ``chunk id -> unit vector``.
+
+    Returns:
+        The number of rows updated.
+    """
+    if not embeddings:
+        return 0
+
+    rows = [
+        {"id": chunk_id, "text_embedding": vector}
+        for chunk_id, vector in embeddings.items()
+    ]
+    await session.execute(update(DocumentChunk), rows)
+    await session.commit()
+
+    return len(rows)
+
+
 async def get_stage_statuses(
     session: SQLModelAsyncSession, book_id: UUID
 ) -> list[StageStatus]:
@@ -492,6 +597,79 @@ def derive_book_status(statuses: list[StageStatus]) -> BookStatus:
 
 
 # ── Read models for the HTTP layer ──────────────────────────────────────────
+
+
+async def list_chapters_out(
+    session: SQLModelAsyncSession, book_id: UUID
+) -> list[ChapterOut]:
+    """Return a book's chapters as their HTTP contract, each with its chunk count."""
+    chapters = await list_chapters(session, book_id)
+
+    if not chapters:
+        return []
+
+    chapter_ids = [chapter.id for chapter in chapters]
+    statement = (
+        select(DocumentChunk.chapter_id, func.count())
+        .where(DocumentChunk.chapter_id.in_(chapter_ids))  # type: ignore[union-attr]
+        .group_by(DocumentChunk.chapter_id)  # type: ignore[arg-type]
+    )
+    counts = {
+        chapter_id: total
+        for chapter_id, total in (await session.execute(statement)).all()
+    }
+
+    out = [
+        ChapterOut(
+            id=chapter.id,
+            book_id=chapter.book_id,
+            number=chapter.number,
+            title=chapter.title,
+            page_start=chapter.page_start,
+            page_end=chapter.page_end,
+            detection_method=chapter.detection_method,
+            chunk_count=counts.get(chapter.id, 0),
+        )
+        for chapter in chapters
+    ]
+
+    return out
+
+
+async def list_chunks_out(
+    session: SQLModelAsyncSession,
+    book_id: UUID,
+    *,
+    limit: int = 50,
+    offset: int = 0,
+) -> list[ChunkOut]:
+    """Return a page of a book's chunks as their HTTP contract, in document order."""
+    statement = (
+        select(DocumentChunk, Chapter.number)
+        .join(Chapter, Chapter.id == DocumentChunk.chapter_id, isouter=True)  # type: ignore[arg-type]
+        .where(DocumentChunk.book_id == book_id)  # type: ignore[arg-type]
+        .order_by(DocumentChunk.page_start, DocumentChunk.created_at)  # type: ignore[arg-type]
+        .limit(limit)
+        .offset(offset)
+    )
+    rows = (await session.execute(statement)).all()
+
+    out = [
+        ChunkOut(
+            id=chunk.id,
+            book_id=chunk.book_id,
+            chapter_id=chunk.chapter_id,
+            chapter_number=chapter_number,
+            text=chunk.text,
+            pages=chunk.pages,
+            page_start=chunk.page_start,
+            page_end=chunk.page_end,
+            token_count=chunk.token_count,
+        )
+        for chunk, chapter_number in rows
+    ]
+
+    return out
 
 
 def _book_out(book: Book, *, character_count: int = 0) -> BookOut:
