@@ -165,3 +165,29 @@ router stops being a two-agent collision every sprint that adds one.
 agents' branches are known at merge time, or (b) change the assertion's
 shape as above. Either way is be1's/orchestrator's call, not do1's — this is
 a request, not an edit.
+
+---
+
+### SCR-6 · be2 · 2026-09-22
+
+**Need:** `settings.mention_similarity_threshold: float = 0.65` in
+`api/config/settings.py`.
+
+**Why:** S3.8's `cluster_contexts` (`api/graph/similarity.py`) takes
+`threshold` as an explicit argument by design (per `plans/sprint-3/backend-2.md`),
+but be1's alias cascade (S3.3) needs a place to read the default from rather
+than hardcoding a number at its own call site — the whole point of measuring
+a precision/recall curve (`plans/sprint-3/HANDOFF.md`) is that the number is
+owned by config, not copy-pasted into a second file. `api/config/settings.py`
+is orchestrator-owned (BRANCH.md §2), so I cannot add the field myself.
+
+**Blocking:** no. `api/graph/similarity.py::similarity_threshold()` reads it
+with `getattr(settings, "mention_similarity_threshold", 0.65)` — the same
+`getattr`-with-default pattern SCR-5 (Sprint 2) established for
+`settings.reranker_enabled` — so be1 already has a real default to call
+`cluster_contexts(..., threshold=similarity_threshold())` against, and
+nothing changes at that call site once the field lands.
+
+**Proposed:** add the field to `Settings` in the Sprint 4 freeze (or sooner,
+at the orchestrator's discretion — it is a single `float` field, and moving
+it does not touch a table or a route).
