@@ -58,16 +58,25 @@ async def list_characters(
 
 @router.get("/characters/{character_id}", response_model=CharacterDetailOut)
 async def get_character(
-    character_id: UUID, session: SQLModelAsyncSession = Depends(get_session)
+    character_id: UUID,
+    limit_book_order: int | None = Query(default=None),
+    limit_chapter: int | None = Query(default=None),
+    session: SQLModelAsyncSession = Depends(get_session),
 ) -> CharacterDetailOut:
-    """Return one character with its per-book appearances.
-
-    Alias detail, attributes and per-chapter mention counts land in S3.6.
+    """Return one character: aliases, attributes, appearances and evidence.
 
     Raises:
-        HTTPException: 404 when no such character exists.
+        HTTPException: 404 when no such character exists, or it exists but is
+            not yet visible at the given reading position — the same
+            spoiler gate ``list_characters`` applies, so a deep link cannot
+            bypass it.
     """
-    character = await repository.get_character(session, character_id)
+    character = await repository.get_character(
+        session,
+        character_id,
+        limit_book_order=limit_book_order,
+        limit_chapter=limit_chapter,
+    )
     if character is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Character not found"
@@ -81,9 +90,29 @@ async def list_mentions(
     character_id: UUID,
     limit: int = Query(default=50, le=500),
     offset: int = 0,
+    limit_book_order: int | None = Query(default=None),
     limit_chapter: int | None = Query(default=None),
+    session: SQLModelAsyncSession = Depends(get_session),
 ) -> list[MentionOut]:
-    not_implemented(OWNER, "S3.6")
+    """Return one character's mentions, page-ordered and paginated.
+
+    Raises:
+        HTTPException: 404 when no such character exists.
+    """
+    mentions = await repository.list_mentions(
+        session,
+        character_id,
+        limit=limit,
+        offset=offset,
+        limit_book_order=limit_book_order,
+        limit_chapter=limit_chapter,
+    )
+    if mentions is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Character not found"
+        )
+
+    return mentions
 
 
 @router.get(
