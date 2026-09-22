@@ -1,0 +1,122 @@
+# Gold roster for Wuthering Heights (S3.13) -- the two-Catherines regression
+# case (F2.4 / character-graph.md "Name collision"). Validate against
+# eval/schema/roster.schema.json before trusting an edit here.
+#
+# first_page values were computed the same way as pride_and_prejudice/roster.yaml
+# -- a direct search of this exact corpus build's paginated text, not a guess.
+# The elder Catherine's first_page is her first appearance BY NAME (the carved
+# "Catherine Earnshaw" / "Catherine Heathcliff" / "Catherine Linton" window
+# graffiti Lockwood reads in chapter 3), which is also the first place her
+# married surname collides with her own daughter's canonical name -- see
+# collision_group below. The younger Catherine's first_page is the sentence
+# announcing her birth ("About twelve o'clock that night was born the
+# Catherine you saw..."), the earliest point she exists as a distinct person
+# in the text, not merely as her mother's married name.
+book_key: wuthering-heights
+corpus_pdf_sha256: 68f6058e17d7ba0cdf9154d43bd366267bbad7d9c6f10b4f907bf26141e0962a
+page_count: 211
+labelled_by: do1 (seeded from public-domain textual evidence, S3.13)
+labelled_at: "2026-09-22T00:00:00+00:00"
+source_notes: >
+  Character list and tiers cross-checked against the standard published
+  reading of Wuthering Heights (Gutenberg edition 768). Pending
+  re-verification against be1's real pass-1 output via scripts/label_roster.py
+  once S3.1/S3.3/S3.4 merge (plans/sprint-3/HANDOFF.md) -- this book is the
+  committed regression fixture for S3.4's collision guard
+  (test_wuthering_heights_two_catherines, character-graph.md), so a mismatch
+  here against the real system output is the finding, not noise to average
+  away.
+characters:
+  - canonical_name: Heathcliff
+    aliases: [Heathcliff, Mr. Heathcliff]
+    importance_tier: protagonist
+    first_page: 1
+  - canonical_name: Catherine Earnshaw
+    aliases: [Catherine, Cathy, Catherine Linton, Mrs. Linton]
+    importance_tier: protagonist
+    first_page: 12
+    collision_group: catherine
+    notes: >
+      Marries Edgar Linton, becoming "Catherine Linton" / "Mrs. Linton" --
+      the same surface form as her daughter's canonical name below. Dies
+      giving birth to that daughter. A merge of the two would be exactly the
+      silent, destructive failure character-graph.md warns against.
+  - canonical_name: Catherine Linton
+    aliases: [Catherine, Cathy, young Catherine, Miss Cathy]
+    importance_tier: major
+    first_page: 102
+    collision_group: catherine
+    notes: >
+      Daughter of Catherine Earnshaw and Edgar Linton, born the night her
+      mother dies. Never named "Catherine Earnshaw" in-text, but shares every
+      other surface form with her mother -- co-presence never occurs between
+      them (the mother is dead before the daughter is introduced), so the
+      collision guard cannot rely on a same-scene contradiction here; it must
+      use the generational marker ("young Catherine") and the disjoint
+      lifespans blocking rule instead (character-graph.md).
+  - canonical_name: Mr. Lockwood
+    aliases: [Lockwood, Mr. Lockwood]
+    importance_tier: major
+    first_page: 1
+    notes: Frame narrator for roughly half the book.
+  - canonical_name: Ellen Dean
+    aliases: [Nelly, Nelly Dean, Mrs. Dean, Ellen]
+    importance_tier: major
+    first_page: 20
+    notes: Housekeeper and the novel's other narrator.
+  - canonical_name: Edgar Linton
+    aliases: [Edgar, Mr. Linton, Edgar Linton]
+    importance_tier: major
+    first_page: 29
+  - canonical_name: Hareton Earnshaw
+    aliases: [Hareton]
+    importance_tier: major
+    first_page: 2
+    notes: >
+      Appears as an adult in Lockwood's opening-chapter visit before the
+      flashback later introduces him as Hindley's infant son -- first_page is
+      correctly earlier than his father's flashback introduction.
+  - canonical_name: Hindley Earnshaw
+    aliases: [Hindley, Mr. Hindley]
+    importance_tier: major
+    first_page: 12
+  - canonical_name: Isabella Linton
+    aliases: [Isabella, Miss Isabella]
+    importance_tier: minor
+    first_page: 29
+  - canonical_name: Linton Heathcliff
+    aliases: [Linton, Master Linton]
+    importance_tier: minor
+    first_page: 140
+    notes: Son of Heathcliff and Isabella Linton -- not the same person as Edgar Linton.
+  - canonical_name: Joseph
+    aliases: [Joseph]
+    importance_tier: minor
+    first_page: 1
+  - canonical_name: Mr. Earnshaw
+    aliases: [old Mr. Earnshaw]
+    importance_tier: minor
+    first_page: 11
+    notes: Hindley and Catherine Earnshaw's father; brings Heathcliff home as a boy.
+  - canonical_name: Frances
+    aliases: [Frances, Mrs. Earnshaw]
+    importance_tier: minor
+    first_page: 13
+    notes: Hindley's wife; dies shortly after Hareton's birth.
+  - canonical_name: Zillah
+    aliases: [Zillah]
+    importance_tier: minor
+    first_page: 10
+rejected_non_characters:
+  - surface_form: Wuthering Heights
+    reason: The Earnshaw farmhouse -- a place, not a person (also the book's title).
+    kind: place
+  - surface_form: Thrushcross Grange
+    reason: The Linton estate -- a place, not a person.
+    kind: place
+  - surface_form: Gimmerton
+    reason: The nearby village -- a place, not a person.
+    kind: place
+  - surface_form: Penistone Crags
+    reason: A rock formation on the moors -- a place, not a person.
+    kind: place

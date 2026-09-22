@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://traverse.internal/eval/schema/roster.schema.json",
+  "title": "Gold character roster",
+  "description": "Hand-verified ground truth for one novel: canonical roster, alias->canonical map, importance tier, first-appearance page. Pinned to a corpus PDF checksum (S2.16 manifest) so re-pagination invalidates every page-level label loudly rather than silently.",
+  "type": "object",
+  "required": ["book_key", "corpus_pdf_sha256", "page_count", "characters"],
+  "additionalProperties": false,
+  "properties": {
+    "book_key": {
+      "type": "string",
+      "description": "Must match a key under corpus/manifest.json's \"books\"."
+    },
+    "corpus_pdf_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "corpus/manifest.json books[book_key].pdf_sha256 at label time. The eval runner refuses to score against a corpus whose live checksum does not match this."
+    },
+    "page_count": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "corpus/manifest.json books[book_key].page_count at label time -- a second, cheaper trip-wire for a repaginated corpus."
+    },
+    "labelled_by": { "type": "string" },
+    "labelled_at": { "type": "string", "format": "date-time" },
+    "source_notes": {
+      "type": "string",
+      "description": "Where the seed came from (Gutenberg character index, published concordance, scripts/label_roster.py review session) -- these are references, not answers, and every entry here was verified against the actual paginated corpus text."
+    },
+    "characters": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/character" }
+    },
+    "rejected_non_characters": {
+      "type": "array",
+      "description": "Surface forms the extractor should reject (places, organisations, titles misread as names) -- used for rejection-precision scoring, never dropped silently.",
+      "items": { "$ref": "#/$defs/rejected_candidate" }
+    }
+  },
+  "$defs": {
+    "character": {
+      "type": "object",
+      "required": ["canonical_name", "aliases", "importance_tier", "first_page"],
+      "additionalProperties": false,
+      "properties": {
+        "canonical_name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Must disambiguate name collisions on its own, e.g. 'Catherine Earnshaw' vs 'Catherine Linton' -- never 'Catherine (2)'."
+        },
+        "aliases": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Every surface form this character is known by in-text, including honorific/nickname variants. Does not need to repeat canonical_name."
+        },
+        "importance_tier": {
+          "type": "string",
+          "enum": ["protagonist", "major", "minor", "mentioned"]
+        },
+        "first_page": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1-indexed page (matches the corpus PDF's own page numbering) of this character's first named appearance."
+        },
+        "first_chapter": {
+          "type": ["integer", "null"],
+          "description": "Null while chapter-level grouping is deferred (plans/sprint-3/SCR.md SCR-1) -- do not backfill with a guess."
+        },
+        "collision_group": {
+          "type": ["string", "null"],
+          "description": "Set on every character that shares a canonical surface form with another in this roster (e.g. both Catherines get 'catherine') so the eval can score the collision case specifically, not just roster P/R."
+        },
+        "notes": { "type": "string" }
+      }
+    },
+    "rejected_candidate": {
+      "type": "object",
+      "required": ["surface_form", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "surface_form": { "type": "string", "minLength": 1 },
+        "reason": { "type": "string", "minLength": 1 },
+        "kind": {
+          "type": "string",
+          "enum": ["place", "organisation", "title", "other"]
+        }
+      }
+    }
+  }
+}
