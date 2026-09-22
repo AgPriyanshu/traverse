@@ -62,3 +62,49 @@ def estimate_cost_usd(
     return (
         input_tokens * cost.input_per_1m + output_tokens * cost.output_per_1m
     ) / 1_000_000
+
+
+# S3.15: "USD at both local-amortised and API rates" -- a comparison figure,
+# not a second real bill. Keyed by the same model id as COST_TABLE so a
+# caller can look both up side by side for one call. Ballpark hosted-inference
+# pricing for an 8B-class AWQ model as of this sprint; replace with a real
+# quoted rate before this number appears anywhere a reader could mistake it
+# for a committed price (same honesty bar as `_LOCAL_GPU_USD_PER_HOUR` above).
+API_EQUIVALENT_COST_TABLE: dict[str, ModelCost] = {
+    "Qwen/Qwen3-8B-AWQ": ModelCost(
+        input_per_1m=0.06,
+        output_per_1m=0.12,
+        note="placeholder hosted-inference ballpark, not a quoted rate",
+    ),
+}
+
+
+def estimate_api_equivalent_cost_usd(
+    model: str, input_tokens: int, output_tokens: int
+) -> float | None:
+    """What the same call would cost at a hosted-API rate instead of local.
+
+    The comparison `estimate_cost_usd` cannot make on its own: that function
+    reports what was actually paid (local-amortised, if `model` served
+    locally), never what the alternative would have cost.
+    """
+    cost = API_EQUIVALENT_COST_TABLE.get(model)
+    if cost is None:
+        return None
+    return (
+        input_tokens * cost.input_per_1m + output_tokens * cost.output_per_1m
+    ) / 1_000_000
+
+
+def wall_clock_ms_per_100_pages(
+    duration_ms: int, page_count: int | None
+) -> float | None:
+    """Normalise a stage's wall clock so books of different lengths compare.
+
+    Returns ``None`` rather than dividing by zero when `page_count` is
+    missing or zero -- a book still mid-parse has no page count yet.
+    """
+    if not page_count:
+        return None
+
+    return duration_ms / (page_count / 100)

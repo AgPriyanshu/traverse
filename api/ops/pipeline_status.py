@@ -10,10 +10,12 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
+from ..config import settings
 from ..contracts.api import DeadLetterOut, MetricsOut, StageCost
-from ..contracts.enums import StageName, StageState
+from ..contracts.enums import InferenceMode, StageName, StageState
 from ..contracts.pipeline import IngestionRunOut, StageStatus
 from ..db.models import Book, IngestionRun, IngestionStage
+from .vllm_metrics import fetch_vllm_cache_stats
 
 _STAGE_ORDER = {name: index for index, name in enumerate(StageName)}
 
@@ -173,4 +175,21 @@ async def get_metrics(
         book_id=book_id,
         stages=stages,
         total_cost_usd=sum(stage.cost_usd for stage in stages),
+        prefix_cache_hit_rate=await _prefix_cache_hit_rate(),
     )
+
+
+async def _prefix_cache_hit_rate() -> float | None:
+    """Best-effort, live from vLLM -- never blocks or fails `/ops/metrics`.
+
+    Only meaningful with a real local vLLM in front of pass 2 (S3.15,
+    llm-runtime.md "Prefix caching is the cost argument"); `INFERENCE_MODE=api`
+    has no prefix cache to report on, so this is skipped rather than scraping
+    a URL that was never meant to serve one.
+    """
+    if settings.inference_mode != InferenceMode.LOCAL:
+        return None
+
+    stats = await fetch_vllm_cache_stats(settings.vllm_base_url)
+
+    return stats.prefix_cache_hit_rate if stats else None

@@ -1,0 +1,99 @@
+name: Extraction quality (PR)
+
+# S3.14: quality becomes a number on every PR that touches character
+# extraction, not just a nightly curiosity. Scoped to api/extraction/** so
+# every other PR's loop stays untouched, and to ONE gold-labelled novel
+# (Wuthering Heights — smaller than Pride and Prejudice in this corpus) so
+# this stays well under the 10-minute budget devops-1.md S3.14 sets.
+#
+# Informational only this sprint — nothing here fails the job on a quality
+# regression; the Sprint 8 gate (F6.4) is a separate, later change. A number
+# that moves silently is a number nobody defends, so this always posts a
+# comment, including "skipped" and "gold roster missing" cases.
+on:
+  pull_request:
+    paths:
+      - "api/extraction/**"
+  # ai-master's own run after a merge becomes the next PR's baseline (below)
+  # — simpler and more standard than trying to detect "this PR was the one
+  # that got merged" from inside a pull_request-triggered run, which would
+  # need a second `types: [closed]` trigger and a merged-flag check.
+  push:
+    branches: ["ai-master"]
+    paths:
+      - "api/extraction/**"
+  workflow_dispatch:
+
+concurrency:
+  group: extraction-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  MODELS_OFFLINE: "1"
+  HF_HUB_OFFLINE: "1"
+  TRANSFORMERS_OFFLINE: "1"
+  INFERENCE_MODE: api
+
+jobs:
+  quality:
+    name: Roster P/R/F1, B3, tier accuracy — Wuthering Heights
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: .env from .env.example
+        run: make env
+
+      - name: Fetch and paginate just the one reduced-set novel
+        run: python3 scripts/seed_corpus.py --only wuthering-heights
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: api/uv.lock
+
+      - name: Restore a previous run's baseline report, if any
+        uses: actions/cache/restore@v4
+        with:
+          path: extraction-quality-baseline.json
+          key: extraction-quality-baseline-${{ github.base_ref }}
+
+      - name: Bring up the CI subset plus MinIO (a real upload needs storage)
+        run: make ci-up-extraction
+
+      - name: Install dependencies
+        working-directory: api
+        run: uv sync --frozen
+
+      - name: Ingest Wuthering Heights and score it against eval/gold/
+        run: api/.venv/bin/python scripts/pr_extraction_quality.py
+
+      - name: Comment on the PR
+        if: always() && github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: extraction-quality
+          path: extraction-quality-comment.md
+
+      - name: Save this run's report as the next PR's baseline (ai-master only)
+        if: always() && github.event_name == 'push'
+        run: cp extraction-quality-current.json extraction-quality-baseline.json
+
+      - uses: actions/cache/save@v4
+        if: always() && github.event_name == 'push'
+        with:
+          path: extraction-quality-baseline.json
+          key: extraction-quality-baseline-${{ github.ref_name }}
+
+      - name: Logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml logs --tail=200
+
+      - name: Tear down
+        if: always()
+        run: make ci-down

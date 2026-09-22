@@ -8,12 +8,23 @@ the number PRD NFR-perf (≤25 min / 350pp) is judged on, and devops-1.md is
 explicit that it needs a trend line starting Sprint 2, not a single
 measurement in Sprint 9.
 
+S3.14/S3.15 extend this same nightly run: for every book with a gold roster
+(`eval/gold/**` — Pride and Prejudice, Wuthering Heights, S3.13) it also posts
+`GET /ops/extraction-quality` (roster P/R/F1, B3, tier accuracy, rejection
+precision) and `GET /ops/extraction-cost` (tokens, dual-rate USD, wall clock
+per 100 pages, prefix-cache hit rate) to the same run summary — "full novels"
+is this job's whole reason to exist alongside the PR-triggered reduced-set
+job (`.github/workflows/extraction-quality.yml`), which stays under 10
+minutes precisely by not doing this.
+
 Known limitation, recorded rather than hidden: `.github/workflows/
 nightly-corpus.yml` runs this on a GitHub-hosted runner with
 `INFERENCE_MODE=api` — there is no GPU there. The wall clock this posts is
 therefore an API-inference number, not the local-vLLM number NFR-perf is
-ultimately judged on. Point `runs-on` at a GPU-labelled self-hosted runner
-once one exists (Sprint 9 territory) and this script needs no change.
+ultimately judged on, and `prefix_cache_hit_rate` will read `None` here (no
+local vLLM to scrape) even once S3.15's wiring is otherwise exercised. Point
+`runs-on` at a GPU-labelled self-hosted runner once one exists (Sprint 9
+territory) and this script needs no change.
 
 Like `scripts/test_integration_ingestion.py`, a 501 from the upload endpoint
 means be1's S2.1 has not merged into this checkout yet; every book is
@@ -33,6 +44,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
 from test_integration_ingestion import _multipart_body, _psql, _request, poll_status
+
+sys.path.insert(0, str(REPO_ROOT))
+from eval.loaders import available_gold_books  # noqa: E402
 
 MANIFEST_PATH = REPO_ROOT / "corpus" / "manifest.json"
 PROJECT_SLUG = "nightly-corpus"
@@ -68,6 +82,54 @@ def upload(project_id: str, series_order: int, pdf_path: Path) -> tuple[int, dic
     )
 
 
+def _report_extraction_quality_and_cost(book_key: str, book_id: str) -> list[str]:
+    """Best-effort `/ops/extraction-quality` + `/ops/extraction-cost` for one
+    gold-labelled book. Never fails the run -- a 4xx/5xx here (e.g. the
+    extraction stages genuinely have not landed yet) is reported as a line in
+    the summary, not a script exit code, same spirit as the 501-skip above.
+    """
+    lines = [f"### {book_key}"]
+
+    status_code, quality = _request(
+        "GET", f"/api/ops/extraction-quality?book_id={book_id}"
+    )
+    if status_code != 200:
+        lines.append(f"- extraction-quality: HTTP {status_code} {quality}")
+    elif not quality.get("gold_available"):
+        lines.append(f"- extraction-quality: skipped ({quality.get('error') or 'n/a'})")
+    else:
+        lines.append(
+            "- roster P/R/F1: "
+            f"{quality.get('roster_precision', 0):.3f} / "
+            f"{quality.get('roster_recall', 0):.3f} / "
+            f"{quality.get('roster_f1', 0):.3f}"
+        )
+        if quality.get("b3_f1") is not None:
+            lines.append(
+                "- B3 P/R/F1: "
+                f"{quality['b3_precision']:.3f} / {quality['b3_recall']:.3f} / "
+                f"{quality['b3_f1']:.3f}"
+            )
+        if quality.get("tier_accuracy") is not None:
+            lines.append(f"- tier accuracy: {quality['tier_accuracy']:.3f}")
+        if quality.get("rejection_precision") is not None:
+            lines.append(f"- rejection precision: {quality['rejection_precision']:.3f}")
+
+    status_code, cost = _request("GET", f"/api/ops/extraction-cost?book_id={book_id}")
+    if status_code == 200 and cost.get("stages"):
+        local_cost = cost.get("total_cost_usd_local", 0)
+        api_cost = cost.get("total_cost_usd_api_equivalent")
+        api_note = ""
+        if api_cost is not None:
+            api_note = f" (${api_cost:.4f} at API-equivalent rate)"
+        lines.append(f"- extraction cost: ${local_cost:.4f} local{api_note}")
+        if cost.get("prefix_cache_hit_rate") is not None:
+            hit_rate = cost["prefix_cache_hit_rate"]
+            lines.append(f"- prefix-cache hit rate: {hit_rate:.1%}")
+
+    return lines
+
+
 def main() -> int:
     if not MANIFEST_PATH.exists():
         _log("FAIL: corpus/manifest.json missing — run `make seed` first.")
@@ -83,6 +145,7 @@ def main() -> int:
     _log(f"==> project_id={project_id}")
 
     rows = ["| Book | Pages | Wall clock | Result |", "|---|---|---|---|"]
+    quality_lines: list[str] = []
     ingested_any = False
 
     for i, key in enumerate(sorted(books), start=1):
@@ -122,7 +185,16 @@ def main() -> int:
                 if stage.get("state") == "failed":
                     _log(f"      {stage['stage']}: {stage.get('error')}")
 
+        if key in available_gold_books():
+            quality_lines.extend(_report_extraction_quality_and_cost(key, book_id))
+
     report_lines = ["## Nightly corpus ingestion", "", *rows]
+    if quality_lines:
+        report_lines += [
+            "",
+            "## Extraction quality and cost (S3.14/S3.15)",
+            *quality_lines,
+        ]
 
     if ingested_any:
         status_code, metrics = _request("GET", "/api/ops/metrics")
