@@ -19,6 +19,10 @@ from api.pipeline.constants import (
 
 
 def cpu_settings(**overrides) -> Settings:
+    # `docling_artifacts_dir` takes priority over `models_cache_dir` in
+    # `_artifacts_path()`; without pinning it here, DOCLING_ARTIFACTS_DIR from
+    # the host/container environment leaks in and shadows a test's override.
+    overrides.setdefault("docling_artifacts_dir", None)
     return Settings(embedding_device="cpu", **overrides)
 
 
