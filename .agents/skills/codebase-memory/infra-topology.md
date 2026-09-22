@@ -89,6 +89,8 @@ and is idempotent and create-only, so it is safe to run while others are working
 | Resource | Isolation |
 | --- | --- |
 | Postgres | `traverse_be1`, `traverse_be2`, `traverse_int`, each with `vector` |
+| Postgres (test) | `traverse_test` — **not** one of the three slices above, belongs to the `test` compose service, truncated between runs |
+| Postgres (default) | the `db` container's own `postgres` database, migrated by the plain `migrate` service. `docker compose down -v` wipes this **and every database above** — the integration checkout's `traverse_int` is not a separate volume from an agent's, just a separate database in it |
 | Neo4j | **be2 exclusive** — Community edition is single-database |
 | RabbitMQ | vhost per agent: `/be1`, `/be2`, `/int` |
 | MinIO | bucket per agent |
@@ -133,10 +135,26 @@ make revision m="…"               ORCHESTRATOR ONLY — typed confirmation
 - **`proxy_buffering off`** in `web/nginx.conf` or SSE streaming silently hangs.
   Also `chunked_transfer_encoding off` and a 3600s read timeout.
 - **Models are volume-mounted, not baked.** `make warm-models` fills the shared
-  `/models` volume once, behind an flock so two worktrees cannot race. **Done
-  for Sprint 1** — the `traverse_model_cache` volume is warm (Docling 1.3G,
-  BGE-M3 2.6G); confirmed `SentenceTransformer("BAAI/bge-m3")` loads with
-  `HF_HUB_OFFLINE=1` and no network. Do not run `download_models()` again.
+  `/models` volume once, behind an flock so two worktrees cannot race. Do not
+  run `download_models()` again once it's warm.
+- **`SENTENCE_TRANSFORMERS_HOME` and `HF_HOME` are separate cache roots.**
+  `SentenceTransformer(model_id)` only fills the former; a plain
+  `transformers.AutoTokenizer.from_pretrained(model_id)` (chunking.py's token
+  counting, `api/llm/budget.py`'s) only ever looks in the latter and re-hits
+  the network under `MODELS_OFFLINE=1` even though the same model's weights
+  already sit on disk under the other root. `scripts/warm_models.py` warms
+  both the embedding model's tokenizer and `settings.llm_model`'s (S2.18
+  merge-train fix) — if a third module starts tokenizing a model neither of
+  those two warms, add it there rather than assuming "it's already cached."
+- **`AGENT_DATABASES` has three copies that must agree**: `.env.example`,
+  `docker-compose.yml`'s inline default, and
+  `docker/postgres/init/10-agent-databases.sh`'s own fallback default. Only
+  `.env.example` listed `traverse_test`; the other two didn't, so a genuinely
+  fresh Postgres volume (no personal `.env`, or `docker compose down -v`)
+  never created it and `migrate-test` failed outright — invisible unless
+  something actually wipes volumes rather than just restarting containers
+  (found running Sprint 2's merge-train gate cold, not by any per-agent
+  test). If you add a database to one of these three, add it to all three.
 - **Tests must not hit the network** — `MODELS_OFFLINE=1` sets `HF_HUB_OFFLINE`
   and `TRANSFORMERS_OFFLINE` and points Docling at `/models/docling`.
 - **`ruff format` ignores `per-file-ignores`.** The migrations are excluded with
