@@ -7,3 +7,5 @@ export { PageRef } from "./page-ref";
 export { StatusDot } from "./status-dot";
 export { toneForBookStatus, toneForStageState } from "./status-tone";
 export type { StatusTone } from "./status-tone";
+export { AppToaster } from "./toaster";
+export { toaster } from "./toaster-instance";

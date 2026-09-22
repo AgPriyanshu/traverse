@@ -102,3 +102,23 @@ the existing `documentchunk.headings` column by `bulk_insert_chunks`.
 whatever join `contextualize` itself uses — worth checking be2/orchestrator
 has no stronger opinion) instead of bare `text`. No migration needed; the
 column already exists, unused.
+
+### SCR-6 · fe1 · 2026-09-19
+
+**Need:** `GET /api/books/{book_id}/chunks` takes only `limit`/`offset` — no
+`chapter_id` filter.
+
+**Why:** S2.13's chunk inspector opens per chapter and needs that chapter's
+chunks. Without a filter it has to page through the whole book (500 at a
+time, the server's own cap) and filter client-side by `chunk.chapter_id`,
+stopping once it has at least `chapter.chunk_count` matches. Works, but a
+1,000-chunk book with a chapter near the end pages needlessly, and it is
+strictly worse than a query the server could answer directly.
+
+**Blocking:** no — the client-side workaround (`web/src/routes/book/
+chunk-inspector.tsx`) ships in the meantime and is the only chunk-listing UI
+in Sprint 2.
+
+**Proposed:** add an optional `chapter_id` query param to
+`list_chunks_api_books__book_id__chunks_get`, filtered server-side. Batched
+into the next freeze.

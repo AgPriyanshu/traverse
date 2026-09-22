@@ -14,9 +14,7 @@ export const queryKeys = {
   projectGraph: (projectId: string, params?: Params) =>
     ["projects", projectId, "graph", params ?? {}] as const,
 
-  library: () => ["library"] as const,
-
-  books: () => ["books"] as const,
+  books: (params?: Params) => ["books", params ?? {}] as const,
   book: (bookId: string) => ["books", bookId] as const,
   bookStatus: (bookId: string) => ["books", bookId, "status"] as const,
   bookChapters: (bookId: string) => ["books", bookId, "chapters"] as const,

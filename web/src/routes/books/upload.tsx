@@ -6,6 +6,7 @@ import {
   Heading,
   Input,
   NativeSelect,
+  Progress,
   Stack,
   Text,
   VisuallyHidden,
@@ -14,10 +15,15 @@ import { useRef, useState } from "react";
 import type { ChangeEvent, DragEvent } from "react";
 import { useNavigate } from "react-router";
 import { PageHeader } from "@/components/layout";
-import { ErrorState, LoadingSkeleton } from "@/components/ui";
+import { ErrorState, LoadingSkeleton, toaster } from "@/components/ui";
 import { UploadIcon } from "@/components/ui/icons";
-import type { ProjectKind } from "@/lib/api";
-import { useCreateProject, useProjects, useUploadBook } from "@/lib/api";
+import type { ProjectKind, UploadProgress } from "@/lib/api";
+import {
+  isAlreadyIngested,
+  useCreateProject,
+  useProjects,
+  useUploadBook,
+} from "@/lib/api";
 import { formatBytes } from "@/lib/format";
 import { MAX_UPLOAD_BYTES, validateUpload } from "./validate-upload";
 
@@ -51,6 +57,10 @@ export const Upload = () => {
   const [projectId, setProjectId] = useState("");
   const [projectName, setProjectName] = useState("");
   const [projectKind, setProjectKind] = useState<ProjectKind>("standalone");
+  const [progress, setProgress] = useState<UploadProgress | null>(null);
+  // A retry must not re-create the project or re-hash the file — it resends
+  // exactly what the first attempt sent (S2.11).
+  const [createdProjectId, setCreatedProjectId] = useState<string | null>(null);
 
   // Refs.
   const inputRef = useRef<HTMLInputElement>(null);
@@ -101,27 +111,47 @@ export const Upload = () => {
   const handleClear = () => {
     setFile(null);
     setFileError(null);
+    setCreatedProjectId(null);
     if (inputRef.current) { inputRef.current.value = ""; }
+  };
+
+  const handleDestinationChange = (next: Destination) => {
+    setDestination(next);
+    setCreatedProjectId(null);
   };
 
   const handleSubmit = async () => {
     if (!file || !canSubmit) { return; }
 
-    let targetProjectId = projectId;
+    setProgress(null);
+    let targetProjectId = destination === "existing" ? projectId : createdProjectId;
 
-    if (destination === "new") {
+    if (!targetProjectId) {
       const project = await createProject.mutateAsync({
         name: projectName.trim(),
         kind: projectKind,
       });
       targetProjectId = project.id;
+      setCreatedProjectId(project.id);
     }
 
-    const book = await uploadBook.mutateAsync({
+    const result = await uploadBook.mutateAsync({
       projectId: targetProjectId,
       file,
+      onProgress: setProgress,
     });
-    void navigate(`/books/${book.id}`);
+
+    if (isAlreadyIngested(result)) {
+      toaster.create({
+        type: "info",
+        title: "Already in your library",
+        description: `${file.name} matches a book you have already ingested.`,
+      });
+      void navigate(`/books/${result.book_id}`);
+      return;
+    }
+
+    void navigate(`/books/${result.id}`);
   };
 
   return (
@@ -235,7 +265,7 @@ export const Upload = () => {
               borderColor="border.control"
               borderRadius="md"
               aria-pressed={destination === "new"}
-              onClick={() => setDestination("new")}
+              onClick={() => handleDestinationChange("new")}
             >
               New project
             </Button>
@@ -247,7 +277,7 @@ export const Upload = () => {
               borderColor="border.control"
               borderRadius="md"
               aria-pressed={destination === "existing"}
-              onClick={() => setDestination("existing")}
+              onClick={() => handleDestinationChange("existing")}
             >
               Existing project
             </Button>
@@ -343,12 +373,35 @@ export const Upload = () => {
               _hover={{ opacity: 0.9 }}
               onClick={() => void handleSubmit()}
             >
-              Start ingestion
+              {submitError ? "Retry upload" : "Start ingestion"}
             </Button>
           </Box>
 
+          {uploadBook.isPending ? (
+            <Progress.Root
+              value={progress ? Math.round(progress.percent) : null}
+              maxW="measure"
+            >
+              <HStack justify="space-between" gap="4">
+                <Progress.Label textStyle="small" color="fg.muted">
+                  Uploading {file?.name}
+                </Progress.Label>
+                <Progress.ValueText textStyle="data" color="fg.subtle">
+                  {progress ? `${Math.round(progress.percent)}%` : "—"}
+                </Progress.ValueText>
+              </HStack>
+              <Progress.Track bg="bg.sunken" borderRadius="full" height="1.5">
+                <Progress.Range bg="accent.solid" borderRadius="full" />
+              </Progress.Track>
+            </Progress.Root>
+          ) : null}
+
           {submitError ? (
-            <ErrorState error={submitError} title="Upload did not start" />
+            <ErrorState
+              error={submitError}
+              onRetry={() => void handleSubmit()}
+              title="Upload did not start"
+            />
           ) : null}
         </Stack>
       </Stack>

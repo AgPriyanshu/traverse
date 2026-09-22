@@ -1,5 +1,6 @@
 import { Box, Flex } from "@chakra-ui/react";
 import { Outlet } from "react-router";
+import { AppToaster } from "@/components/ui";
 import { SideNav } from "./side-nav";
 import { SkipLink } from "./skip-link";
 import { TopBar } from "./top-bar";
@@ -7,6 +8,7 @@ import { TopBar } from "./top-bar";
 export const AppShell = () => {
   return (
     <Flex direction="column" minHeight="100dvh" bg="bg">
+      <AppToaster />
       <SkipLink />
       <TopBar />
 

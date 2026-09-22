@@ -1,4 +1,4 @@
-import { Box, Circle, HStack, Stack, Text } from "@chakra-ui/react";
+import { Box, Button, Circle, HStack, Stack, Text } from "@chakra-ui/react";
 import { StatusDot, toneForStageState } from "@/components/ui";
 import type { StageName, StageStatus } from "@/lib/api";
 import { STAGE_LABELS, STAGE_ORDER } from "@/lib/api";
@@ -6,6 +6,9 @@ import { formatDuration } from "@/lib/format";
 
 export type StageStepperProps = {
   stages: StageStatus[] | undefined;
+  /** Omitted when a retry is not yet wired up (e.g. a read-only summary). */
+  onRetryStage?: (stage: StageName) => void;
+  retryingStage?: StageName;
 };
 
 const MARKER_COLOR: Record<string, string> = {
@@ -21,7 +24,11 @@ const MARKER_COLOR: Record<string, string> = {
  * reported yet shows as pending rather than disappearing. PRD F1.1: a
  * twenty-minute job with no visible progress reads as broken.
  */
-export const StageStepper = ({ stages }: StageStepperProps) => {
+export const StageStepper = ({
+  stages,
+  onRetryStage,
+  retryingStage,
+}: StageStepperProps) => {
   // Variables.
   const reported = new Map<StageName, StageStatus>(
     (stages ?? []).map((stage) => [stage.stage, stage]),
@@ -85,6 +92,23 @@ export const StageStepper = ({ stages }: StageStepperProps) => {
                 <Text textStyle="small" color="status.err" maxW="measure">
                   {stage.error}
                 </Text>
+              ) : null}
+
+              {state === "failed" && onRetryStage ? (
+                <Box>
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    borderColor="border.control"
+                    color="fg"
+                    borderRadius="md"
+                    loading={retryingStage === name}
+                    loadingText="Retrying"
+                    onClick={() => { onRetryStage(name); }}
+                  >
+                    Retry from this stage
+                  </Button>
+                </Box>
               ) : null}
             </Stack>
           </HStack>
