@@ -16,6 +16,21 @@ labelled eval answer from Sprint 8 (see devops-1.md S2.16 and BRANCH.md's
 "DO NOT re-run download_models()" spirit — don't silently regenerate history
 out from under another agent's fixtures).
 
+Chapter headings are rendered in `HEADING_FONT_SIZE_PT` bold, not
+`FONT_SIZE_PT` regular (see `_HEADING_RE`, `build_pdf`). Docling's layout
+model classifies a heading from a real rendered-page image, not from any PDF
+structure tag, so a same-size, same-weight heading is indistinguishable from
+body text to it (verified against this exact corpus: every "CHAPTER N." line
+came back `text`, never `SECTION_HEADER`, before this fix — see
+plans/sprint-2/RETRO.md §4/§5 and plans/sprint-3/SCR.md SCR-1). Confirmed
+directly against the installed model that plain size alone crosses the
+threshold at 14pt (1.4x body) on this layout; 10-12pt does not, regardless of
+boldness or centering. `HEADING_FONT_SIZE_PT=16` plus bold keeps margin above
+that threshold. This changes rendered glyphs, not line-to-page assignment —
+`paginate()`'s output (which line lands on which page) is unchanged, so a
+page-based gold label survives regenerating the PDF; only `pdf_sha256`
+changes.
+
 Usage:
     python3 scripts/seed_corpus.py            # fetch + build everything, idempotent
     python3 scripts/seed_corpus.py --force    # re-download and re-build anyway
@@ -65,7 +80,30 @@ _COURIER_CHAR_WIDTH_PT = FONT_SIZE_PT * 0.6
 CHARS_PER_LINE = int((PAGE_WIDTH_PT - 2 * MARGIN_PT) / _COURIER_CHAR_WIDTH_PT)
 LINES_PER_PAGE = int((PAGE_HEIGHT_PT - 2 * MARGIN_PT) / LEADING_PT)
 
+# Heading treatment (SCR-1, plans/sprint-3/SCR.md). Bold + 1.6x body size,
+# comfortably past the ~1.4x threshold where Docling's layout model starts
+# emitting SECTION_HEADER instead of TEXT for an otherwise plain Courier line.
+HEADING_FONT_SIZE_PT = 16
+HEADING_FONT_NAME = "Courier-Bold"
+
 GUTENBERG_TXT_URL = "https://www.gutenberg.org/cache/epub/{id}/pg{id}.txt"
+
+# Deliberately independent of `api/pipeline/constants.py:CHAPTER_RE` (be1-
+# owned) — `scripts/**` cannot depend on `api/pipeline/**` (BRANCH.md
+# ownership). This only needs to find lines worth a heading *font*; be1's
+# regex is the one that decides what is actually a chapter.
+_HEADING_RE = re.compile(
+    r"""
+    ^\s*
+    (?:chapter|chap\.?|book|part)
+    \s+
+    (?:[IVXLCDM]+|\d+(?:\.\d+)*)
+    (?:\s*[:.\-–—]\s*|\s*)?
+    .*?
+    \s*$
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
 
 _START_MARKER_RE = re.compile(
     r"^\*\*\*\s*START OF THE PROJECT GUTENBERG EBOOK.*\*\*\*\s*$", re.IGNORECASE
@@ -178,24 +216,29 @@ def strip_boilerplate(raw_text: str) -> str:
     return body
 
 
-def paginate(text: str) -> list[list[str]]:
+def paginate(text: str) -> list[list[tuple[str, bool]]]:
     """Wrap `text` into fixed-width lines, then group lines into fixed-height pages.
 
     A pure function of `text` and the module-level layout constants: the same
-    source always produces the same page boundaries.
+    source always produces the same page boundaries. Each line carries an
+    ``is_heading`` flag (a short paragraph matching `_HEADING_RE`, which wraps
+    to exactly one line) so `build_pdf` can give it the heading font without
+    `paginate` itself knowing anything about rendering.
     """
     normalized = text.replace("\r\n", "\n").replace("\r", "\n")
     paragraphs = re.split(r"\n\s*\n", normalized)
 
-    lines: list[str] = []
+    lines: list[tuple[str, bool]] = []
     for paragraph in paragraphs:
         collapsed = " ".join(paragraph.split())
         if not collapsed:
             continue
-        lines.extend(textwrap.wrap(collapsed, width=CHARS_PER_LINE) or [""])
-        lines.append("")  # blank line between paragraphs, incl. chapter headings
+        wrapped = textwrap.wrap(collapsed, width=CHARS_PER_LINE) or [""]
+        is_heading = len(wrapped) == 1 and bool(_HEADING_RE.match(collapsed))
+        lines.extend((line, is_heading) for line in wrapped)
+        lines.append(("", False))  # blank line between paragraphs, incl. headings
 
-    while lines and lines[-1] == "":
+    while lines and lines[-1] == ("", False):
         lines.pop()
 
     if not lines:
@@ -212,15 +255,22 @@ def _escape_pdf_text(line: str) -> bytes:
     return encoded.replace(b"\\", b"\\\\").replace(b"(", b"\\(").replace(b")", b"\\)")
 
 
-def build_pdf(pages: list[list[str]]) -> bytes:
-    """Emit a minimal, uncompressed multi-page PDF using only the base-14 Courier font.
+def build_pdf(pages: list[list[tuple[str, bool]]]) -> bytes:
+    """Emit a minimal, uncompressed multi-page PDF using only base-14 Courier fonts.
 
     No embedded fonts, no compression, no third-party library — this script's
     only dependency is the standard library, so `make seed` never needs
     pandoc/calibre/wkhtmltopdf installed.
+
+    A heading line is drawn with ``/F2`` (`HEADING_FONT_NAME`) at
+    `HEADING_FONT_SIZE_PT` instead of ``/F1`` at `FONT_SIZE_PT`; `TL` (line
+    leading) never changes, so `T*` still advances by exactly `LEADING_PT`
+    regardless of which line's font just drew — the heading's taller glyphs
+    read as visually distinct without perturbing the fixed line grid
+    `paginate` already committed pages to.
     """
-    catalog_num, pages_num, font_num = 1, 2, 3
-    first_page_obj = 4  # page k -> first_page_obj + 2k ; its content -> +1
+    catalog_num, pages_num, font_num, bold_font_num = 1, 2, 3, 4
+    first_page_obj = 5  # page k -> first_page_obj + 2k ; its content -> +1
 
     objects: dict[int, bytes] = {
         catalog_num: f"<< /Type /Catalog /Pages {pages_num} 0 R >>".encode(),
@@ -228,6 +278,10 @@ def build_pdf(pages: list[list[str]]) -> bytes:
             b"<< /Type /Font /Subtype /Type1 /BaseFont /Courier "
             b"/Encoding /WinAnsiEncoding >>"
         ),
+        bold_font_num: (
+            f"<< /Type /Font /Subtype /Type1 /BaseFont /{HEADING_FONT_NAME} "
+            "/Encoding /WinAnsiEncoding >>"
+        ).encode(),
     }
 
     kids = " ".join(f"{first_page_obj + 2 * k} 0 R" for k in range(len(pages)))
@@ -246,9 +300,18 @@ def build_pdf(pages: list[list[str]]) -> bytes:
             f"{LEADING_PT} TL".encode(),
             f"{MARGIN_PT} {top_y} Td".encode(),
         ]
-        for i, line in enumerate(page_lines):
+        heading_font_active = False
+        for i, (line, is_heading) in enumerate(page_lines):
             if i > 0:
                 parts.append(b"T*")
+            if is_heading != heading_font_active:
+                font_tag, size = (
+                    ("/F2", HEADING_FONT_SIZE_PT)
+                    if is_heading
+                    else ("/F1", FONT_SIZE_PT)
+                )
+                parts.append(f"{font_tag} {size} Tf".encode())
+                heading_font_active = is_heading
             parts.append(b"(" + _escape_pdf_text(line) + b") Tj")
         parts.append(b"ET")
         stream = b"\n".join(parts)
@@ -259,7 +322,7 @@ def build_pdf(pages: list[list[str]]) -> bytes:
         objects[page_obj] = (
             f"<< /Type /Page /Parent {pages_num} 0 R "
             f"/MediaBox [0 0 {PAGE_WIDTH_PT} {PAGE_HEIGHT_PT}] "
-            f"/Resources << /Font << /F1 {font_num} 0 R >> >> "
+            f"/Resources << /Font << /F1 {font_num} 0 R /F2 {bold_font_num} 0 R >> >> "
             f"/Contents {content_obj} 0 R >>"
         ).encode()
 
@@ -370,6 +433,8 @@ def process_book(book: CorpusBook, *, force: bool) -> dict:
             "font_size_pt": FONT_SIZE_PT,
             "chars_per_line": CHARS_PER_LINE,
             "lines_per_page": LINES_PER_PAGE,
+            "heading_font": HEADING_FONT_NAME,
+            "heading_font_size_pt": HEADING_FONT_SIZE_PT,
         },
         "pdf_path": str(pdf_path.relative_to(REPO_ROOT)),
         "built_at": datetime.now(UTC).isoformat(),
