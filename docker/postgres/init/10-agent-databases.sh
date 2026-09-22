@@ -3,7 +3,7 @@
 # work against an already-initialised cluster, and both are idempotent.
 set -euo pipefail
 
-AGENT_DATABASES="${AGENT_DATABASES:-traverse_be1 traverse_be2 traverse_int}"
+AGENT_DATABASES="${AGENT_DATABASES:-traverse_be1 traverse_be2 traverse_int traverse_test}"
 
 for database in "$POSTGRES_DB" $AGENT_DATABASES; do
   psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres <<-SQL

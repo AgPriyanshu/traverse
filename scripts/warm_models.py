@@ -13,6 +13,7 @@ from pathlib import Path
 CACHE_DIR = Path(os.environ.get("MODELS_CACHE_DIR", "/models"))
 DOCLING_DIR = Path(os.environ.get("DOCLING_ARTIFACTS_DIR", str(CACHE_DIR / "docling")))
 EMBEDDING_MODEL_ID = os.environ.get("EMBEDDING_MODEL_ID", "BAAI/bge-m3")
+LLM_MODEL_ID = os.environ.get("LLM_MODEL", "Qwen/Qwen3-8B-AWQ")
 
 
 def warm_docling() -> None:
@@ -25,9 +26,28 @@ def warm_docling() -> None:
 
 def warm_embeddings() -> None:
     from sentence_transformers import SentenceTransformer
+    from transformers import AutoTokenizer
 
     print(f"embeddings: downloading {EMBEDDING_MODEL_ID}")
     SentenceTransformer(EMBEDDING_MODEL_ID, device="cpu")
+
+    # SENTENCE_TRANSFORMERS_HOME is a separate cache root from HF_HOME, so the
+    # line above does not make the tokenizer visible to a plain
+    # transformers.AutoTokenizer.from_pretrained(model_id) call (chunking.py
+    # needs the tokenizer directly, for token counting, without loading the
+    # full model). Warm it into HF_HOME too.
+    AutoTokenizer.from_pretrained(EMBEDDING_MODEL_ID)
+
+
+def warm_llm_tokenizer() -> None:
+    from transformers import AutoTokenizer
+
+    # api/llm/budget.py counts tokens against the real generation model's
+    # tokenizer, not the embedding one — vLLM itself is never up in a
+    # worktree or in CI, so this is the only copy of that vocabulary anyone
+    # here ever fetches.
+    print(f"llm tokenizer: downloading {LLM_MODEL_ID}")
+    AutoTokenizer.from_pretrained(LLM_MODEL_ID)
 
 
 def main() -> int:
@@ -40,7 +60,12 @@ def main() -> int:
         print(f"waiting for {lock_path}")
         fcntl.flock(lock, fcntl.LOCK_EX)
         failures = []
-        for name, step in (("docling", warm_docling), ("embeddings", warm_embeddings)):
+        steps = (
+            ("docling", warm_docling),
+            ("embeddings", warm_embeddings),
+            ("llm tokenizer", warm_llm_tokenizer),
+        )
+        for name, step in steps:
             try:
                 step()
             except Exception as exc:
