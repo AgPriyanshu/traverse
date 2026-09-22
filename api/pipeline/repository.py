@@ -460,6 +460,28 @@ async def list_chunks(
     return chunks
 
 
+async def list_chunks_with_chapter_number(
+    session: SQLModelAsyncSession, book_id: UUID
+) -> list[tuple[DocumentChunk, int | None]]:
+    """Return a book's chunks in document order, paired with their chapter number.
+
+    Unlike :func:`list_chunks_out`, this returns the raw ORM row rather than
+    the HTTP contract — pass-1 character discovery (``api.extraction``) needs
+    the chunk id itself to attribute a mention back to its page.
+    """
+    statement = (
+        select(DocumentChunk, Chapter.number)
+        .join(Chapter, Chapter.id == DocumentChunk.chapter_id, isouter=True)  # type: ignore[arg-type]
+        .where(DocumentChunk.book_id == book_id)  # type: ignore[arg-type]
+        .order_by(DocumentChunk.page_start, DocumentChunk.created_at)  # type: ignore[arg-type]
+    )
+    rows = [
+        (chunk, number) for chunk, number in (await session.execute(statement)).all()
+    ]
+
+    return rows
+
+
 async def list_chunks_needing_embedding(
     session: SQLModelAsyncSession, book_id: UUID
 ) -> list[DocumentChunk]:

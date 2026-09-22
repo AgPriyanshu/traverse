@@ -89,3 +89,35 @@ and the full suite is green:
 run --rm --no-deps test pytest api/tests -q` → **261 passed, 1 skipped, 0
 failed.** Lesson for next sprint: never trust a `test` run that isn't
 preceded by its own `build` in the same breath.
+## be1
+
+**Landed:** S3.1 (`pipeline.extract_characters` — batched pass-1 discovery via
+`structured_call`/`plan_batches`), S3.2 (non-character rejection with stored
+reasons, including the ambiguous house-vs-family case), S3.3 (5-stage alias
+cascade — normalise → honorific/name-order → nickname → embedding →
+LLM-adjudicated residue, each stage recording `resolution_method`), S3.4
+(name-collision guard — distinct-qualifier / generational-marker /
+kinship-phrase / lifespan-disjointness signals, blocking a merge and queuing
+a `merge_characters` review row instead), S3.5 (character/appearance/mention
+persistence, both tiering methods behind `TIERING_METHOD`, page-cited
+attribute extraction). All on `ai/be1/sprint-3-characters`.
+`api/extraction/honorifics.yaml` and `nicknames.yaml` are the data-driven
+tables the plan asked for instead of inline regex. 48 new tests in
+`api/tests/extraction/`, 3 in `api/tests/pipeline/test_extraction_tasks.py`
+covering both Celery task bodies end-to-end against real Postgres; full
+targeted suite (`api/tests/pipeline api/tests/extraction api/tests/llm`) green
+at 200 passed. `test_wuthering_heights_two_catherines` and
+`test_no_false_splits` committed as permanent regression tests.
+
+**Next:** Nothing left in `backend-1.md`'s scope for this sprint. Available to
+help unblock be2's S3.8 (I'm depending on `api.graph.similarity.cluster_contexts`
+for cascade stage 4 — currently no-ops gracefully without it, see HANDOFF) or
+pick up early S4 prep if the orchestrator wants it.
+
+**Blocked:** Not blocked. Filed SCR-1 (non-blocking) for a `TIERING_METHOD`
+settings key — reading `os.environ` directly in the meantime, identical
+behaviour. The real P/R/F1 / B³ / tier-accuracy numbers against labelled
+novels need do1's S3.13 harness and a real seeded corpus, neither of which
+exist in this worktree — flagged in HANDOFF as a Day-5 integration item
+rather than claimed from here, same pattern as Sprint 2's chapter-detection
+accuracy note.

@@ -17,6 +17,10 @@ from ..contracts.enums import StageName
 from ..contracts.pipeline import ChapterInfo
 from ..db.engine import db_session
 from ..db.models import DocumentChunk
+from ..extraction import aliases as alias_cascade
+from ..extraction import characters as character_records
+from ..extraction import discovery, rejection
+from ..extraction import repository as extraction_repository
 from ..tasks import celery_app
 from ..workers.errors import PermanentError, TransientError
 from ..workers.policy import RETRY_POLICY
@@ -245,11 +249,79 @@ async def _embed_chunks(book_id: UUID, record: StageRecord) -> None:
 
 
 async def _extract_characters(book_id: UUID, record: StageRecord) -> None:
-    raise NotImplementedError("pipeline.extract_characters lands in S3.1")
+    """Pass 1 (S3.1): sweep every chunk, then reject non-characters (S3.2).
+
+    Both steps run in one stage because rejection needs discovery's raw
+    contexts and nothing downstream needs to see the un-rejected set — a
+    partial re-run would otherwise have to reload the same chunks twice.
+    """
+    async with db_session() as session:
+        chunks = await repository.list_chunks_with_chapter_number(session, book_id)
+
+    mentions = await discovery.discover_mentions(chunks, book_id=book_id)
+    aggregated = extraction_repository.aggregate_mentions(mentions)
+
+    async with db_session() as session:
+        await extraction_repository.replace_candidates(session, book_id, aggregated)
+        candidates = await extraction_repository.list_candidates(session, book_id)
+
+    rejections, corrected_to_person = await rejection.classify_candidates(
+        candidates, book_id=book_id
+    )
+
+    async with db_session() as session:
+        await extraction_repository.mark_as_person(session, corrected_to_person)
+        rejected_count = await extraction_repository.reject_candidates(
+            session, book_id, rejections
+        )
+
+    record.rows_written = len(aggregated) - rejected_count
 
 
 async def _resolve_aliases(book_id: UUID, record: StageRecord) -> None:
-    raise NotImplementedError("pipeline.resolve_aliases lands in S3.3")
+    """Alias clustering (S3.3), collision splitting (S3.4), roster persistence (S3.5).
+
+    ``pipeline.reconcile_characters`` — the project-wide merge across books —
+    is S5's stage, not this one's; a standalone book's project has exactly
+    one book, so persisting this book's clusters as the project's roster
+    directly is correct until that stage exists.
+    """
+    async with db_session() as session:
+        book = await repository.get_book(session, book_id)
+
+        if book is None:
+            raise PermanentError(f"book {book_id} does not exist")
+
+        project_id = book.project_id
+        candidates = await extraction_repository.list_candidates(session, book_id)
+
+    clusters = await alias_cascade.cluster_candidates(candidates, book_id=book_id)
+    rows = await character_records.build_character_rows(clusters, book_id=book_id)
+    mention_assignments = {
+        candidate_id: cluster.cluster_key
+        for cluster in clusters
+        for candidate_id in cluster.candidate_ids
+    }
+
+    async with db_session() as session:
+        await extraction_repository.delete_book_characters(session, book_id)
+        persisted = await extraction_repository.persist_characters(
+            session, book_id, project_id, rows
+        )
+        await extraction_repository.set_cluster_keys(session, mention_assignments)
+
+        for cluster in clusters:
+            if cluster.collision_suspected and cluster.collision_reason:
+                await extraction_repository.queue_collision_review(
+                    session,
+                    project_id=project_id,
+                    book_id=book_id,
+                    name_a=cluster.canonical_name,
+                    name_b=cluster.collision_partner or "",
+                    reason=cluster.collision_reason,
+                )
+
+    record.rows_written = len(persisted)
 
 
 async def _reconcile_characters(book_id: UUID, record: StageRecord) -> None:

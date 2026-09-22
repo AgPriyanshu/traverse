@@ -370,3 +370,119 @@ per-item input) but `relations.aggregate` must not pass it through as the
 edge's final confidence — this run is a reminder that the model will supply
 a plausible-looking number unprompted, and it is not the number the
 invariant means.
+
+---
+
+---
+
+## be1 → be2 · `Character.canonical_name` is the Sprint 4 join key
+
+S3.1–S3.5 landed on `ai/be1/sprint-3-characters`: `pipeline.extract_characters`
+(pass-1 discovery + rejection) and `pipeline.resolve_aliases` (alias cascade +
+collision guard + character/appearance/mention persistence + tiering +
+attributes). `relations.extract` (S4) will match subject/object names against
+this book's roster, so the exact shape of `canonical_name` matters more than
+its docstring suggests.
+
+**What `canonical_name` actually is:** the most complete surface form the
+alias cascade saw for a cluster, chosen by `(raw token count, is the first
+token a canonical given name rather than a nickname, mention count)` —
+`api/extraction/aliases.py::_choose_canonical`. In practice this means:
+
+- Whitespace-normalised but **not lowercased, not honorific-stripped**.
+  "Mr. Darcy" stays "Mr. Darcy" if that is literally the most complete form
+  seen (no bare "Darcy" or "Fitzwilliam Darcy" ever appeared); "Elizabeth
+  Bennet" wins over "Mr. Darcy"-style titled forms when a longer untitled
+  form exists, because raw token count is the first sort key and "Mr." adds
+  a token without adding information a nickname/title table doesn't already
+  know how to strip.
+- **Not guaranteed stable across a re-run** if the underlying LLM sweep
+  produces a different set of surface forms — this is a known characteristic
+  of the design (canonical name is derived, not assigned), not a bug. A
+  human correction via `human_verified=True` is the only thing that pins it
+  (never overwritten — see `api/extraction/repository.py::delete_book_characters`).
+- Every surface form the cluster merged, canonical name included, is in
+  `Character.aliases[]` (a GIN-indexed `text[]`) — **match against the
+  alias array, not just `canonical_name`, if a relation's subject/object
+  string could be any alias** (it almost certainly will be; pass-2 sees raw
+  chunk text, not resolved names).
+
+**Collision rows to expect in `review_task`:** S3.4's collision guard writes
+`ReviewTaskType.MERGE_CHARACTERS` rows immediately (not deferred to S7) when
+contextual evidence blocks what looked like a mergeable pair —
+`payload = {"name_a", "name_b", "reason"}`. These two names stay as **separate**
+`Character` rows with `collision_suspected=True`; nothing currently blocks S4
+relation extraction from treating them as two distinct roster entries, which
+is correct — a suspected collision is exactly two candidate people until a
+human resolves it.
+
+## be1 → be2 · `api/extraction/similarity.py` expects `cluster_contexts`
+
+S3.3's cascade stage 4 (contextual embedding similarity) calls:
+
+```python
+async def cluster_contexts(text_a: str, text_b: str) -> float
+```
+
+from `api.graph.similarity` (your S3.8 module, not yet on this branch).
+Expected to return a similarity score in `[0, 1]`; `api/extraction/similarity.py`
+treats `>= 0.82` as a merge candidate (still subject to the collision guard
+before it actually merges). The import is deferred to call time and degrades
+to "skip this stage" if `api.graph.similarity` doesn't exist yet in a given
+checkout, so nothing on my side needs to change once your branch merges —
+stage 4 just starts working. If your actual function name or signature ends
+up different, ping me or just match this one; either works, but matching
+avoids a second small commit on my side.
+
+## be1 → do1 · chapter_number is genuinely None across the board right now
+
+Per the onboarding brief: `_segment_chapters` (S2.3) finds zero chapters on
+`scripts/seed_corpus.py::build_pdf()` output, so every `DocumentChunk.chapter_id`
+is null on the real seeded corpus and `CharacterCandidate.chapter_number` /
+`Character.first_chapter` / `CharacterAppearance.first_chapter` are `None`
+end-to-end for any book ingested through the real pipeline today. This is
+**not a bug in S3.1/S3.5** — `discovery.py` and `characters.py` correctly
+carry through whatever chapter number the chunk actually has, which is
+nothing until your chapter-detection fix lands. Once it does, chapter numbers
+should populate with no changes needed on my side (verified via
+`api/tests/pipeline/test_extraction_tasks.py`, which exercises the path with
+a synthetic chapter-less book and a book with real chapters equally well —
+the tests use `chapter_number=None` for their synthetic fixtures, which is
+exactly today's real-corpus behaviour).
+
+## be1 → do1 / whoever owns S3.13/S3.14 · what "measured, not assumed" produced
+
+`backend-1.md`'s tiering frozen decision ("resolve it this sprint with
+measurement") and the roster P/R/F1 + B³ acceptance criteria both need
+do1's labelling harness (S3.13) and a real seeded corpus, neither of which
+exist in this worktree (same shape of gap as Sprint 2's chapter-detection
+accuracy number — see `plans/sprint-2/HANDOFF.md`'s equivalent note). What
+**is** verified from this worktree:
+
+- Roster discovery, rejection, the full alias cascade (all 5 stages),
+  collision guard, tiering (both methods), and attribute extraction each
+  have unit coverage against synthetic fixtures
+  (`api/tests/extraction/*`, 48 tests).
+- `test_wuthering_heights_two_catherines` and `test_no_false_splits`
+  (`api/tests/extraction/test_two_catherines.py`) are committed as permanent
+  regression tests, per the sprint's own acceptance criterion — built
+  against a synthetic two-Catherines scenario (full names, a generational
+  marker, and a death preceding the second character's introduction) rather
+  than the real *Wuthering Heights* text, since no seeded corpus exists here.
+- End-to-end wiring of both Celery task bodies against a real Postgres is
+  covered in `api/tests/pipeline/test_extraction_tasks.py` (LLM boundary
+  stubbed, everything else real, including idempotent re-run).
+
+The actual P/R/F1, B³, and tier-accuracy percentages against real labelled
+novels are a Day-5/integration-time measurement once S3.13's harness and a
+real corpus exist — recommend this becomes an explicit Day-5 checklist item
+exactly as Sprint 2's chapter-detection number was, rather than staying an
+implicit be1 DoD box that this worktree cannot honestly fill in.
+
+## be1 → orchestrator · SCR-1 filed (non-blocking)
+
+`TIERING_METHOD` is read from `os.environ` directly in
+`api/extraction/tiering.py` rather than through `api.config.settings`
+(orchestrator-owned as of the Sprint 2 freeze). See `plans/sprint-3/SCR.md`.
+Not blocking — behaviour is identical to a settings field; this is purely
+about giving the flag one canonical home.

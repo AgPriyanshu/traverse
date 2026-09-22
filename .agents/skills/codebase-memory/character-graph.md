@@ -11,9 +11,12 @@ Symbols over line numbers.
 | `reset(book_id)`, `reset_project(project_id)` | `api/graph/projection.py` | **Built** |
 | Ontology (`load`, `Ontology`, `Predicate`, `family_of`, `inverse_of`, `is_symmetric`, `is_extracted`, `is_legal_transition`, `prompt_fragment`, `to_contract`) | `api/graph/ontology.py` + `ontology.yaml` | **Built** |
 | Roster and graph reads (`project_exists`, `list_characters`, `get_character`, `get_graph`, `list_mentions`) | `api/graph/repository.py` | **Built** — Postgres-backed; S4.7 moves `get_graph` to Neo4j. `get_character`/`list_mentions` are `limit_book_order`/`limit_chapter`-aware (S3.6); `get_character` also returns `alias_detail`, `attributes` and a one-query `mentions_per_chapter` histogram |
-| `pipeline.extract_characters` (pass 1) | `api/extraction/` | S3 |
-| Alias cascade, `honorifics.yaml`, nickname tables | `api/extraction/` | S3 |
-| `cluster_contexts`, `MentionContext`, `similarity_threshold` (embedding similarity, stage 4 of the cascade) | `api/graph/similarity.py` | **Built** (S3.8) — threshold measured against real BGE-M3 + real text, not assumed; see `plans/sprint-3/HANDOFF.md`. Reuses `retrieval/repository.py::embedding_model()`, never a second copy |
+| `pipeline.extract_characters` (pass 1, S3.1), non-character rejection (S3.2) | `api/extraction/discovery.py`, `api/extraction/rejection.py` | **Built** |
+| Alias cascade (S3.3), `honorifics.yaml`, `nicknames.yaml` | `api/extraction/aliases.py`, `api/extraction/normalization.py` | **Built** |
+| Name-collision guard (S3.4) | `api/extraction/collision.py` | **Built** |
+| Character records, tiering, attributes (S3.5) | `api/extraction/characters.py`, `tiering.py`, `attributes.py` | **Built** |
+| `pipeline.resolve_aliases` task body (clusters → `Character`/`CharacterAppearance`/`CharacterMention`, idempotent replace) | `api/pipeline/tasks.py`, `api/extraction/repository.py` | **Built** |
+| `cluster_contexts`, `MentionContext`, `similarity_threshold` (embedding similarity, stage 4 of the cascade) | `api/graph/similarity.py` | **Built** (S3.8) — threshold measured against real BGE-M3 + real text, not assumed; see `plans/sprint-3/HANDOFF.md`. Reuses `retrieval/repository.py::embedding_model()`, never a second copy. `api/extraction/similarity.py` lazy-imports it (degraded no-op if unavailable) — both are now landed so the degradation path is dead code in practice, kept for the same defensive reason it was written |
 | `merge_characters`, `split_character` (transactional, mention-accurate) | `api/graph/merge.py`, wired at `POST /characters/merge` and `POST /characters/{id}/split` | **Built** (S3.7) — both recompute appearances and derived fields from actual `CharacterMention` rows rather than adjusting counters, which is what makes a merge followed by a split restore the original partition |
 | `relations.extract` (pass 2) | `api/relations/` | S4 |
 | `pipeline.reconcile_characters` | `api/reconcile/` | S5 |
@@ -37,6 +40,20 @@ Cheapest first; each stage sees only what the previous could not resolve:
 Each cluster records `resolution_method`, so the retro can report which stage
 earned its cost. If stage 5 sees thousands of pairs, stages 1–4 are
 underperforming — that is the finding, not a scaling problem.
+
+Stages 4/5 merge only **blocking pairs** (clusters sharing a stripped first or
+last token) and loop each stage to a fixpoint — one pass only merges disjoint
+pairs, so a name with several unresolved aliases (six ways to write
+"Elizabeth Bennet") needs more than one round to fully consolidate.
+`similarity.context_similarity` lazy-imports `api.graph.similarity` at call
+time and returns `None` (stage 4 no-ops, nothing merges) if be2's S3.8 hasn't
+landed in this checkout yet — safe to import at module scope, comes online
+automatically once merged, nothing to change on this side.
+
+Tiering method (`mention_count` | `participation`) is chosen by the
+`TIERING_METHOD` env var, read directly in `tiering.py` rather than through
+`api.config.settings` (orchestrator-owned, no such key yet — SCR filed in
+`plans/sprint-3/SCR.md`).
 
 ## Name collision — the headline correctness case
 

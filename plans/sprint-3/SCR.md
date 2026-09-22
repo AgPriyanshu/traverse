@@ -191,3 +191,35 @@ nothing changes at that call site once the field lands.
 **Proposed:** add the field to `Settings` in the Sprint 4 freeze (or sooner,
 at the orchestrator's discretion — it is a single `float` field, and moving
 it does not touch a table or a route).
+
+---
+
+### SCR-7 · be1 · 2026-09-22
+
+**Need:** `Settings.tiering_method: str = "mention_count"` (or an enum,
+`TieringMethod`, mirroring `ResolutionMethod`'s shape) in
+`api/config/settings.py`, plus a documented default in `.env.example`.
+
+**Why:** `backend-1.md` S3.5 asks for tiering to run behind
+`TIERING_METHOD=mention_count|participation` so both methods can be measured
+against a hand-labelled tier list and the winner recorded in `RETRO.md`/PRD
+§12.5. `api/config/settings.py` is orchestrator-owned as of the Sprint 2
+freeze, so this sprint's implementation
+(`api/extraction/tiering.py::active_method`) reads `TIERING_METHOD` straight
+from `os.environ` with the same default and validation (falls back to
+`mention_count` on an unrecognised value) a settings field would give it.
+Behaviour is identical either way; this is purely about the flag having one
+canonical home instead of every agent inventing its own env-read convention.
+
+**Blocking:** no. The env-read stopgap works today and needs no code change
+once the settings key lands — `tiering.py` can switch to
+`settings.tiering_method` in a follow-up commit whenever convenient.
+
+**Proposed:**
+
+```python
+tiering_method: str = "mention_count"  # or TieringMethod enum
+```
+
+in `Settings`, plus `TIERING_METHOD=mention_count` in `.env.example` with a
+one-line comment pointing at PRD §12.5.
