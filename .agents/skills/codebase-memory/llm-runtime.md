@@ -6,12 +6,18 @@ Every model call in the system. Symbols over line numbers.
 
 | Symbol | Location | Status |
 | --- | --- | --- |
-| `llm` (`ChatOpenAI` → vLLM), `langfuse`, `langfuse_handler` | `api/llm.py` | Prototype — mixes client, retrieval and a LangGraph definition; Langfuse is now guarded by `settings.langfuse_enabled` so import has no side effects. Split in S2.7 |
-| `get_llm(purpose)` | `api/llm/client.py` | S2 |
-| `structured_call(prompt, schema, *, purpose)` | `api/llm/structured.py` | S2 |
-| Routing policy (purpose → model) | `api/llm/routing.py` | S2, live-switchable S9 |
-| `plan_batches(...)` | `api/llm/budget.py` | S2 — **be1 depends on this by S2 Day 4** |
-| `TransientLLMError` / `PermanentLLMError` | `api/llm/errors.py` | S2 |
+| `get_llm(purpose)`, `semaphore()` | `api/llm/client.py` | **Built** |
+| `structured_call(prompt, schema, *, purpose, book_id, stage)` | `api/llm/structured.py` | **Built** |
+| Routing policy (`route_for`, `ModelRoute`) | `api/llm/routing.py` | **Built**, live-switchable S9 |
+| `plan_batches(...)` | `api/llm/budget.py` | **Built** — be1 depends on this from S3 |
+| `TransientLLMError` / `PermanentLLMError` / `classify_call_error` | `api/llm/errors.py` | **Built** |
+| `trace_generation(...)` | `api/llm/tracing.py` | **Built** |
+
+`api/llm.py` (the Sprint 1 prototype — global `ChatOpenAI`, a Langfuse
+handler, a raw-cosine retrieval function and a LangGraph definition in one
+module) is **gone**, deleted at S2.7. `api/pipeline/chunking.py`'s
+`_classify_chapter_heading` still imports it as of this commit — be1's own
+S2.3 migrates that call to `structured_call`; see `plans/sprint-2/HANDOFF.md`.
 
 **`api/llm` is the only place a model may be instantiated.** A call path that
 bypasses it is invisible to the cost dashboard and the routing policy.

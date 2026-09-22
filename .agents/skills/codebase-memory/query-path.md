@@ -7,13 +7,13 @@ page. Symbols over line numbers.
 
 | Symbol | Location | Status |
 | --- | --- | --- |
-| `GraphState`, `responder`, `get_agent` | `api/llm.py` | Built — **prototype; a single node doing raw cosine-distance top-5. Replaced in S6.** |
-| WebSocket `/ws` echo + agent invoke | `api/main.py` | Built — prototype |
+| WebSocket `/ws` echo + agent invoke | `api/main.py` | Built — prototype, unrelated to search now that `api/llm.py` is gone |
 | Route stubs, all 33 paths with real response models | `api/routes/*.py` | **Built — frozen** |
 | `GET /graph/ontology`, `/projects/{id}/characters`, `/characters/{id}`, `/projects/{id}/graph` | `api/routes/{graph,characters}.py` | **Built** — Postgres-backed reads; `/graph` moves to Neo4j in S4.7 |
 | LangGraph Postgres checkpointer (`checkpointer`, `setup_checkpointer`) | `api/graph/checkpoint.py` | **Built** — survives a SIGKILL; see character-graph.md |
-| Hybrid retrieval (pgvector + `ts_rank_cd` + RRF) | `api/retrieval/hybrid.py` | S2 |
-| Cross-encoder reranker (flagged) | `api/retrieval/` | S2 |
+| `dense_search`, `lexical_search`, `embed_query` | `api/retrieval/repository.py` | **Built** |
+| `hybrid_search` (RRF, k=60) | `api/retrieval/hybrid.py` | **Built** — `GET /api/search` wired to it |
+| Cross-encoder reranker (`rerank`, `reranker_enabled`) | `api/retrieval/rerank.py` | **Built**, flag default off — no measured quality lift and CPU latency over budget on the Sprint 2 smoke set; see `plans/sprint-2/RETRO.md` before turning it on |
 | Query router | `api/query/router.py` | S6 |
 | Cypher template library | `api/query/templates/` | S6 |
 | Graph-constrained retrieval | `api/query/` | S6 |

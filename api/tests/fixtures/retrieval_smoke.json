@@ -1,0 +1,41 @@
+{
+  "chunks": [
+    {"key": "c1", "text": "Elizabeth Bennet walked three miles through the mud to Netherfield Park to see her sister Jane, who had caught a chill."},
+    {"key": "c2", "text": "Despite his early harsh judgment of her looks, Mr. Darcy found himself admiring the fine expression of Elizabeth's dark eyes."},
+    {"key": "c3", "text": "Mr. Bingley took the lease on Netherfield Park and soon hosted a ball for the entire neighbourhood."},
+    {"key": "c4", "text": "Mr. Collins, a pompous clergyman, proposed marriage to Elizabeth Bennet, and she refused him without hesitation."},
+    {"key": "c5", "text": "Charlotte Lucas accepted Mr. Collins's proposal within days, valuing a comfortable home over any romantic attachment."},
+    {"key": "c6", "text": "Mr. Wickham told Elizabeth a convincing but false story, blaming Mr. Darcy for ruining his prospects in life."},
+    {"key": "c7", "text": "Lydia Bennet ran off with Mr. Wickham to London, throwing the whole family into a scandal."},
+    {"key": "c8", "text": "Unknown to the Bennets, Mr. Darcy quietly paid off Wickham's debts to save the family's reputation."},
+    {"key": "c9", "text": "Lady Catherine de Bourgh arrived unannounced to demand that Elizabeth promise never to marry her nephew."},
+    {"key": "c10", "text": "In his letter, Mr. Darcy explained his part in persuading Mr. Bingley to leave Jane and Netherfield."},
+    {"key": "c11", "text": "Jane Bennet fell ill with a bad cold after riding to Netherfield in the pouring rain on her mother's insistence."},
+    {"key": "c12", "text": "Mr. Bennet found endless amusement in teasing his wife about her obsession with marrying off their five daughters."},
+    {"key": "c13", "text": "Mrs. Bennet was overjoyed the moment she saw how attentive Mr. Bingley had become toward her daughter Jane."},
+    {"key": "c14", "text": "While touring Derbyshire with her aunt and uncle, Elizabeth was persuaded to visit Pemberley, Mr. Darcy's grand estate."},
+    {"key": "c15", "text": "After the scandal had passed, Mr. Darcy proposed to Elizabeth a second time, and this time she gladly accepted."},
+    {"key": "c16", "text": "Miss Caroline Bingley made repeated, thinly veiled attempts to turn Mr. Darcy's attention away from Elizabeth."},
+    {"key": "c17", "text": "The Bennet family estate was entailed away from the five daughters, destined instead for their distant cousin Mr. Collins."},
+    {"key": "c18", "text": "Elizabeth and Jane spoke quietly together about their youngest sister Lydia's reckless flirting with the militia officers."},
+    {"key": "c19", "text": "Colonel Fitzwilliam let slip to Elizabeth that his cousin Mr. Darcy had been responsible for separating Bingley from Jane."},
+    {"key": "c20", "text": "At the Netherfield ball, the whole Bennet family attended, and Mr. Darcy surprised everyone by asking Elizabeth to dance."}
+  ],
+  "queries": [
+    {"question": "Why was Jane unwell after her visit to Netherfield?", "relevant": ["c1", "c11"]},
+    {"question": "Who proposed to Elizabeth Bennet and was turned down?", "relevant": ["c4"]},
+    {"question": "Why did Charlotte Lucas marry Mr. Collins?", "relevant": ["c5"]},
+    {"question": "What false story did Wickham tell about Darcy?", "relevant": ["c6"]},
+    {"question": "What happened when Lydia ran away with Wickham?", "relevant": ["c7"]},
+    {"question": "How did Darcy secretly help the Bennet family avoid disgrace?", "relevant": ["c8"]},
+    {"question": "Why did Lady Catherine confront Elizabeth?", "relevant": ["c9"]},
+    {"question": "What did Darcy's letter to Elizabeth explain?", "relevant": ["c10"]},
+    {"question": "What does Mr. Bennet think of his wife's behaviour?", "relevant": ["c12"]},
+    {"question": "How did Mrs. Bennet react to Bingley's interest in Jane?", "relevant": ["c13"]},
+    {"question": "Which grand estate belonging to Darcy did Elizabeth tour?", "relevant": ["c14"]},
+    {"question": "When did Darcy propose to Elizabeth a second time?", "relevant": ["c15"]},
+    {"question": "Who tried to keep Darcy's attention away from Elizabeth?", "relevant": ["c16"]},
+    {"question": "Who was going to inherit the Bennet family's estate?", "relevant": ["c17"]},
+    {"question": "Who told Elizabeth that Darcy broke up Jane and Bingley?", "relevant": ["c19", "c10"]}
+  ]
+}

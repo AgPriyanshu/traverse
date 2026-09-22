@@ -2,8 +2,9 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
+from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
 from ..contracts.api import (
     ClarifyResponse,
@@ -11,6 +12,9 @@ from ..contracts.api import (
     QueryRequest,
     SearchResultOut,
 )
+from ..db.engine import get_session
+from ..graph import repository as graph_repository
+from ..retrieval import hybrid_search
 from ._stub import not_implemented
 
 router = APIRouter(tags=["query"])
@@ -45,5 +49,26 @@ async def search(
     limit: int = Query(default=20, le=100),
     limit_book_order: int | None = Query(default=None),
     limit_chapter: int | None = Query(default=None),
+    session: SQLModelAsyncSession = Depends(get_session),
 ) -> SearchResultOut:
-    not_implemented(OWNER, "S2.9")
+    """Hybrid search: dense (pgvector) + lexical (``ts_rank_cd``), RRF-fused.
+
+    Raises:
+        HTTPException: 404 when the project does not exist.
+    """
+    if not await graph_repository.project_exists(session, project_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
+        )
+
+    result = await hybrid_search(
+        session,
+        project_id=project_id,
+        query=q,
+        book_id=book_id,
+        limit=limit,
+        limit_book_order=limit_book_order,
+        limit_chapter=limit_chapter,
+    )
+
+    return result
