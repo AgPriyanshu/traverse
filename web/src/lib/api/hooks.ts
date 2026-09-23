@@ -324,26 +324,34 @@ export const useCharacter = (characterId: string | undefined) => {
   });
 };
 
-type MentionsParams = QueryParams<
+export type MentionsParams = QueryParams<
   "/api/characters/{character_id}/mentions",
   "get"
 >;
+
+/**
+ * Shared with the character detail page's and the alias/mention inspector
+ * drawer's own incremental pagination (`useQueries` over several offsets at
+ * once) — same shape as `chunksQueryOptions` for the same reason: one page is
+ * as far as `useMentions` goes, but auditing a character with 1,000+ mentions
+ * needs several pages fetched and accumulated client-side.
+ */
+export const mentionsQueryOptions = (characterId: string, params?: MentionsParams) => ({
+  queryKey: queryKeys.characterMentions(characterId, params),
+  queryFn: () =>
+    request(() =>
+      client.GET("/api/characters/{character_id}/mentions", {
+        params: { path: { character_id: characterId }, query: params },
+      }),
+    ),
+});
 
 export const useMentions = (
   characterId: string | undefined,
   params?: MentionsParams,
 ) => {
   return useQuery({
-    queryKey: queryKeys.characterMentions(characterId ?? "", params),
-    queryFn: () =>
-      request(() =>
-        client.GET("/api/characters/{character_id}/mentions", {
-          params: {
-            path: { character_id: characterId as string },
-            query: params,
-          },
-        }),
-      ),
+    ...mentionsQueryOptions(characterId ?? "", params),
     enabled: Boolean(characterId),
   });
 };

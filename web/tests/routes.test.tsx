@@ -15,8 +15,11 @@ const ROUTES: [path: string, heading: RegExp][] = [
   ["/books/abc-123", /ingestion/i],
   ["/books/abc-123/chapters", /chapters/i],
   ["/books/abc-123/pages/12", /page 12/i],
-  ["/books/abc-123/characters", /the character roster is not built yet/i],
-  ["/books/abc-123/characters/c-1", /character detail is not built yet/i],
+  // Real screens as of S3.10/S3.11 — every API call 501s under this test's
+  // default mock, so both surface the frozen contract's own "not built yet"
+  // error state rather than the generic `<NotYetBuilt>` placeholder.
+  ["/books/abc-123/characters", /not built yet/i],
+  ["/books/abc-123/characters/c-1", /not built yet/i],
   ["/books/abc-123/graph", /the graph explorer is not built yet/i],
   ["/books/abc-123/ask", /ask is not built yet/i],
   ["/books/abc-123/review", /the review queue is not built yet/i],

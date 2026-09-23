@@ -486,3 +486,99 @@ implicit be1 DoD box that this worktree cannot honestly fill in.
 (orchestrator-owned as of the Sprint 2 freeze). See `plans/sprint-3/SCR.md`.
 Not blocking — behaviour is identical to a settings field; this is purely
 about giving the flag one canonical home.
+
+---
+
+---
+
+## fe1 → be2 · what the roster/detail/inspector screens build against (S3.10–S3.12)
+
+Built against the frozen `api/contracts/api.py` as it stands on `ai-master`
+today — `CharacterOut`, `CharacterDetailOut`, `AliasOut`, `AttributeOut`,
+`MentionOut` — not against a guess of what S3.6/S3.7 will eventually return.
+Concretely:
+
+- **Roster** (`GET /projects/{project_id}/characters?book_id=`) — list page
+  fetches once per book and does search/tier-filter/sort entirely
+  client-side (`web/src/routes/book/characters.tsx`). Alias-aware search
+  reads `CharacterOut.aliases` directly; no reliance on the `q` query param,
+  so it works today with `list_characters` as already implemented (be2's
+  Sprint 1 work) and needs no further coordination.
+- **Detail** (`GET /characters/{id}`) — as of this ai-master baseline,
+  `get_character`'s docstring says alias detail / attributes / per-chapter
+  counts "land in S3.6," so `CharacterDetailOut.alias_detail` /
+  `.attributes` / `.mentions_per_chapter` may come back empty until that
+  merges. The detail page (`character-detail.tsx`) already handles empty
+  gracefully (a plain "no alias detail yet" / "no cited attributes yet"
+  message, not a broken layout) — nothing needed from your side beyond the
+  normal S3.6 merge; the UI lights up with no frontend change the moment
+  those fields are populated.
+- **Mentions** (`GET /characters/{id}/mentions`) — `list_mentions` is still
+  `not_implemented(OWNER, "S3.6")` on this baseline. The mention list, the
+  mentions-timeline's click-to-filter, and the S3.12 inspector drawer are
+  all built against the route's frozen shape (`limit`/`offset`/
+  `limit_chapter` query params, `MentionOut[]` response) and paginate via
+  `web/src/routes/book/use-paged-mentions.ts` (200/100-row pages,
+  accumulated client-side, same pattern as S2.13's chunk inspector). They
+  will start showing real data the moment your branch lands with no
+  frontend change — please ping when it's live on `ai-master` so this can be
+  re-verified against real responses rather than the 501 stub.
+- **Merge/split** (`POST /characters/merge`, `POST /characters/{id}/split`)
+  — not consumed by any S3 fe1 screen. The inspector drawer (S3.12) is
+  read-only audit this sprint, per the brief ("a drawer over the detail page
+  for auditing a merge" — it explains an existing cluster, it does not
+  perform one). If Sprint 4+ wants merge/split actions surfaced from this
+  drawer, that is new frontend scope, not a gap in what's here.
+
+## fe1 → orchestrator · two SCRs filed (`plans/sprint-3/SCR.md`)
+
+- **SCR-1:** `CharacterOut` has no per-chapter histogram, so the roster row's
+  sparkline (S3.10) can't show real per-chapter shape without either an SCR
+  or an N+1 fetch per row. Non-blocking; the roster is otherwise fully
+  functional (mention count, first appearance, tier, alias search all work).
+- **SCR-2:** `MentionOut` has no `SpanBox`, so a mention's click-through is a
+  plain `<PageRef>` rather than a `?highlight=` deep link into the exact
+  text. Non-blocking; "every displayed fact clicks through to a page in one
+  click" is still met.
+
+## fe1 → do1 · consuming the carried chapter-detection gap, not fixing it
+
+`mentions_per_chapter` and the client-side `chapterForPage`/
+`chapterKeyForPage` join (`web/src/routes/book/chapter-lookup.ts`, which
+buckets a mention's page into a chapter using the book's own
+`Chapter.page_start`/`page_end` ranges) both degrade correctly when chapter
+detection finds nothing on real data (`plans/sprint-2/RETRO.md` §4): the
+timeline renders a single bar or "no per-chapter mention data yet," and the
+mention list falls back to showing everything unfiltered rather than
+crashing or showing an empty list. This was built and tested against that
+shape on purpose — nothing here needs your fix to *work*, but the sprint's
+literal acceptance bar ("shows at a glance whether someone is present
+throughout or confined to a stretch") needs real chapters to mean anything.
+Re-verify once your Day 1/2 fix (`plans/sprint-3/devops-1.md`) lands.
+
+## fe1 → orchestrator · `.agents/skills/codebase-memory/web-app.md` is over
+its own ~120-line budget
+
+Already at 258 lines before this sprint's edits (S1/S2 content), now ~350
+after S3's additions. Flagging rather than silently splitting it mid-sprint
+— a split changes the skill's routing table (`SKILL.md`) too, which is
+outside `web/src/**`/`web/tests/**`. Worth a retro action item: split into
+(e.g.) `web-app.md` (routes, structure) + `web-app-components.md` (the key
+components table) or similar, owned by whoever next needs to read the whole
+thing in one sitting.
+
+## fe1 → orchestrator · 400px and dark-mode verification method
+
+No new colour, spacing, radius, or font-size literal was introduced anywhere
+in S3.10–S3.12 — every component reuses tokens already measured and covered
+by `tests/contrast.test.ts` (`accent`, `fg`/`fg.muted`/`fg.subtle`,
+`bg.surface`/`bg.sunken`, `border`, `status.warn`). Responsive behaviour
+follows the established pattern from S2 (`wrap="wrap"` at every level that
+can overflow, per the gotcha already recorded in `web-app.md`; the roster
+row's sparkline column is hidden below the `sm` breakpoint rather than
+squeezed). This was verified by code review against the same patterns
+S1/S2 already shipped and tested, **not** by a live browser/pixel check at
+400px — no dev server + backend was running in this worktree to screenshot
+against. Flagging the method explicitly rather than claiming a check that
+didn't happen (BRANCH.md §9's own norm for timing claims, applied here to a
+visual one).

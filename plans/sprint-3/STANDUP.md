@@ -164,3 +164,25 @@ freezes: for any cross-agent adapter with a "not landed yet" fallback, does
 at least one test exercise the *real* signature (a `Protocol`/fake with the
 actual parameter list), not just the degrade path? Filed nowhere formally
 this sprint; raising it here so it reaches the retro.
+
+---
+
+## fe1 · 2026-09-22
+
+**Landed:** S3.10 character roster (tier-grouped, alias-aware client-side
+search, tier filter, sort), S3.11 character detail (header, aliases with
+resolution method, cited attributes, interactive mentions timeline synced
+with a paginated mention list via `?chapter=`, empty Relationships
+placeholder for S4), S3.12 alias/mention inspector drawer. 8 new Vitest
+tests (136 total, all passing); `pnpm lint`/`tsc --noEmit`/`build` clean;
+`codebase-memory/web-app.md` updated in the same commit; 2 SCRs filed
+(`plans/sprint-3/SCR.md`) for gaps found in the frozen contract
+(`CharacterOut` has no per-chapter histogram; `MentionOut` has no `SpanBox`).
+**Next:** re-verify the mention list / timeline against be2's real S3.6 data
+once it lands on `ai-master` (currently building correctly against the
+frozen-but-mostly-stubbed shape); pick up SCR-1/SCR-2 if the orchestrator
+lands them this sprint.
+**Blocked:** not blocked — everything in scope builds and renders against
+the current contract; the two SCRs are non-blocking follow-ups, and the
+sparkline/histogram gap is explicitly expected to stay non-demo-ready until
+do1's chapter-detection fix lands (per this sprint's own briefing).
