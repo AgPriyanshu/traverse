@@ -789,3 +789,103 @@ async def _page_refs(
             bucket.append(page)
 
     return pages
+
+
+async def load_projection_rows(
+    session: SQLModelAsyncSession, project_id: UUID
+) -> dict[str, list[dict[str, Any]]]:
+    """Read everything ``graph.upsert`` projects, from Postgres, sorted.
+
+    Returns:
+        ``books``, ``characters``, ``appearances`` and ``relations`` row dicts.
+        Each relation carries its evidence pages so the projection can
+        denormalise ``page_refs`` without a second round trip.
+    """
+    books = (
+        await session.exec(
+            select(Book).where(Book.project_id == project_id).order_by(Book.id)
+        )
+    ).all()
+    order_of = {b.id: (b.series_order or 1) for b in books}
+
+    characters = (
+        await session.exec(
+            select(Character)
+            .where(Character.project_id == project_id)
+            .order_by(Character.id)
+        )
+    ).all()
+    appearances = (
+        await session.exec(
+            select(CharacterAppearance)
+            .where(CharacterAppearance.book_id.in_(list(order_of)))
+            .order_by(CharacterAppearance.character_id, CharacterAppearance.book_id)
+        )
+    ).all()
+    relations = (
+        await session.exec(
+            select(Relation)
+            .where(Relation.project_id == project_id)
+            .order_by(Relation.id)
+        )
+    ).all()
+    evidence = (
+        await session.exec(
+            select(RelationEvidence)
+            .where(RelationEvidence.relation_id.in_([r.id for r in relations]))
+            .order_by(RelationEvidence.relation_id, RelationEvidence.id)
+        )
+    ).all()
+
+    evidence_by_relation: dict[UUID, list[RelationEvidence]] = {}
+    for item in evidence:
+        evidence_by_relation.setdefault(item.relation_id, []).append(item)
+
+    orders_by_character: dict[UUID, set[int]] = {}
+    for appearance in appearances:
+        orders_by_character.setdefault(appearance.character_id, set()).add(
+            order_of.get(appearance.book_id, 1)
+        )
+
+    rows = {
+        "books": [
+            {
+                "id": str(b.id),
+                "project_id": str(project_id),
+                "series_order": b.series_order,
+                "title": b.title,
+            }
+            for b in books
+        ],
+        "characters": [
+            {
+                "id": str(c.id),
+                "project_id": str(project_id),
+                "canonical_name": c.canonical_name,
+                "importance_tier": c.importance_tier.value,
+                "mention_count": c.mention_count,
+                "first_book_order": order_of.get(c.first_book_id),
+                "first_chapter": c.first_chapter,
+                "appears_in_books": sorted(orders_by_character.get(c.id, ())),
+            }
+            for c in characters
+        ],
+        "appearances": [
+            {"character_id": str(a.character_id), "book_id": str(a.book_id)}
+            for a in appearances
+        ],
+        "relations": [
+            {"relation": r, "evidence": evidence_by_relation.get(r.id, [])}
+            for r in relations
+        ],
+    }
+
+    return rows
+
+
+async def book_project_id(session: SQLModelAsyncSession, book_id: UUID) -> UUID | None:
+    """Return the project a book belongs to, or ``None`` when it does not exist."""
+    result = await session.exec(select(Book.project_id).where(Book.id == book_id))
+    project_id = result.first()
+
+    return project_id
