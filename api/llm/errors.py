@@ -22,6 +22,20 @@ class PermanentLLMError(PermanentError):
     """
 
 
+class LengthLimitError(PermanentLLMError):
+    """The reply was cut off by the model's own length limit before finishing.
+
+    Distinct from a schema violation: the JSON is incomplete, not malformed,
+    because generation stopped (``finish_reason == "length"``) with no room
+    left in the context window for the rest of the answer. Retrying the
+    identical prompt — worse, ``structured_call``'s own correction-hint
+    retry, which only grows the prompt — reproduces the same cutoff, so this
+    is a ``PermanentLLMError`` by default. A caller that can shrink its own
+    input (a batch of chunks, split in half) should catch this specifically
+    and retry smaller instead of treating it as unrecoverable.
+    """
+
+
 def classify_call_error(exc: Exception) -> TransientLLMError | PermanentLLMError:
     """Map an exception raised while calling the model to the retry contract.
 

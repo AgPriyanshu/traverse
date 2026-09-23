@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 from ..contracts.enums import LLMPurpose
 from .client import get_llm, semaphore
-from .errors import PermanentLLMError, classify_call_error
+from .errors import LengthLimitError, PermanentLLMError, classify_call_error
 from .routing import route_for
 from .tracing import trace_generation
 
@@ -44,6 +44,13 @@ async def structured_call(
         A validated ``schema`` instance.
 
     Raises:
+        LengthLimitError: The reply was cut off by the model's own length
+            limit (``finish_reason == "length"``) before it finished, rather
+            than failing schema validation. Raised immediately, without
+            spending the correction-hint retry below — that retry only grows
+            the prompt, leaving less room for the answer, and would
+            reproduce the identical cutoff. A caller that can shrink its own
+            input should catch this and retry smaller.
         PermanentLLMError: The reply still fails schema validation on the
             second attempt.
         TransientLLMError: The call itself failed for a reason a later
@@ -72,6 +79,7 @@ async def structured_call(
 
                 parsed = result["parsed"]
                 parsing_error = result["parsing_error"]
+                finish_reason = _finish_reason(result.get("raw"))
 
                 if generation is not None:
                     generation.update(
@@ -83,12 +91,20 @@ async def structured_call(
                             "book_id": book_id,
                             "stage": stage,
                             "attempt": attempt,
+                            "finish_reason": finish_reason,
                         },
                         usage_details=_usage_details(result.get("raw")),
                     )
 
             if parsing_error is None and parsed is not None:
                 return parsed
+
+            if finish_reason == "length":
+                raise LengthLimitError(
+                    f"purpose={purpose.value} schema={schema.__name__} reply "
+                    "was cut off by the model's length limit before "
+                    f"finishing: {parsing_error}"
+                )
 
             current_prompt = (
                 f"{prompt}\n\n"
@@ -112,3 +128,15 @@ def _usage_details(raw: Any) -> dict[str, int] | None:
         "input": usage.get("input_tokens", 0),
         "output": usage.get("output_tokens", 0),
     }
+
+
+def _finish_reason(raw: Any) -> str | None:
+    """Read the OpenAI-compatible ``finish_reason`` off the raw reply.
+
+    ``"length"`` means generation stopped because it ran out of context, not
+    because the model chose to stop — the deterministic signal that a reply
+    was truncated rather than merely schema-invalid.
+    """
+    metadata = getattr(raw, "response_metadata", None) or {}
+
+    return metadata.get("finish_reason")
