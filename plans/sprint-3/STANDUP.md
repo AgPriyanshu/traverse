@@ -75,14 +75,17 @@ so a cold `docker compose --profile gpu up` re-downloads the whole model
 instead of finding the warmed cache — cost me about 10 minutes during the
 S3.9 spike, not blocking but worth a one-line fix before Sprint 4's demo day.
 
-**Also found, not mine to fix:** `api/tests/pipeline/test_books_routes.py::
-TestStillFrozen::test_the_openapi_document_still_lists_every_frozen_path`
-(be1-owned) asserts the OpenAPI document has exactly 34 paths, last updated
-at S2.5. The live app already serves 36 — `/characters/{id}/neighbourhood`,
-`/relations/arc` and `/relations/{id}/evidence` (S4-ish stubs) exist on
-`ai-master` as of this sprint's freeze and were never counted. Confirmed via
-`git log`/`git show` that these routes predate this branch, so it is not
-something S3.6-S3.9 caused — `docker compose --profile test run --rm test
-pytest api/tests -q` is red on this one test regardless of anything in this
-branch. Flagging for be1 or the orchestrator to bump the count (or assert
-membership instead of length) at the next freeze.
+**Correction to an earlier version of this note:** I initially flagged
+`test_the_openapi_document_still_lists_every_frozen_path` as a pre-existing
+36-vs-34 path-count mismatch unrelated to this branch. That was wrong, and
+the cause was exactly the shared-image trap `docker compose --profile test
+run --rm test` without an immediately preceding `build test` can fall into
+— `traverse-api-test:dev` is one tag shared by all four worktrees, and a
+`run` a few minutes after a `build` (with another worktree's agent doing its
+own build in between) silently tests someone else's tree. Rebuilding
+immediately before the final run reproduced the correct, frozen count (34)
+and the full suite is green:
+`docker compose --profile test build test && docker compose --profile test
+run --rm --no-deps test pytest api/tests -q` → **261 passed, 1 skipped, 0
+failed.** Lesson for next sprint: never trust a `test` run that isn't
+preceded by its own `build` in the same breath.
