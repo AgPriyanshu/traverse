@@ -6,7 +6,6 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlmodel import Field, SQLModel
 
 
-
 class Scene(SQLModel, table=True):
     __tablename__ = "scene"
     __table_args__ = (Index("ix_scene_book_position", "book_id", "position"),)

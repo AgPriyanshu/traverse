@@ -9,8 +9,8 @@ from .chunk_model import DocumentChunk
 from .ops_model import EvalRun, IngestionRun, IngestionStage, QueryLog
 from .project_model import Book, Chapter, Project
 from .relation_model import Relation, RelationEvidence
-from .scene_model import DialogueLine, Scene, SceneParticipant
 from .review_model import CorrectionFeedback, ReviewTask
+from .scene_model import DialogueLine, Scene, SceneParticipant
 from .user_model import User
 
 __all__ = [
