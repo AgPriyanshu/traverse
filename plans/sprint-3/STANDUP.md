@@ -74,3 +74,15 @@ compose service's cache-path layout disagrees with `api`/`celery-worker`'s,
 so a cold `docker compose --profile gpu up` re-downloads the whole model
 instead of finding the warmed cache — cost me about 10 minutes during the
 S3.9 spike, not blocking but worth a one-line fix before Sprint 4's demo day.
+
+**Also found, not mine to fix:** `api/tests/pipeline/test_books_routes.py::
+TestStillFrozen::test_the_openapi_document_still_lists_every_frozen_path`
+(be1-owned) asserts the OpenAPI document has exactly 34 paths, last updated
+at S2.5. The live app already serves 36 — `/characters/{id}/neighbourhood`,
+`/relations/arc` and `/relations/{id}/evidence` (S4-ish stubs) exist on
+`ai-master` as of this sprint's freeze and were never counted. Confirmed via
+`git log`/`git show` that these routes predate this branch, so it is not
+something S3.6-S3.9 caused — `docker compose --profile test run --rm test
+pytest api/tests -q` is red on this one test regardless of anything in this
+branch. Flagging for be1 or the orchestrator to bump the count (or assert
+membership instead of length) at the next freeze.
