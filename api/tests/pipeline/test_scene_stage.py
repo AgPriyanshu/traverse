@@ -42,12 +42,10 @@ async def scene_tables() -> AsyncIterator[None]:
         for statement in _DDL:
             await conn.execute(text(statement))
 
+    # No teardown truncate: the test's own session still holds a transaction
+    # on these tables, so TRUNCATE would block forever. The session fixture's
+    # ``TRUNCATE book CASCADE`` clears them through their foreign keys.
     yield
-
-    async with engine.begin() as conn:
-        await conn.execute(
-            text("TRUNCATE dialogue_line, scene_participant, scene CASCADE")
-        )
 
 
 async def _character(session: SQLModelAsyncSession, book: Book, name: str) -> Character:
