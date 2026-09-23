@@ -11,12 +11,16 @@ from ..contracts.api import (
     AttributeOut,
     CharacterDetailOut,
     CharacterOut,
+    EvidenceOut,
     GraphEdgeOut,
     GraphNodeOut,
     GraphOut,
     MentionOut,
+    PageRefOut,
+    RelationArcOut,
+    RelationOut,
 )
-from ..contracts.enums import ImportanceTier, RelationFamily
+from ..contracts.enums import AssertionType, ImportanceTier, RelationFamily
 from ..db.models.character_model import Character, CharacterAppearance, CharacterMention
 from ..db.models.chunk_model import DocumentChunk
 from ..db.models.project_model import Book, Chapter, Project
@@ -280,7 +284,7 @@ async def get_character(
     base = to_character_out(character, orders.get(character.id, []))
 
     return CharacterDetailOut(
-        **base.model_dump(),
+        **base.model_dump(exclude={"mentions_per_chapter"}),
         alias_detail=alias_detail,
         attributes=attributes,
         appearances=appearances,
@@ -648,7 +652,7 @@ async def list_mentions(
     return mentions
 
 
-async def get_graph(
+async def get_graph_from_postgres(
     session: SQLModelAsyncSession,
     project_id: UUID,
     *,
@@ -766,8 +770,8 @@ async def get_graph(
 
 async def _page_refs(
     session: SQLModelAsyncSession, relation_ids: list[UUID]
-) -> dict[UUID, list[int]]:
-    """Return the first evidence page of each relation, ascending.
+) -> dict[UUID, list[PageRefOut]]:
+    """Return the evidence pages of each relation, ascending, naming their book.
 
     Args:
         session: An open database session.
@@ -777,15 +781,279 @@ async def _page_refs(
         return {}
 
     result = await session.exec(
-        select(RelationEvidence.relation_id, RelationEvidence.page_start)
+        select(
+            RelationEvidence.relation_id,
+            RelationEvidence.book_id,
+            RelationEvidence.book_order,
+            RelationEvidence.page_start,
+        )
         .where(RelationEvidence.relation_id.in_(relation_ids))
-        .order_by(RelationEvidence.page_start)
+        .order_by(RelationEvidence.book_order, RelationEvidence.page_start)
     )
 
-    pages: dict[UUID, list[int]] = {}
-    for relation_id, page in result.all():
+    pages: dict[UUID, list[PageRefOut]] = {}
+    for relation_id, book_id, book_order, page in result.all():
         bucket = pages.setdefault(relation_id, [])
-        if page not in bucket:
-            bucket.append(page)
+        ref = PageRefOut(book_order=book_order, book_id=book_id, page=page)
+        if ref not in bucket:
+            bucket.append(ref)
 
     return pages
+
+
+async def load_projection_rows(
+    session: SQLModelAsyncSession, project_id: UUID
+) -> dict[str, list[dict[str, Any]]]:
+    """Read everything ``graph.upsert`` projects, from Postgres, sorted.
+
+    Returns:
+        ``books``, ``characters``, ``appearances`` and ``relations`` row dicts.
+        Each relation carries its evidence pages so the projection can
+        denormalise ``page_refs`` without a second round trip.
+    """
+    books = (
+        await session.exec(
+            select(Book).where(Book.project_id == project_id).order_by(Book.id)
+        )
+    ).all()
+    order_of = {b.id: (b.series_order or 1) for b in books}
+
+    characters = (
+        await session.exec(
+            select(Character)
+            .where(Character.project_id == project_id)
+            .order_by(Character.id)
+        )
+    ).all()
+    appearances = (
+        await session.exec(
+            select(CharacterAppearance)
+            .where(CharacterAppearance.book_id.in_(list(order_of)))
+            .order_by(CharacterAppearance.character_id, CharacterAppearance.book_id)
+        )
+    ).all()
+    relations = (
+        await session.exec(
+            select(Relation)
+            .where(Relation.project_id == project_id)
+            .order_by(Relation.id)
+        )
+    ).all()
+    evidence = (
+        await session.exec(
+            select(RelationEvidence)
+            .where(RelationEvidence.relation_id.in_([r.id for r in relations]))
+            .order_by(RelationEvidence.relation_id, RelationEvidence.id)
+        )
+    ).all()
+
+    evidence_by_relation: dict[UUID, list[RelationEvidence]] = {}
+    for item in evidence:
+        evidence_by_relation.setdefault(item.relation_id, []).append(item)
+
+    orders_by_character: dict[UUID, set[int]] = {}
+    for appearance in appearances:
+        orders_by_character.setdefault(appearance.character_id, set()).add(
+            order_of.get(appearance.book_id, 1)
+        )
+
+    rows = {
+        "books": [
+            {
+                "id": str(b.id),
+                "project_id": str(project_id),
+                "series_order": b.series_order,
+                "title": b.title,
+            }
+            for b in books
+        ],
+        "characters": [
+            {
+                "id": str(c.id),
+                "project_id": str(project_id),
+                "canonical_name": c.canonical_name,
+                "importance_tier": c.importance_tier.value,
+                "mention_count": c.mention_count,
+                "first_book_order": order_of.get(c.first_book_id),
+                "first_chapter": c.first_chapter,
+                "appears_in_books": sorted(orders_by_character.get(c.id, ())),
+            }
+            for c in characters
+        ],
+        "appearances": [
+            {"character_id": str(a.character_id), "book_id": str(a.book_id)}
+            for a in appearances
+        ],
+        "relations": [
+            {"relation": r, "evidence": evidence_by_relation.get(r.id, [])}
+            for r in relations
+        ],
+    }
+
+    return rows
+
+
+async def book_project_id(session: SQLModelAsyncSession, book_id: UUID) -> UUID | None:
+    """Return the project a book belongs to, or ``None`` when it does not exist."""
+    result = await session.exec(select(Book.project_id).where(Book.id == book_id))
+    project_id = result.first()
+
+    return project_id
+
+
+async def relations_out(
+    session: SQLModelAsyncSession, relation_ids: list[UUID]
+) -> list[RelationOut]:
+    """Hydrate relations into API rows with names and cited pages, in id order.
+
+    Args:
+        session: An open database session.
+        relation_ids: The relations to load; the result keeps this order.
+    """
+    if not relation_ids:
+        return []
+
+    relations = {
+        r.id: r
+        for r in (
+            await session.exec(select(Relation).where(Relation.id.in_(relation_ids)))
+        ).all()
+    }
+    character_ids = {
+        cid
+        for r in relations.values()
+        for cid in (r.subject_character_id, r.object_character_id)
+    }
+    names = dict(
+        (
+            await session.exec(
+                select(Character.id, Character.canonical_name).where(
+                    Character.id.in_(character_ids)
+                )
+            )
+        ).all()
+    )
+    pages = await _page_refs(session, list(relations))
+
+    out = [
+        RelationOut(
+            id=r.id,
+            subject_character_id=r.subject_character_id,
+            subject_name=names.get(r.subject_character_id, ""),
+            predicate=r.predicate,
+            object_character_id=r.object_character_id,
+            object_name=names.get(r.object_character_id, ""),
+            family=r.family,
+            confidence=r.confidence,
+            status=r.status,
+            assertion_type=r.assertion_type,
+            hearsay=r.hearsay,
+            evidence_count=r.evidence_count,
+            first_book_order=r.first_book_order,
+            first_chapter=r.first_chapter,
+            last_book_order=r.last_book_order,
+            last_chapter=r.last_chapter,
+            page_refs=pages.get(r.id, []),
+        )
+        for rid in relation_ids
+        if (r := relations.get(rid)) is not None
+    ]
+
+    return out
+
+
+async def relation_arc(
+    session: SQLModelAsyncSession, a: UUID, b: UUID
+) -> RelationArcOut:
+    """Return every state of the pair ``(a, b)`` in temporal order.
+
+    Direction-agnostic: ``parent_of(a, b)`` and ``child_of`` extraction
+    direction never change which rows come back. A pair that never changes
+    yields a single state, so callers have one code path.
+    """
+    ids = (
+        await session.exec(
+            select(Relation.id)
+            .where(
+                or_(
+                    (Relation.subject_character_id == a)
+                    & (Relation.object_character_id == b),
+                    (Relation.subject_character_id == b)
+                    & (Relation.object_character_id == a),
+                )
+            )
+            .order_by(
+                Relation.first_book_order,
+                func.coalesce(Relation.first_chapter, 0),
+                Relation.predicate,
+                Relation.id,
+            )
+        )
+    ).all()
+    states = await relations_out(session, list(ids))
+
+    return RelationArcOut(subject_character_id=a, object_character_id=b, states=states)
+
+
+async def list_evidence(
+    session: SQLModelAsyncSession,
+    relation_id: UUID,
+    *,
+    limit: int,
+    offset: int,
+) -> list[EvidenceOut] | None:
+    """Return one relation's evidence, chapter-ordered with a stable tiebreak.
+
+    Returns:
+        ``None`` when the relation does not exist.
+    """
+    relation = await session.get(Relation, relation_id)
+    if relation is None:
+        return None
+
+    speaker = None
+    if relation.asserted_by_character_id is not None:
+        speaker = (
+            await session.exec(
+                select(Character.canonical_name).where(
+                    Character.id == relation.asserted_by_character_id
+                )
+            )
+        ).first()
+
+    rows = (
+        await session.exec(
+            select(RelationEvidence, Book.title, Book.series_order)
+            .join(Book, Book.id == RelationEvidence.book_id)
+            .where(RelationEvidence.relation_id == relation_id)
+            .order_by(
+                RelationEvidence.book_order,
+                func.coalesce(RelationEvidence.chapter_no, 0),
+                RelationEvidence.page_start,
+                RelationEvidence.id,
+            )
+            .limit(limit)
+            .offset(offset)
+        )
+    ).all()
+
+    evidence = [
+        EvidenceOut(
+            id=item.id,
+            book_id=item.book_id,
+            book_title=title,
+            series_order=series_order,
+            chapter_no=item.chapter_no,
+            page_start=item.page_start,
+            page_end=item.page_end,
+            quote=item.quote,
+            assertion_type=item.assertion_type,
+            asserted_by=speaker
+            if item.assertion_type is AssertionType.DIALOGUE
+            else None,
+            confidence=item.confidence,
+        )
+        for item, title, series_order in rows
+    ]
+
+    return evidence
