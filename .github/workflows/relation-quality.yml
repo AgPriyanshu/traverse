@@ -1,0 +1,66 @@
+name: Relation quality (PR)
+
+# S4.14: PRs touching pass-2 get the reduced one-novel table as a comment.
+# The evidence-free edge count is a hard gate (it must be 0); every quality
+# number stays informational until Sprint 8 (F6.4).
+on:
+  pull_request:
+    paths:
+      - "api/relations/**"
+  push:
+    branches: ["ai-master"]
+    paths:
+      - "api/relations/**"
+  workflow_dispatch:
+
+concurrency:
+  group: relation-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  MODELS_OFFLINE: "1"
+  HF_HUB_OFFLINE: "1"
+  TRANSFORMERS_OFFLINE: "1"
+  INFERENCE_MODE: api
+
+jobs:
+  quality:
+    name: Relation P/R/F1 and evidence invariant, Pride and Prejudice
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - run: make env
+      - run: python3 scripts/seed_corpus.py --only pride-and-prejudice
+      - uses: actions/cache/restore@v4
+        with:
+          path: relation-quality-baseline.json
+          key: relation-quality-baseline-${{ github.base_ref }}
+      - name: Bring up the stack
+        run: docker compose up -d --build && ./scripts/wait_for_healthy.sh --timeout 600
+      - name: Ingest, then score against eval/gold/
+        run: |
+          python3 scripts/ingest_book.py pride-and-prejudice --project-slug pr-relation-quality
+          python3 -m eval.runners.relations --book-key pride-and-prejudice \
+            --baseline relation-quality-baseline.json \
+            --save-json relation-quality-current.json --out relation-quality-comment.md
+      - name: Comment on the PR
+        if: always() && github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: relation-quality
+          path: relation-quality-comment.md
+      - name: Save the baseline (ai-master only)
+        if: always() && github.event_name == 'push'
+        run: cp relation-quality-current.json relation-quality-baseline.json
+      - uses: actions/cache/save@v4
+        if: always() && github.event_name == 'push'
+        with:
+          path: relation-quality-baseline.json
+          key: relation-quality-baseline-${{ github.ref_name }}
+      - if: always()
+        run: docker compose down --remove-orphans
