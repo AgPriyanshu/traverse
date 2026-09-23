@@ -92,12 +92,11 @@ def _boundary_before(
         for member in current[-MIN_CHUNKS_BEFORE_CAST_SHIFT:]
         for character in member.characters
     }
-    if len(current) >= MIN_CHUNKS_BEFORE_CAST_SHIFT and _cast_shifted(
+    shifted = len(current) >= MIN_CHUNKS_BEFORE_CAST_SHIFT and _cast_shifted(
         recent_cast or scene_cast, set(chunk.characters)
-    ):
-        return True
+    )
 
-    return False
+    return shifted
 
 
 def _draft(members: list[SceneChunk]) -> SceneDraft:

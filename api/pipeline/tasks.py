@@ -25,7 +25,7 @@ from ..tasks import celery_app
 from ..workers.errors import PermanentError, TransientError
 from ..workers.policy import RETRY_POLICY
 from ..workers.stages import StageRecord, stage
-from . import repository
+from . import repository, scene_stage
 from .chunking import DocumentChunker
 from .storage import StorageError, store
 
@@ -281,6 +281,9 @@ async def _extract_characters(book_id: UUID, record: StageRecord) -> None:
 async def _resolve_aliases(book_id: UUID, record: StageRecord) -> None:
     """Alias clustering (S3.3), collision splitting (S3.4), roster persistence (S3.5).
 
+    Also builds scenes and attributes dialogue speakers (S4.8, S4.9), since the
+    stage chain is frozen and both need the roster this stage persists.
+
     ``pipeline.reconcile_characters`` — the project-wide merge across books —
     is S5's stage, not this one's; a standalone book's project has exactly
     one book, so persisting this book's clusters as the project's roster
@@ -320,6 +323,11 @@ async def _resolve_aliases(book_id: UUID, record: StageRecord) -> None:
                     name_b=cluster.collision_partner or "",
                     reason=cluster.collision_reason,
                 )
+
+    # Scenes and speakers need the persisted roster and its mentions, and the
+    # frozen stage chain has no stage of its own for them.
+    async with db_session() as session:
+        await scene_stage.build_scenes_and_speakers(session, book_id)
 
     record.rows_written = len(persisted)
 

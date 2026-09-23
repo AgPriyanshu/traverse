@@ -36,6 +36,20 @@ class CharacterFormsRow:
     forms: list[str]
 
 
+async def scene_tables_exist(session: SQLModelAsyncSession) -> bool:
+    """Whether the scene, participant and dialogue tables have been migrated in."""
+    result = await session.execute(
+        text(
+            "SELECT to_regclass('scene') IS NOT NULL "
+            "AND to_regclass('scene_participant') IS NOT NULL "
+            "AND to_regclass('dialogue_line') IS NOT NULL"
+        )
+    )
+    exist = bool(result.scalar())
+
+    return exist
+
+
 async def delete_book_scenes(session: SQLModelAsyncSession, book_id: UUID) -> None:
     """Drop a book's scenes, participants and dialogue lines before a rebuild."""
     await session.execute(
