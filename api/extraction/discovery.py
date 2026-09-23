@@ -5,6 +5,7 @@ and the alias cascade (S3.3). A character missed in this sweep does not exist
 for the rest of the pipeline, so over-generation is expected and fine.
 """
 
+import asyncio
 import logging
 from collections import defaultdict
 from uuid import UUID
@@ -90,7 +91,7 @@ async def discover_mentions(
             )
         )
 
-    candidates: list[MentionCandidate] = []
+    sweepable = []
     for plan in plans:
         if plan.was_split:
             # Chunks are capped at ``CHUNK_MAX_TOKENS`` (1024), well inside
@@ -105,7 +106,17 @@ async def discover_mentions(
             )
             continue
 
-        candidates.extend(await _sweep_batch(plan.items, book_id=book_id))
+        sweepable.append(plan.items)
+
+    # Sequential calls left vLLM serving one request at a time (~57 tokens/s);
+    # ``structured_call`` already bounds concurrency with a shared semaphore, so
+    # fanning out lets the server batch them. ``gather`` keeps document order.
+    swept = await asyncio.gather(
+        *(_sweep_batch(items, book_id=book_id) for items in sweepable)
+    )
+    candidates: list[MentionCandidate] = [
+        candidate for batch in swept for candidate in batch
+    ]
 
     return candidates
 

@@ -17,7 +17,8 @@ For each expression, give:
 - "surface_form": the expression exactly as it appears
 - "kind": your best guess — "person", "place", "organisation", or "unknown"
 - "context": the sentence the expression appears in, plus the sentence
-  immediately before it if there is one
+  immediately before it if there is one. Keep it under 40 words: trim the
+  far end of a long sentence rather than copying a whole paragraph
 
 Passages:
 {passages}
