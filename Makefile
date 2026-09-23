@@ -8,15 +8,40 @@ COMPOSE_CI   := $(COMPOSE) -f docker-compose.yml -f docker-compose.ci.yml
 CI_SERVICES  := db rabbitmq rabbitmq-init migrate api celery-worker
 WAIT         := scripts/wait_for_healthy.sh
 
+# Each worktree tags its own `test` image, so two worktrees running
+# `docker compose --profile test run --rm test` stop overwriting one another's
+# tree. Compose falls back to TRAVERSE_TAG (default `dev`) when this is unset,
+# so running compose directly still works -- it is just shared again.
+export TEST_IMAGE_TAG ?= $(notdir $(CURDIR))
+
+# Docker Desktop's WSL credential helper (`credsStore: desktop.exe`) can fail
+# with `error getting credentials` even for public images. Every image this
+# repo pulls is public, so an empty Docker config is a safe workaround: when the
+# helper does not answer, point DOCKER_CONFIG at a repo-local dir holding `{}`.
+# Force it with `make NOCREDS=1 ...`, disable it with `make NOCREDS=0 ...`. For
+# a bare `docker compose` outside make: export DOCKER_CONFIG=$PWD/.docker-nocreds
+# after running `make docker-nocreds`.
+NOCREDS ?= $(shell docker-credential-desktop.exe list >/dev/null 2>&1 || \
+	{ command -v docker-credential-desktop.exe >/dev/null 2>&1 && echo 1; })
+ifeq ($(NOCREDS),1)
+export DOCKER_CONFIG := $(CURDIR)/.docker-nocreds
+$(shell mkdir -p $(DOCKER_CONFIG) && [ -f $(DOCKER_CONFIG)/config.json ] || echo '{}' > $(DOCKER_CONFIG)/config.json)
+endif
+
 .DEFAULT_GOAL := help
 .PHONY: help env up up-dev up-gpu up-obs down down-hard logs ps build health \
         migrate revision shell-api shell-db shell-neo4j shell-worker \
         test test-api test-web test-integration lint fmt openapi \
         seed reset-db bootstrap worktrees warm-models ci-up ci-smoke ci-down \
-        ci-up-extraction
+        ci-up-extraction docker-nocreds ingest graph-rebuild graph-rebuild-drill eval-relations \
+        judge-citations
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_-]+:.*?## /{printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+docker-nocreds: ## Create .docker-nocreds/ so bare docker commands can bypass a broken credential helper
+	@mkdir -p .docker-nocreds && echo '{}' > .docker-nocreds/config.json
+	@echo 'export DOCKER_CONFIG=$(CURDIR)/.docker-nocreds'
 
 # ── Environment ───────────────────────────────────────────────────────────────
 
@@ -26,6 +51,7 @@ env: ## Create .env from .env.example, generating the Langfuse secrets
 	@sed -i "s|^LANGFUSE_NEXTAUTH_SECRET=.*|LANGFUSE_NEXTAUTH_SECRET=$$(openssl rand -base64 32)|" .env
 	@sed -i "s|^LANGFUSE_SALT=.*|LANGFUSE_SALT=$$(openssl rand -base64 32)|" .env
 	@sed -i "s|^LANGFUSE_ENCRYPTION_KEY=.*|LANGFUSE_ENCRYPTION_KEY=$$(openssl rand -hex 32)|" .env
+	@sed -i "s|^TEST_IMAGE_TAG=.*|TEST_IMAGE_TAG=$(notdir $(CURDIR))|" .env
 	@echo "wrote .env (gitignored). Secrets generated locally; nothing to commit."
 
 # ── Lifecycle ─────────────────────────────────────────────────────────────────
@@ -102,6 +128,29 @@ reset-db: ## Drop, recreate, migrate and seed the integration database
 seed: ## Fetch, license and paginate the public-domain demo corpus (S2.16)
 	python3 scripts/seed_corpus.py
 
+# ── Demo, graph and relation quality (Sprint 4) ───────────────────────────────
+
+ingest: ## Ingest corpus/downloads/<BOOK>.pdf through the API and wait (make ingest BOOK=pride_and_prejudice)
+	@test -n "$(BOOK)" || { echo "usage: make ingest BOOK=<corpus key>"; exit 2; }
+	python3 scripts/ingest_book.py "$(BOOK)"
+
+graph-rebuild: ## Wipe a book's Neo4j projection, rebuild from Postgres, verify by checksum (make graph-rebuild BOOK=<key>)
+	@test -n "$(BOOK)" || { echo "usage: make graph-rebuild BOOK=<corpus key>"; exit 2; }
+	$(COMPOSE) exec -T api python -m api.ops.graph_rebuild --book-key "$(BOOK)"
+
+graph-rebuild-drill: ## The same drill on a synthetic graph seeded into Postgres (CI, no ingestion needed)
+	$(COMPOSE) exec -T api python -m api.ops.graph_rebuild --fixture
+
+eval-relations: ## Relation quality table + pass-2 cost for a book (make eval-relations BOOK=pride-and-prejudice)
+	@test -n "$(BOOK)" || { echo "usage: make eval-relations BOOK=<corpus key>"; exit 2; }
+	python3 -m eval.runners.relations --book-key "$(BOOK)" \
+		--api-base-url http://localhost:$${API_PORT:-8000}
+
+judge-citations: ## Human-judge 50 sampled citations (make judge-citations BOOK=pride-and-prejudice)
+	@test -n "$(BOOK)" || { echo "usage: make judge-citations BOOK=<corpus key>"; exit 2; }
+	python3 scripts/judge_citations.py --book-key "$(BOOK)" \
+		--api-base-url http://localhost:$${API_PORT:-8000}
+
 # ── Shells ────────────────────────────────────────────────────────────────────
 
 shell-api: ## Shell in the api container
@@ -134,6 +183,7 @@ test-integration: ## The merge-train gate: cold stack + unit tests + fixture-nov
 	$(MAKE) health
 	$(COMPOSE) --profile test run --rm test
 	python3 scripts/test_integration_ingestion.py
+	$(MAKE) graph-rebuild-drill
 
 lint: ## ruff + oxlint
 	$(COMPOSE) --profile test run --rm --no-deps --entrypoint sh test -c \

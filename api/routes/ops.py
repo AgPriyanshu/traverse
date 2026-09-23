@@ -16,6 +16,8 @@ from ..db.engine import get_session
 from ..ops import gather_health, pipeline_status
 from ..ops.extraction_cost import ExtractionCostOut, compute_extraction_cost
 from ..ops.extraction_quality import ExtractionQualityOut, compute_extraction_quality
+from ..ops.relation_cost import RelationCostOut, compute_relation_cost
+from ..ops.relation_quality import RelationQualityOut, compute_relation_quality
 from ._stub import not_implemented
 
 router = APIRouter(tags=["ops"])
@@ -70,6 +72,31 @@ async def extraction_cost(
     there is no local cache to report on.
     """
     return await compute_extraction_cost(session, book_id)
+
+
+@router.get("/ops/relation-quality", response_model=RelationQualityOut)
+async def relation_quality(
+    book_id: UUID = Query(...),
+    session: SQLModelAsyncSession = Depends(get_session),
+) -> RelationQualityOut:
+    """Per-predicate P/R/F1, spurious and direction rates, temporal arcs (S4.14).
+
+    Also reports the evidence-free edge count, which must be 0 whether or not
+    the book has gold relations. ``gold_available=False`` for an unlabelled book.
+    """
+    return await compute_relation_quality(session, book_id)
+
+
+@router.get("/ops/relation-cost", response_model=RelationCostOut)
+async def relation_cost(
+    book_id: UUID = Query(...),
+    session: SQLModelAsyncSession = Depends(get_session),
+) -> RelationCostOut:
+    """Pass-2 tokens, chunks skipped, wall clock, USD and cache hit rate (S4.15).
+
+    ``prefix_cache_alert`` is set when a measured hit rate is below 80%.
+    """
+    return await compute_relation_cost(session, book_id)
 
 
 @router.get("/ops/pipeline/runs", response_model=list[IngestionRunOut])

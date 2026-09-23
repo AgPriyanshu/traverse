@@ -331,7 +331,7 @@ services:
       context: .
       dockerfile: api/Dockerfile
       target: test
-    image: traverse-api-test:${TRAVERSE_TAG:-dev}
+    image: traverse-api-test:${TEST_IMAGE_TAG:-${TRAVERSE_TAG:-dev}}
     environment:
       <<: *api-env
       ENV: test
@@ -377,8 +377,13 @@ services:
     ports:
       - "${VLLM_PORT:-8080}:8080"
     volumes:
-      - model_cache:/root/.cache/huggingface
+      - model_cache:/models
     environment:
+      # Same cache root as api/celery-worker (`HF_HOME` in &api-env). Mounting
+      # the volume at vLLM's default /root/.cache/huggingface looked one path
+      # segment short of where `make warm-models` puts the weights, so a cold
+      # `--profile gpu up` re-downloaded ~9GB.
+      HF_HOME: /models/huggingface
       PYTORCH_CUDA_ALLOC_CONF: expandable_segments:True
       HF_TOKEN: ${HF_TOKEN:-}
       VLLM_WSL2_ENABLE_PIN_MEMORY: "1"

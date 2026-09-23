@@ -47,9 +47,13 @@ from test_integration_ingestion import _multipart_body, _psql, _request, poll_st
 
 sys.path.insert(0, str(REPO_ROOT))
 from eval.loaders import available_gold_books  # noqa: E402
+from eval.runners.relations import invariant_violations, render_markdown  # noqa: E402
 
 MANIFEST_PATH = REPO_ROOT / "corpus" / "manifest.json"
 PROJECT_SLUG = "nightly-corpus"
+# One JSON line per book per night; the workflow carries the file between runs
+# so a prompt change that halves the cache hit rate shows up the next morning.
+TREND_FILE = Path(os.environ.get("PASS2_TREND_FILE", "pass2-cost-trend.jsonl"))
 # NFR-perf's own budget, plus headroom for API-mode latency on a shared host.
 PER_BOOK_TIMEOUT_S = 40 * 60
 
@@ -130,6 +134,51 @@ def _report_extraction_quality_and_cost(book_key: str, book_id: str) -> list[str
     return lines
 
 
+def _report_relations(book_key: str, book_id: str) -> tuple[list[str], list[str]]:
+    """Relation quality and pass-2 cost for one book (S4.14/S4.15).
+
+    Returns:
+        The markdown lines for the run summary, and hard failures. An
+        evidence-free edge or a prefix-cache hit rate below 80% is a failure
+        here, unlike extraction quality, which stays informational.
+    """
+    import datetime
+
+    status_quality, quality = _request(
+        "GET", f"/api/ops/relation-quality?book_id={book_id}"
+    )
+    status_cost, cost = _request("GET", f"/api/ops/relation-cost?book_id={book_id}")
+    if status_quality != 200:
+        return [f"### {book_key}", f"- relation-quality: HTTP {status_quality}"], []
+
+    lines = [
+        f"### {book_key}",
+        render_markdown(quality, cost if status_cost == 200 else None),
+    ]
+    failures = [f"{book_key}: {p}" for p in invariant_violations(quality)]
+    if status_cost == 200:
+        if cost.get("prefix_cache_alert"):
+            failures.append(
+                f"{book_key}: prefix-cache hit rate {cost['prefix_cache_hit_rate']:.1%} "
+                "is below 80%"
+            )
+        record = {
+            "date": datetime.date.today().isoformat(),
+            "book": book_key,
+            "precision": quality.get("precision"),
+            "recall": quality.get("recall"),
+            "input_tokens": cost.get("input_tokens"),
+            "output_tokens": cost.get("output_tokens"),
+            "cost_usd_local": cost.get("total_cost_usd_local"),
+            "wall_clock_ms": cost.get("wall_clock_ms"),
+            "prefix_cache_hit_rate": cost.get("prefix_cache_hit_rate"),
+        }
+        with TREND_FILE.open("a") as handle:
+            handle.write(json.dumps(record) + "\n")
+
+    return lines, failures
+
+
 def main() -> int:
     if not MANIFEST_PATH.exists():
         _log("FAIL: corpus/manifest.json missing — run `make seed` first.")
@@ -146,6 +195,8 @@ def main() -> int:
 
     rows = ["| Book | Pages | Wall clock | Result |", "|---|---|---|---|"]
     quality_lines: list[str] = []
+    relation_lines: list[str] = []
+    hard_failures: list[str] = []
     ingested_any = False
 
     for i, key in enumerate(sorted(books), start=1):
@@ -187,6 +238,9 @@ def main() -> int:
 
         if key in available_gold_books():
             quality_lines.extend(_report_extraction_quality_and_cost(key, book_id))
+            lines, failures = _report_relations(key, book_id)
+            relation_lines.extend(lines)
+            hard_failures.extend(failures)
 
     report_lines = ["## Nightly corpus ingestion", "", *rows]
     if quality_lines:
@@ -194,6 +248,13 @@ def main() -> int:
             "",
             "## Extraction quality and cost (S3.14/S3.15)",
             *quality_lines,
+        ]
+
+    if relation_lines:
+        report_lines += [
+            "",
+            "## Relation quality and pass-2 cost (S4.14/S4.15)",
+            *relation_lines,
         ]
 
     if ingested_any:
@@ -211,6 +272,11 @@ def main() -> int:
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary_path:
         Path(summary_path).write_text(report + "\n")
+
+    for failure in hard_failures:
+        print(f"::error::{failure}", flush=True)
+    if hard_failures:
+        return 1
 
     if not ingested_any:
         _log(

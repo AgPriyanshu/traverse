@@ -51,8 +51,30 @@ jobs:
       - name: Wait for healthy
         run: ./scripts/wait_for_healthy.sh --timeout 900
 
+      - name: Restore the pass-2 cost trend
+        uses: actions/cache/restore@v4
+        with:
+          path: pass2-cost-trend.jsonl
+          key: pass2-trend-${{ github.run_id }}
+          restore-keys: pass2-trend-
+
       - name: Ingest every book and report wall clock + cost
         run: python3 scripts/nightly_corpus_ingestion.py
+
+      - name: Save the pass-2 cost trend
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: pass2-cost-trend.jsonl
+          key: pass2-trend-${{ github.run_id }}
+
+      - name: Publish the pass-2 cost trend
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pass2-cost-trend
+          path: pass2-cost-trend.jsonl
+          if-no-files-found: ignore
 
       - name: Logs on failure
         if: failure()

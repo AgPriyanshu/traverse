@@ -1,0 +1,212 @@
+# Gold relations for Pride and Prejudice (S4.14).
+#
+# Closed world over in-scope pairs: both endpoints must be protagonist or
+# major tier in roster.yaml, and a pair with no entry below is asserted to have
+# no scored relationship. `ignored_predicates` are exempt from that assertion
+# (a predicted acquaintance_of is neither right nor wrong here).
+#
+# Relationships outside the frozen ontology (aunt/nephew, cousin, patron) are
+# deliberately absent -- there is no predicate to score them against.
+#
+# `chapters` is [first, last] and chapter numbers are this corpus's own
+# headings (61 chapters). Transition chapters are labelled from the public text
+# (Gutenberg #1342) and are approximate to a few chapters; metrics apply
+# `chapter_tolerance`. `evidence_pages` are the corpus pages on which the
+# first and last chapter open, not exhaustive.
+book_key: pride-and-prejudice
+corpus_pdf_sha256: 9d16f8644fb30853da423ea1797133a04fbc1be0064dc874093c213a38d86959
+page_count: 245
+labelled_by: do1 (from the public-domain text, S4.14)
+labelled_at: '2026-09-23T00:00:00+00:00'
+source_notes: 'Relationships and transition chapters read from the Gutenberg #1342 text the corpus is
+  built from; every chapter number was checked against the corpus chapter headings, evidence_pages computed
+  with scripts/seed_corpus.py paginate().'
+scope_tiers: [protagonist, major]
+ignored_predicates: [acquaintance_of, neighbour_of, co_occurs_with]
+chapter_tolerance: 3
+relations:
+- subject: Mr. Bennet
+  predicate: parent_of
+  object: Elizabeth Bennet
+  chapters: [1, 61]
+  evidence_pages: [12, 243]
+- subject: Mr. Bennet
+  predicate: parent_of
+  object: Jane Bennet
+  chapters: [1, 61]
+  evidence_pages: [12, 243]
+- subject: Mr. Bennet
+  predicate: parent_of
+  object: Lydia Bennet
+  chapters: [1, 61]
+  evidence_pages: [12, 243]
+- subject: Mrs. Bennet
+  predicate: parent_of
+  object: Elizabeth Bennet
+  chapters: [1, 61]
+  evidence_pages: [12, 243]
+- subject: Mrs. Bennet
+  predicate: parent_of
+  object: Jane Bennet
+  chapters: [1, 61]
+  evidence_pages: [12, 243]
+- subject: Mrs. Bennet
+  predicate: parent_of
+  object: Lydia Bennet
+  chapters: [1, 61]
+  evidence_pages: [12, 243]
+- subject: Elizabeth Bennet
+  predicate: sibling_of
+  object: Jane Bennet
+  chapters: [1, 61]
+  evidence_pages: [12, 243]
+- subject: Elizabeth Bennet
+  predicate: sibling_of
+  object: Lydia Bennet
+  chapters: [1, 61]
+  evidence_pages: [12, 243]
+- subject: Jane Bennet
+  predicate: sibling_of
+  object: Lydia Bennet
+  chapters: [1, 61]
+  evidence_pages: [12, 243]
+- subject: Charles Bingley
+  predicate: sibling_of
+  object: Caroline Bingley
+  chapters: [3, 61]
+  evidence_pages: [16, 243]
+- subject: Mr. Bennet
+  predicate: married_to
+  object: Mrs. Bennet
+  chapters: [1, 61]
+  evidence_pages: [12, 243]
+- subject: Fitzwilliam Darcy
+  predicate: enemy_of
+  object: Elizabeth Bennet
+  chapters: [3, 33]
+  alt_predicates: [rival_of]
+  evidence_pages: [16, 122]
+  note: 'Antagonistic phase: the assembly-room slight (ch 3) through the first proposal and refusal (ch
+    34).'
+  arc: elizabeth-darcy
+- subject: Fitzwilliam Darcy
+  predicate: engaged_to
+  object: Elizabeth Bennet
+  chapters: [58, 60]
+  evidence_pages: [230, 240]
+  arc: elizabeth-darcy
+- subject: Fitzwilliam Darcy
+  predicate: married_to
+  object: Elizabeth Bennet
+  chapters: [61, 61]
+  evidence_pages: [243]
+  arc: elizabeth-darcy
+- subject: Charles Bingley
+  predicate: engaged_to
+  object: Jane Bennet
+  chapters: [55, 60]
+  evidence_pages: [216, 240]
+  arc: jane-bingley
+- subject: Charles Bingley
+  predicate: married_to
+  object: Jane Bennet
+  chapters: [61, 61]
+  evidence_pages: [243]
+  arc: jane-bingley
+- subject: William Collins
+  predicate: engaged_to
+  object: Charlotte Lucas
+  chapters: [22, 22]
+  evidence_pages: [87]
+  arc: collins-lucas
+- subject: William Collins
+  predicate: married_to
+  object: Charlotte Lucas
+  chapters: [23, 61]
+  evidence_pages: [90, 243]
+  arc: collins-lucas
+- subject: George Wickham
+  predicate: lover_of
+  object: Lydia Bennet
+  chapters: [46, 50]
+  alt_predicates: [engaged_to]
+  evidence_pages: [172, 194]
+  note: Elopement (ch 46) until the marriage is arranged.
+  arc: wickham-lydia
+- subject: George Wickham
+  predicate: married_to
+  object: Lydia Bennet
+  chapters: [51, 61]
+  evidence_pages: [198, 243]
+  arc: wickham-lydia
+- subject: Charles Bingley
+  predicate: friend_of
+  object: Fitzwilliam Darcy
+  chapters: [3, 61]
+  evidence_pages: [16, 243]
+- subject: Elizabeth Bennet
+  predicate: friend_of
+  object: Charlotte Lucas
+  chapters: [6, 61]
+  evidence_pages: [23, 243]
+- subject: Jane Bennet
+  predicate: friend_of
+  object: Caroline Bingley
+  chapters: [4, 23]
+  evidence_pages: [19, 90]
+  note: Miss Bingley feigns friendship until the ch 21 letter and its aftermath.
+- subject: Caroline Bingley
+  predicate: rival_of
+  object: Elizabeth Bennet
+  chapters: [6, 61]
+  alt_predicates: [enemy_of]
+  evidence_pages: [23, 243]
+- subject: Caroline Bingley
+  predicate: unrequited_love_for
+  object: Fitzwilliam Darcy
+  chapters: [6, 61]
+  evidence_pages: [23, 243]
+- subject: George Wickham
+  predicate: deceives
+  object: Elizabeth Bennet
+  chapters: [16, 35]
+  evidence_pages: [58, 130]
+  note: The false account of Darcy, exposed by the ch 35 letter.
+- subject: George Wickham
+  predicate: enemy_of
+  object: Fitzwilliam Darcy
+  chapters: [16, 61]
+  alt_predicates: [betrayed, deceives]
+  evidence_pages: [58, 243]
+  note: Bad blood over the living and Georgiana; direction of alt predicates not scored.
+- subject: Lady Catherine de Bourgh
+  predicate: enemy_of
+  object: Elizabeth Bennet
+  chapters: [56, 60]
+  alt_predicates: [rival_of]
+  evidence_pages: [221, 240]
+- subject: George Wickham
+  predicate: in_law_of
+  object: Elizabeth Bennet
+  chapters: [51, 61]
+  evidence_pages: [198, 243]
+- subject: George Wickham
+  predicate: in_law_of
+  object: Jane Bennet
+  chapters: [51, 61]
+  evidence_pages: [198, 243]
+- subject: Fitzwilliam Darcy
+  predicate: in_law_of
+  object: Charles Bingley
+  chapters: [61, 61]
+  evidence_pages: [243]
+- subject: Elizabeth Bennet
+  predicate: in_law_of
+  object: Charles Bingley
+  chapters: [61, 61]
+  evidence_pages: [243]
+- subject: Fitzwilliam Darcy
+  predicate: in_law_of
+  object: Jane Bennet
+  chapters: [61, 61]
+  evidence_pages: [243]

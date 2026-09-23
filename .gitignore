@@ -40,3 +40,4 @@ corpus/downloads/
 # Prejudice at run time and caches it alongside the script; the cache is
 # reproducible from the script, never corpus data to track.
 api/notebooks/.pride_and_prejudice_cache.txt
+.docker-nocreds/
