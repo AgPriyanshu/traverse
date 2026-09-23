@@ -2,7 +2,6 @@ import uuid
 from types import SimpleNamespace
 
 import pytest
-from sqlalchemy import text
 
 from api.contracts.enums import AssertionType, RelationFamily
 from api.db.models import (
