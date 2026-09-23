@@ -15,7 +15,7 @@ from pydantic import BaseModel, ValidationError
 
 from api.contracts.enums import LLMPurpose
 from api.llm import structured as structured_module
-from api.llm.errors import PermanentLLMError, TransientLLMError
+from api.llm.errors import LengthLimitError, PermanentLLMError, TransientLLMError
 from api.llm.structured import structured_call
 
 
@@ -120,6 +120,43 @@ async def test_raises_permanent_after_second_failure(
         await structured_call("answer the question", _Answer, purpose=LLMPurpose.ANSWER)
 
     assert len(fake.runnable.prompts) == 2
+
+
+async def test_raises_length_limit_without_a_wasted_retry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A reply cut off by the model's own length limit is not a schema
+    violation the correction-hint retry could ever fix — that retry only
+    grows the prompt, leaving less room for the answer, and would reproduce
+    the identical cutoff. ``finish_reason == "length"`` must be caught on the
+    first attempt, distinctly from ``PermanentLLMError``, so a caller that
+    can shrink its own input (``api.extraction.discovery``'s batch splitting)
+    can recover instead of retrying forever.
+    """
+    error = _validation_error()
+    fake = _FakeChatModel(
+        [
+            {
+                "raw": AIMessage(
+                    "truncated mid-object",
+                    response_metadata={"finish_reason": "length"},
+                ),
+                "parsed": None,
+                "parsing_error": error,
+            },
+            {
+                "raw": AIMessage("would never be reached"),
+                "parsed": _Answer(value="unreachable"),
+                "parsing_error": None,
+            },
+        ]
+    )
+    monkeypatch.setattr(structured_module, "get_llm", lambda purpose: fake)
+
+    with pytest.raises(LengthLimitError):
+        await structured_call("answer the question", _Answer, purpose=LLMPurpose.ANSWER)
+
+    assert len(fake.runnable.prompts) == 1
 
 
 async def test_call_failure_is_classified(monkeypatch: pytest.MonkeyPatch) -> None:

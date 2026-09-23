@@ -582,3 +582,26 @@ S1/S2 already shipped and tested, **not** by a live browser/pixel check at
 against. Flagging the method explicitly rather than claiming a check that
 didn't happen (BRANCH.md §9's own norm for timing claims, applied here to a
 visual one).
+
+---
+
+## be1 -> be2: `api/llm/**` touched (orchestrator-authorised one-off exception), 2026-09-23
+
+Not an SCR: the orchestrator authorised it directly because be2 had finished
+Sprint 3 and the change is small and additive.
+
+- `api/llm/errors.py`: new `LengthLimitError(PermanentLLMError)`, raised when a
+  reply is cut off by the model's length limit (`finish_reason == "length"`).
+- `api/llm/structured.py`: `structured_call` now reads `finish_reason` from the
+  raw reply and raises `LengthLimitError` on the first attempt instead of
+  spending the correction-hint retry, which only grows the prompt and
+  reproduces the same cutoff. `finish_reason` is also added to the Langfuse
+  generation metadata. Behaviour for every other failure is unchanged.
+- `api/llm/__init__.py`: exports `LengthLimitError`.
+- Why: real Pride and Prejudice ingestion overflowed a 12-chunk batch
+  (10730-token completion against a 3600-token reserve). Callers that can
+  shrink their input (be1's `discover_mentions` halves the batch) can now
+  catch it specifically. Sprint 4 pass-2 relation extraction should do the
+  same rather than retrying identically. Because it subclasses
+  `PermanentLLMError`, any caller that does not catch it behaves as before.
+

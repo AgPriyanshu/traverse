@@ -1,8 +1,11 @@
+import re
 import uuid
 from types import SimpleNamespace
 
 import pytest
+from transformers import AutoTokenizer
 
+from api.config.settings import settings
 from api.contracts.enums import CandidateKind
 from api.contracts.llm import BatchPlan
 from api.extraction import discovery
@@ -11,6 +14,7 @@ from api.extraction.schemas import (
     MentionOutput,
     MentionSweepOutput,
 )
+from api.llm.errors import LengthLimitError
 
 
 def _chunk(text: str, page: int) -> SimpleNamespace:
@@ -146,3 +150,127 @@ class TestBatchSizeInvariant:
             size <= discovery._ASSUMED_CHUNKS_PER_BATCH for size in seen_batch_sizes
         )
         assert sum(seen_batch_sizes) == len(pairs)
+
+
+_DENSE_NAMES = [
+    "Elizabeth Bennet",
+    "Fitzwilliam Darcy",
+    "Jane Bennet",
+    "Charles Bingley",
+    "George Wickham",
+    "Lydia Bennet",
+    "Mr. Bennet",
+    "Mrs. Bennet",
+    "Caroline Bingley",
+    "Charlotte Lucas",
+]
+
+
+def _dense_reply(n: int) -> MentionSweepOutput:
+    """Ten substantial mentions per chunk — the shape a real dialogue-dense,
+    multi-party scene actually produces, not a token-count stand-in."""
+    return MentionSweepOutput(
+        chunks=[
+            ChunkMentionsOutput(
+                chunk_index=i,
+                mentions=[
+                    MentionOutput(
+                        surface_form=name,
+                        kind=CandidateKind.PERSON,
+                        context=(
+                            f"{name} spoke at length about the ball at Netherfield "
+                            "and the officers newly arrived in Meryton, addressing "
+                            f"the whole assembled party in turn during passage {i}, "
+                            "while everyone else present listened attentively and "
+                            "occasionally replied with their own opinion of the "
+                            "matter at hand."
+                        ),
+                    )
+                    for name in _DENSE_NAMES
+                ],
+            )
+            for i in range(1, n + 1)
+        ]
+    )
+
+
+@pytest.mark.models
+class TestSplitRetryOnLengthLimit:
+    """A batch capped at 12 chunks (the fix above) can still overflow the
+    reply if the scene itself is dense enough — real for Pride and
+    Prejudice's constant multi-party conversations, where a 12-chunk batch
+    produced a completion 3x over ``_OUTPUT_RESERVE`` and got cut off
+    mid-JSON. No fixed chunk count is safe against every possible scene, in
+    this book or the next one, so a batch that provably overflows must
+    recover by splitting in half, recursively, rather than dying on an
+    identical retry.
+
+    "Provably" is checked here against the *real* tokenizer's count of a
+    realistically dense reply (``_dense_reply``), not a hardcoded flag — the
+    fake below raises exactly when a real ``AutoTokenizer`` says the reply
+    would exceed the reserve, so this fails if the split logic's recursion
+    or bookkeeping is wrong, not just if the try/except is deleted.
+    """
+
+    async def test_recursively_halves_a_batch_whose_real_reply_overflows_the_reserve(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        tokenizer = AutoTokenizer.from_pretrained(settings.llm_model)
+        pairs = [
+            (_chunk(f"Passage {i} of the ball at Netherfield.", page=1), 1)
+            for i in range(1, 13)
+        ]
+        call_sizes: list[int] = []
+
+        async def fake_structured_call(prompt, schema, **kwargs):
+            n = len(re.findall(r"^\[\d+\]", prompt, re.MULTILINE))
+            call_sizes.append(n)
+            reply = _dense_reply(n)
+            reply_tokens = len(tokenizer.encode(reply.model_dump_json()))
+
+            if reply_tokens > discovery._OUTPUT_RESERVE:
+                raise LengthLimitError(f"simulated cutoff at {reply_tokens} tokens")
+
+            return reply
+
+        monkeypatch.setattr(discovery, "structured_call", fake_structured_call)
+
+        results = await discovery._sweep_batch(pairs, book_id=uuid.uuid4())
+
+        # Confirmed by direct measurement (not asserted blind): 12 and 6
+        # dense chunks' worth of mentions both really overflow
+        # _OUTPUT_RESERVE by the real tokenizer's count, and 3 chunks' worth
+        # really fits — so recovery only succeeds if recursion goes two
+        # levels deep (12 -> 6+6 -> 3+3 and 3+3), not just splits once.
+        assert call_sizes.count(12) == 1
+        assert call_sizes.count(6) == 2
+        assert call_sizes.count(3) == 4
+        assert len(call_sizes) == 7
+
+        # Every one of the 12 chunks' 10 mentions survives the split; none
+        # silently dropped by the recovery path.
+        assert len(results) == 120
+        assert {result.chunk_id for result in results} == {
+            chunk.id for chunk, _ in pairs
+        }
+
+    async def test_a_single_chunk_that_still_overflows_fails_loudly(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        calls = 0
+
+        async def always_overflows(prompt, schema, **kwargs):
+            nonlocal calls
+            calls += 1
+
+            raise LengthLimitError("even one chunk overflows")
+
+        monkeypatch.setattr(discovery, "structured_call", always_overflows)
+        pairs = [(_chunk("Passage 1 of the ball.", page=1), 1)] * 4
+
+        with pytest.raises(LengthLimitError):
+            await discovery._sweep_batch(pairs, book_id=uuid.uuid4())
+
+        # 4 -> 2 -> 1 then the floor raises: no infinite recursion, and no
+        # silently skipped chunk.
+        assert calls == 3
