@@ -84,3 +84,13 @@ transitions:
   - {from: student_of, to: colleague_of}
   - {from: ward_of, to: adopted_by}
   - {from: guardian_of, to: adoptive_parent_of}
+  - {from: acquaintance_of, to: engaged_to}
+  - {from: acquaintance_of, to: married_to}
+  - {from: acquaintance_of, to: enemy_of}
+  - {from: acquaintance_of, to: rival_of}
+  - {from: friend_of, to: engaged_to}
+  - {from: friend_of, to: married_to}
+  - {from: rival_of, to: engaged_to}
+  - {from: rival_of, to: married_to}
+  - {from: enemy_of, to: engaged_to}
+  - {from: enemy_of, to: married_to}
