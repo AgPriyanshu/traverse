@@ -3,7 +3,7 @@ import uuid
 import pytest
 
 from api.contracts.enums import CandidateKind, ResolutionMethod
-from api.extraction import aliases
+from api.extraction import aliases, similarity
 from api.extraction.schemas import AdjudicationOutput
 
 
@@ -84,6 +84,17 @@ class TestLLMStage:
             _candidate("Elizabeth Bennet", [_ctx(1, "Elizabeth Bennet spoke first.")]),
             _candidate("Miss Bennet", [_ctx(2, "Miss Bennet smiled.")]),
         ]
+
+        # Isolate this test to stage 5: with a real (now-merged)
+        # api.graph.similarity available, stage 4 may itself cluster this
+        # pair — a real embedding call is exactly what's under test in
+        # api/tests/pipeline/test_extraction_tasks.py and be2's own suite,
+        # not here. Forcing stage 4 to "cannot compare" is what makes this
+        # test actually exercise the LLM stage it is named for.
+        async def no_embedding_signal(*a, **k):
+            return None
+
+        monkeypatch.setattr(similarity, "context_similarity", no_embedding_signal)
 
         async def fake_adjudicate(*a, **k):
             return AdjudicationOutput(

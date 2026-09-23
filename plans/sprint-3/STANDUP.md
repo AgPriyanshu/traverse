@@ -121,3 +121,46 @@ novels need do1's S3.13 harness and a real seeded corpus, neither of which
 exist in this worktree — flagged in HANDOFF as a Day-5 integration item
 rather than claimed from here, same pattern as Sprint 2's chapter-detection
 accuracy note.
+
+## be1 — post-merge train integration fix, 2026-09-23
+
+The orchestrator caught a real bug during the merge train:
+`api/extraction/similarity.py::context_similarity` assumed a pairwise
+`cluster_contexts(text_a, text_b) -> float` shape. be2's actual, spec-compliant
+S3.8 API (`api/graph/similarity.py`) is a **batch** clusterer —
+`cluster_contexts(mentions: list[MentionContext], *, threshold: float) ->
+list[list[UUID]]` — exactly what `backend-2.md` specified. My adapter's
+`try/except ImportError` guard meant this mismatch was invisible for the
+entire sprint: `api.graph.similarity` didn't exist in my worktree, so every
+call to it hit the `ImportError` branch and returned `None` before the wrong
+call signature ever executed. **48/48 extraction tests green in isolation
+proved nothing about this path** — they proved the *degraded* path worked,
+which was never the code that ships. The bug only surfaced once be2's real
+module was actually importable, i.e. at integration.
+
+Fixed by having the adapter construct two `MentionContext` objects and call
+the real batch API with exactly two items, reading "clustered into one group"
+as the pairwise signal `aliases.py`'s cascade wants
+(`len(cluster_contexts([a, b], threshold=...)) == 1`). No change needed to
+`aliases.py` itself — the `decide(a, b) -> ResolutionMethod | None` shape it
+already used was sound; only the adapter underneath it was wrong.
+
+One test needed a real fix, not a weakening: `test_aliases.py::TestLLMStage
+::test_merges_a_shared_surname_residue_pair` had implicitly relied on stage 4
+being a permanent no-op (true only in an isolated worktree) to guarantee its
+"Elizabeth Bennet"/"Miss Bennet" pair reached the LLM stage it's named for.
+With the real embedding service wired up, that pair now legitimately clusters
+at the cheaper stage 4 instead — correct cascade behaviour, but it meant the
+test was no longer isolating what it claimed to test. Fixed by stubbing
+`similarity.context_similarity` to return `None` for that one test, forcing
+the residue through to stage 5 as originally intended — the assertion itself
+(`resolution_method == LLM`) is unchanged.
+
+**Retro-worthy:** a mocked-dependency adapter with a graceful degrade path
+(`try/except ImportError`) can pass 100% of its own tests while calling a
+contract that was never real. The `except ImportError` branch is exactly the
+place a signature mismatch hides — worth a standing question at future
+freezes: for any cross-agent adapter with a "not landed yet" fallback, does
+at least one test exercise the *real* signature (a `Protocol`/fake with the
+actual parameter list), not just the degrade path? Filed nowhere formally
+this sprint; raising it here so it reaches the retro.
