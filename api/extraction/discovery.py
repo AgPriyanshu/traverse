@@ -16,6 +16,7 @@ from api.llm import plan_batches, structured_call
 from ..config.settings import settings
 from ..contracts.enums import LLMPurpose
 from ..contracts.extraction import CharacterCandidate
+from ..contracts.llm import BatchPlan
 from ..db.models import DocumentChunk
 from .prompts import MENTION_SWEEP_PROMPT
 from .schemas import MentionSweepOutput
@@ -65,14 +66,29 @@ async def discover_mentions(
     if not chunks:
         return []
 
-    plans = plan_batches(
-        chunks,
-        prompt_tokens=len(MENTION_SWEEP_PROMPT) // 4,
-        text_of=lambda pair: pair[0].text,
-        max_context=settings.llm_max_context,
-        output_reserve=_OUTPUT_RESERVE,
-        tokenizer_model=settings.llm_model,
-    )
+    # ``plan_batches`` packs items greedily until it runs out of *input*
+    # token budget — it has no notion of "12 items," so it happily packs
+    # 30-40 real chunks into one batch when they run well under
+    # ``CHUNK_MAX_TOKENS`` (semantic chunking, not maximal packing). Since
+    # ``_OUTPUT_RESERVE`` above is sized for ``_ASSUMED_CHUNKS_PER_BATCH``
+    # mentions worth of output, handing it a batch with 3x that many chunks
+    # lets the completion overrun the reserve and get cut off mid-JSON. The
+    # slice below enforces the chunk-count assumption the reserve was
+    # actually computed for; ``plan_batches`` still governs token safety
+    # within each slice.
+    plans: list[BatchPlan[tuple[DocumentChunk, int | None]]] = []
+    for start in range(0, len(chunks), _ASSUMED_CHUNKS_PER_BATCH):
+        group = chunks[start : start + _ASSUMED_CHUNKS_PER_BATCH]
+        plans.extend(
+            plan_batches(
+                group,
+                prompt_tokens=len(MENTION_SWEEP_PROMPT) // 4,
+                text_of=lambda pair: pair[0].text,
+                max_context=settings.llm_max_context,
+                output_reserve=_OUTPUT_RESERVE,
+                tokenizer_model=settings.llm_model,
+            )
+        )
 
     candidates: list[MentionCandidate] = []
     for plan in plans:

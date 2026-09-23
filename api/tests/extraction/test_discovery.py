@@ -104,3 +104,45 @@ class TestDiscoverMentions:
         results = await discovery.discover_mentions(pairs, book_id=uuid.uuid4())
 
         assert results == []
+
+
+@pytest.mark.models
+class TestBatchSizeInvariant:
+    """Real book, real tokenizer: exercise the packing math, not a mock.
+
+    Pride and Prejudice ingestion hit this for real: chunks ran well under
+    ``CHUNK_MAX_TOKENS``, so ``plan_batches``'s token-only packing alone
+    happily fit 30-40 of them into one batch — 3x what ``_OUTPUT_RESERVE``
+    was ever sized for (S3.1's assumed 12 chunks / 60 mentions), and the
+    completion got cut off mid-JSON. This drives ``discover_mentions`` with
+    the real ``plan_batches`` (only ``_sweep_batch`` is faked, to skip the
+    LLM call) and asserts the invariant the fix restores: no batch handed to
+    one structured call ever exceeds the chunk count the reserve assumes,
+    however much token headroom real chunks leave unused.
+    """
+
+    async def test_never_packs_more_chunks_than_the_output_reserve_assumes(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        pairs = [
+            (_chunk(f"Elizabeth said hello there, sentence number {i}.", page=1), 1)
+            for i in range(30)
+        ]
+        seen_batch_sizes: list[int] = []
+
+        async def fake_sweep_batch(batch, *, book_id):
+            seen_batch_sizes.append(len(batch))
+            return []
+
+        monkeypatch.setattr(discovery, "_sweep_batch", fake_sweep_batch)
+
+        await discovery.discover_mentions(pairs, book_id=uuid.uuid4())
+
+        # All 30 chunks are short enough that plan_batches's token budget
+        # alone would fit every one of them in a single batch — proving the
+        # slice, not incidental token pressure, is what keeps batches small.
+        assert seen_batch_sizes
+        assert all(
+            size <= discovery._ASSUMED_CHUNKS_PER_BATCH for size in seen_batch_sizes
+        )
+        assert sum(seen_batch_sizes) == len(pairs)

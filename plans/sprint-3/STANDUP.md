@@ -164,3 +164,64 @@ freezes: for any cross-agent adapter with a "not landed yet" fallback, does
 at least one test exercise the *real* signature (a `Protocol`/fake with the
 actual parameter list), not just the degrade path? Filed nowhere formally
 this sprint; raising it here so it reaches the retro.
+
+## be1 — two real-scale-only bugs from live *Pride and Prejudice* ingestion, 2026-09-23
+
+Both found by the orchestrator running the actual 245-page corpus book
+end-to-end (real Docling conversion, real vLLM/Qwen3-8B-AWQ) after
+`ai-master` merge — neither is reachable from the 20-page CI fixture, and
+neither has any unit-test counterexample before today.
+
+**Bug 1 — `segment_chapters` raised on real chapters missing a page range**
+(`api/pipeline/chunking.py::generate_chunks`). Docling's `HierarchicalChunker`
+drops a heading entirely — yields no chunk for it at all — when nothing
+follows it before the next heading (`always_emit_headings` defaults to
+`False`). The real book has three chapter headings back-to-back
+(`CHAPTER XXXVI.`/`XXXVII.`/`XXXVIII.`) with no body between the first two.
+Once one heading is never seen by any chunk, the carry-forward cursor that
+matches a chunk's heading text against the next expected entry in document
+order can never resynchronize — every chunk for the *rest of the book*
+(chapters 36 through 61, confirmed against the real conversion) then
+inherits the last chapter number the cursor actually reached. Fixed with
+`HybridChunker(..., always_emit_headings=True)` — Docling then emits an
+empty-text chunk (still carrying real page provenance from the heading item)
+instead of dropping it, so the cursor never desyncs. New regression test:
+`test_a_heading_with_no_body_text_still_gets_a_chunk` in
+`api/tests/pipeline/test_chunking_document.py`, built from a synthetic
+document reproducing the exact zero-body-heading shape rather than needing
+the real PDF.
+
+**Bug 2 — `extract_characters` failed with a completion cut off mid-JSON**
+(`api/extraction/discovery.py::discover_mentions`). `_OUTPUT_RESERVE` is a
+flat constant sized for an assumed 12 chunks/batch (`backend-1.md` S3.1's
+"12 chunks → 60 mentions" sizing note), but `plan_batches` packs items
+greedily by token budget alone — it has no notion of "12 items." Real chunks
+run well under `CHUNK_MAX_TOKENS` (semantic chunking, not maximal packing),
+so it packed 30-40 chunks into single batches, and the resulting mention
+count blew past the fixed reserve: `CompletionUsage(completion_tokens=5297,
+prompt_tokens=11087, total_tokens=16384)` — the model filled every remaining
+token and got cut off before finishing. Fixed by pre-slicing `chunks` into
+groups of `_ASSUMED_CHUNKS_PER_BATCH` before each `plan_batches` call, so the
+chunk-count assumption `_OUTPUT_RESERVE` was sized for is actually enforced
+by our own code instead of merely asserted in a comment; `plan_batches`
+still governs token safety within each slice. Considered but rejected: a
+per-item output reserve inside `plan_batches` itself (mathematically more
+efficient — would pack more small chunks per real batch — but `budget.py` is
+be2-owned, and the round-trip SCR cost wasn't worth it for a fix this
+narrow). New regression test:
+`TestBatchSizeInvariant::test_never_packs_more_chunks_than_the_output_reserve_assumes`
+in `api/tests/extraction/test_discovery.py`, driven against the *real*
+`plan_batches`/tokenizer (`@pytest.mark.models`) with 30 short synthetic
+chunks — confirmed to fail against the pre-fix code (one 30-chunk batch)
+and pass against the fix (three batches, all ≤ 12).
+
+**Retro-worthy, third instance of the same lesson this sprint:** every
+correctness bug found this sprint so far that unit tests missed — the
+mocked-adapter signature mismatch above, and both bugs here — only exists at
+real scale: a real book's actual heading density, actual chunk-size
+distribution, or a real cross-agent signature. The 20-page CI fixture and
+isolated mocks are necessary but provably insufficient; they proved the
+*degraded or small-input* path worked, never the path that ships. Worth a
+standing Day-4/5 checklist item next sprint: run the actual seeded corpus
+through the real pipeline stage under test at least once before calling a
+story done, not just its unit tests green.
