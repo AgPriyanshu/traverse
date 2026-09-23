@@ -29,6 +29,21 @@ _HITS_METRIC = "vllm:gpu_prefix_cache_hits_total"
 _QUERIES_METRIC = "vllm:gpu_prefix_cache_queries_total"
 _KV_USAGE_METRIC = "vllm:gpu_cache_usage_perc"
 
+# vllm/vllm-openai:latest (the V1 engine) dropped the ``gpu_`` infix. S3.9's
+# spike read the un-prefixed names off the real server, so reading only the old
+# ones leaves the hit rate silently ``None`` on the image compose actually pulls.
+_HITS_ALIASES = (_HITS_METRIC, "vllm:prefix_cache_hits_total")
+_QUERIES_ALIASES = (_QUERIES_METRIC, "vllm:prefix_cache_queries_total")
+_KV_USAGE_ALIASES = (_KV_USAGE_METRIC, "vllm:kv_cache_usage_perc")
+
+
+def _first_present(totals: dict[str, float], names: tuple[str, ...]) -> float | None:
+    for name in names:
+        if name in totals:
+            return totals[name]
+
+    return None
+
 _METRIC_LINE_RE = re.compile(
     r"^([a-zA-Z_:][a-zA-Z0-9_:]*)(?:\{[^}]*\})?\s+([0-9.eE+-]+)$"
 )
@@ -90,11 +105,53 @@ async def fetch_vllm_cache_stats(vllm_base_url: str) -> VllmCacheStats | None:
         return None
 
     totals = _parse_prometheus_text(response.text)
-    hits = totals.get(_HITS_METRIC)
-    queries = totals.get(_QUERIES_METRIC)
+    hits = _first_present(totals, _HITS_ALIASES)
+    queries = _first_present(totals, _QUERIES_ALIASES)
     hit_rate = (hits / queries) if hits is not None and queries else None
-    kv_usage = totals.get(_KV_USAGE_METRIC)
+    kv_usage = _first_present(totals, _KV_USAGE_ALIASES)
 
     return VllmCacheStats(
         prefix_cache_hit_rate=hit_rate, gpu_kv_cache_usage_pct=kv_usage
     )
+
+
+@dataclass(frozen=True)
+class VllmCacheCounters:
+    hits: float
+    queries: float
+
+
+def hit_rate_between(
+    before: VllmCacheCounters, after: VllmCacheCounters
+) -> float | None:
+    """Prefix-cache hit rate over the window between two counter snapshots.
+
+    vLLM's counters are cumulative for the server's lifetime, so a single
+    scrape is a blend of every run since it booted. Differencing two scrapes
+    taken around one book's pass 2 is the only per-book number.
+    """
+    queries = after.queries - before.queries
+    if queries <= 0:
+        return None
+    rate = (after.hits - before.hits) / queries
+
+    return rate
+
+
+async def fetch_vllm_cache_counters(vllm_base_url: str) -> VllmCacheCounters | None:
+    """Raw cumulative prefix-cache counters, for ``hit_rate_between``."""
+    url = _metrics_url(vllm_base_url)
+    try:
+        async with httpx.AsyncClient(timeout=METRICS_TIMEOUT_S) as client:
+            response = await client.get(url)
+            response.raise_for_status()
+    except (httpx.HTTPError, httpx.InvalidURL):
+        return None
+
+    totals = _parse_prometheus_text(response.text)
+    hits = _first_present(totals, _HITS_ALIASES)
+    queries = _first_present(totals, _QUERIES_ALIASES)
+    if hits is None or queries is None:
+        return None
+
+    return VllmCacheCounters(hits=hits, queries=queries)

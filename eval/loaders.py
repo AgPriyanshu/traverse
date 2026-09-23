@@ -20,6 +20,7 @@ from jsonschema import Draft202012Validator
 REPO_ROOT = Path(__file__).resolve().parent.parent
 GOLD_DIR = REPO_ROOT / "eval" / "gold"
 SCHEMA_PATH = REPO_ROOT / "eval" / "schema" / "roster.schema.json"
+RELATIONS_SCHEMA_PATH = REPO_ROOT / "eval" / "schema" / "relations.schema.json"
 MANIFEST_PATH = REPO_ROOT / "corpus" / "manifest.json"
 
 
@@ -119,3 +120,59 @@ def available_gold_books() -> list[str]:
     return sorted(
         p.parent.name.replace("_", "-") for p in GOLD_DIR.glob("*/roster.yaml")
     )
+
+
+def gold_relations_path(book_key: str) -> Path:
+    slug = book_key.replace("-", "_")
+    return GOLD_DIR / slug / "relations.yaml"
+
+
+def load_gold_relations(
+    book_key: str, *, verify_checksum: bool = True
+) -> dict[str, Any]:
+    """Load and schema-validate one book's gold relations (S4.14).
+
+    Pinned to the corpus checksum like the roster, and every named character
+    must exist in that book's gold roster, so a rename in one file cannot
+    silently orphan the other.
+
+    Raises:
+        FileNotFoundError: If no gold relations exist for ``book_key`` yet.
+        RosterSchemaError: If the file does not match its schema or names an
+            unknown character.
+        CorpusChecksumMismatch: If ``verify_checksum`` and the corpus has been
+            repaginated since labelling.
+    """
+    path = gold_relations_path(book_key)
+    if not path.exists():
+        raise FileNotFoundError(
+            f"no gold relations for {book_key!r} at {path.relative_to(REPO_ROOT)}"
+        )
+
+    document = yaml.safe_load(path.read_text())
+    schema = json.loads(RELATIONS_SCHEMA_PATH.read_text())
+    errors = sorted(
+        Draft202012Validator(schema).iter_errors(document), key=lambda e: list(e.path)
+    )
+    if errors:
+        detail = "; ".join(f"{list(e.path)}: {e.message}" for e in errors)
+
+        raise RosterSchemaError(f"{RELATIONS_SCHEMA_PATH.name} violations: {detail}")
+
+    roster = load_gold_roster(book_key, verify_checksum=verify_checksum)
+    known = {c["canonical_name"] for c in roster["characters"]}
+    unknown = sorted(
+        {
+            name
+            for relation in document["relations"]
+            for name in (relation["subject"], relation["object"])
+            if name not in known
+        }
+    )
+    if unknown:
+        raise RosterSchemaError(f"relations name characters not in the roster: {unknown}")
+
+    if verify_checksum:
+        _verify_corpus_checksum(book_key, document)
+
+    return document
