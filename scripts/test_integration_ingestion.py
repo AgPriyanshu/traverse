@@ -299,21 +299,20 @@ def main() -> int:
         _log(f"FAIL: expected 200, got {status_code}: {chapters}")
         return 1
     if not chapters:
-        # Docling's layout model labels a heading SECTION_HEADER/TITLE from
-        # visual cues (font weight/size, mainly) — verified directly against
-        # this exact fixture PDF: every line, including "CHAPTER N.", comes
-        # back labelled plain `text`, because build_pdf() renders the whole
-        # document in one uniform, unstyled Courier. DocumentChunker only
-        # considers Docling's SECTION_HEADER/TITLE items as chapter
-        # candidates (chunking.py's _segment_chapters), so it structurally
-        # cannot find a chapter here — the same gap applies to do1's real
-        # Gutenberg-derived corpus, built by the same PDF writer. This is a
-        # real, open gap (not yet an SCR — flag it as one before Sprint 3
-        # leans on chapter-truth eval numbers), not a be1 regression, so it
-        # does not fail the gate.
+        # build_pdf() now renders a chapter heading in 16pt Courier-Bold
+        # rather than the same 10pt/regular font as body text (SCR-1,
+        # plans/sprint-3/SCR.md) — Docling's layout model does label these
+        # SECTION_HEADER, verified directly against both a synthetic probe
+        # and this real corpus's own PDF. Zero chapters here now more likely
+        # means be1's own `_segment_chapters`/`_prepare_chapters` isn't
+        # wired into this chain yet, or a genuine regression, rather than
+        # the previously-structural "Docling never emits the label at all"
+        # gap. Still not a gate failure on its own — chapter segmentation's
+        # own acceptance criteria are be1's S2.3/S3, not this script's.
         _log(
-            "    WARN: 0 chapters detected — build_pdf() gives Docling no visual "
-            "heading signal (see comment above). Not a gate failure."
+            "    WARN: 0 chapters detected. Headings now carry a real visual "
+            "signal (SCR-1) — check be1's chapter-segmentation stage rather "
+            "than assuming this is the old Docling-typography gap."
         )
     else:
         _log(f"    {len(chapters)} chapters detected.")

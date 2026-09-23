@@ -68,6 +68,15 @@ RUN groupadd --system --gid 10001 traverse \
 WORKDIR /app
 COPY --chown=traverse:traverse api/ /app/api/
 COPY --chown=traverse:traverse scripts/ /app/scripts/
+# api/ops/extraction_quality.py (S3.14) imports the repo-root eval/ package
+# for its scoring logic and gold rosters -- PYTHONPATH=/app above makes it a
+# sibling top-level import next to api/, the same layout api already relies
+# on for `import api...` to work from here.
+COPY --chown=traverse:traverse eval/ /app/eval/
+# Just the manifest, not corpus/downloads/ (gitignored, multi-hundred-MB real
+# PDFs no API code ever reads) -- eval/loaders.py only needs the pdf_sha256/
+# page_count fields to verify a gold roster is still pinned to the live corpus.
+COPY --chown=traverse:traverse corpus/manifest.json /app/corpus/manifest.json
 
 USER traverse
 EXPOSE 8000
@@ -87,4 +96,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
       pytest pytest-asyncio pytest-cov ruff
 USER traverse
 ENV MODELS_OFFLINE=1 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
-CMD ["sh", "-c", "if [ -d api/tests ]; then pytest api/tests -q; else echo 'no api/tests yet'; fi"]
+# eval/tests and scripts/test_label_roster.py (S3.13/S3.14) need no DB or
+# network — pure-Python scoring/schema logic — so they run in the same
+# `test` service rather than a separate one, on pyyaml/jsonschema that
+# `api/pyproject.toml`'s own dependency tree already pulls in (docling-core).
+CMD ["sh", "-c", "if [ -d api/tests ]; then pytest api/tests eval/tests scripts/test_label_roster.py -q; else echo 'no api/tests yet'; fi"]

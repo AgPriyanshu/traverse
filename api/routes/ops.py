@@ -14,6 +14,8 @@ from ..contracts.api import (
 from ..contracts.pipeline import IngestionRunOut
 from ..db.engine import get_session
 from ..ops import gather_health, pipeline_status
+from ..ops.extraction_cost import ExtractionCostOut, compute_extraction_cost
+from ..ops.extraction_quality import ExtractionQualityOut, compute_extraction_quality
 from ._stub import not_implemented
 
 router = APIRouter(tags=["ops"])
@@ -36,8 +38,38 @@ async def metrics(
     book_id: UUID | None = Query(default=None),
     session: SQLModelAsyncSession = Depends(get_session),
 ) -> MetricsOut:
-    """Per-stage cost and timing (S2.17). ``prefix_cache_hit_rate`` waits on S9.1."""
+    """Per-stage cost and timing (S2.17). ``prefix_cache_hit_rate`` is live from
+    vLLM as of S3.15 (``api/ops/vllm_metrics.py``) when running local inference."""
     return await pipeline_status.get_metrics(session, book_id=book_id)
+
+
+@router.get("/ops/extraction-quality", response_model=ExtractionQualityOut)
+async def extraction_quality(
+    book_id: UUID = Query(...),
+    session: SQLModelAsyncSession = Depends(get_session),
+) -> ExtractionQualityOut:
+    """Roster P/R/F1, B3, tier accuracy, rejection precision (S3.14).
+
+    Informational only this sprint — a regression gate lands in Sprint 8
+    (F6.4). Returns ``gold_available=False`` for any book without a labelled
+    gold set (``eval/gold/**``); today that is every book except Pride and
+    Prejudice and Wuthering Heights (S3.13).
+    """
+    return await compute_extraction_quality(session, book_id)
+
+
+@router.get("/ops/extraction-cost", response_model=ExtractionCostOut)
+async def extraction_cost(
+    book_id: UUID = Query(...),
+    session: SQLModelAsyncSession = Depends(get_session),
+) -> ExtractionCostOut:
+    """Tokens, cost at both rates, and wall clock/100 pages for pass 1 (S3.15).
+
+    Prefix-cache hit rate and KV-cache usage are read live from vLLM when
+    ``INFERENCE_MODE=local``; ``None`` under ``INFERENCE_MODE=api`` since
+    there is no local cache to report on.
+    """
+    return await compute_extraction_cost(session, book_id)
 
 
 @router.get("/ops/pipeline/runs", response_model=list[IngestionRunOut])

@@ -12,7 +12,8 @@ WAIT         := scripts/wait_for_healthy.sh
 .PHONY: help env up up-dev up-gpu up-obs down down-hard logs ps build health \
         migrate revision shell-api shell-db shell-neo4j shell-worker \
         test test-api test-web test-integration lint fmt openapi \
-        seed reset-db bootstrap worktrees warm-models ci-up ci-smoke ci-down
+        seed reset-db bootstrap worktrees warm-models ci-up ci-smoke ci-down \
+        ci-up-extraction
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_-]+:.*?## /{printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -181,3 +182,15 @@ ci-worker-check: ## A-1.3: assert `celery inspect registered` against the REAL w
 
 ci-down: ## Tear the CI subset down, volumes included
 	$(COMPOSE_CI) down -v --remove-orphans
+
+# S3.14's PR-triggered extraction-quality job needs a real book upload, which
+# needs object storage — `ci-up`'s subset deliberately omits MinIO (the
+# compose-smoke job it serves only needs `/health`, which already excludes
+# `object_store` via HEALTH_REQUIRED_DEPS=db,broker in docker-compose.ci.yml).
+# A separate target, not a change to CI_SERVICES/ci-up themselves, so the
+# already-green compose-smoke job's shape is untouched.
+CI_EXTRACTION_SERVICES := $(CI_SERVICES) minio minio-init
+
+ci-up-extraction: ## Start the CI subset plus MinIO, for a real book upload (S3.14)
+	$(COMPOSE_CI) up -d $(CI_EXTRACTION_SERVICES)
+	COMPOSE="$(COMPOSE_CI)" $(WAIT) --timeout 300 $(CI_EXTRACTION_SERVICES)

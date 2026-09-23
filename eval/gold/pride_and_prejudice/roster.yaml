@@ -1,0 +1,145 @@
+# Gold roster for Pride and Prejudice (S3.13). Validate with
+# eval/schema/roster.schema.json before trusting an edit here.
+#
+# first_page values were computed against this exact corpus build (not
+# guessed): scripts/seed_corpus.py's own paginate() was run over
+# corpus/downloads/pride-and-prejudice.txt and each alias's first regex match
+# was located by page. first_chapter is left null everywhere -- chapter-level
+# grouping is deferred pending a corpus with real structural headings
+# (plans/sprint-3/SCR.md SCR-1); do not backfill it with a guess.
+book_key: pride-and-prejudice
+corpus_pdf_sha256: 9d16f8644fb30853da423ea1797133a04fbc1be0064dc874093c213a38d86959
+page_count: 245
+labelled_by: do1 (seeded from public-domain textual evidence, S3.13)
+labelled_at: "2026-09-22T00:00:00+00:00"
+source_notes: >
+  Character list and tiers cross-checked against the standard published
+  reading of Pride and Prejudice (Gutenberg edition 1342, the George
+  Saintsbury-introduced illustrated edition also used to build this corpus).
+  Every first_page value is a direct grep of the actual paginated corpus text
+  for the character's earliest-appearing alias, not an estimate -- see the
+  module docstring above. Pending re-verification against be1's real pass-1
+  output via scripts/label_roster.py once S3.1 merges (plans/sprint-3/HANDOFF.md).
+characters:
+  - canonical_name: Elizabeth Bennet
+    aliases: [Elizabeth, Lizzy, Eliza, Miss Elizabeth Bennet, Miss Eliza Bennet, Miss Eliza]
+    importance_tier: protagonist
+    first_page: 13
+  - canonical_name: Fitzwilliam Darcy
+    aliases: [Darcy, Mr. Darcy, Fitzwilliam Darcy]
+    importance_tier: protagonist
+    first_page: 17
+  - canonical_name: Jane Bennet
+    aliases: [Jane, Miss Bennet, Miss Jane Bennet]
+    importance_tier: major
+    first_page: 13
+  - canonical_name: Mr. Bennet
+    aliases: [Mr. Bennet]
+    importance_tier: major
+    first_page: 12
+  - canonical_name: Mrs. Bennet
+    aliases: [Mrs. Bennet]
+    importance_tier: major
+    first_page: 14
+  - canonical_name: Charles Bingley
+    aliases: [Bingley, Mr. Bingley, Charles Bingley]
+    importance_tier: major
+    first_page: 12
+  - canonical_name: George Wickham
+    aliases: [Wickham, Mr. Wickham, George Wickham]
+    importance_tier: major
+    first_page: 57
+  - canonical_name: William Collins
+    aliases: [Mr. Collins, Collins, William Collins]
+    importance_tier: major
+    first_page: 50
+  - canonical_name: Charlotte Lucas
+    aliases: [Charlotte, Miss Lucas, Charlotte Lucas, Mrs. Collins]
+    importance_tier: major
+    first_page: 22
+    notes: Becomes Mrs. Collins after marrying William Collins mid-novel.
+  - canonical_name: Lydia Bennet
+    aliases: [Lydia, Miss Lydia]
+    importance_tier: major
+    first_page: 13
+  - canonical_name: Caroline Bingley
+    aliases: [Miss Bingley, Caroline, Caroline Bingley]
+    importance_tier: major
+    first_page: 17
+  - canonical_name: Lady Catherine de Bourgh
+    aliases: [Lady Catherine, Lady Catherine de Bourgh]
+    importance_tier: major
+    first_page: 51
+  - canonical_name: Mary Bennet
+    aliases: [Mary, Miss Mary]
+    importance_tier: minor
+    first_page: 15
+  - canonical_name: Kitty Bennet
+    aliases: [Kitty, Catherine Bennet, Miss Catherine]
+    importance_tier: minor
+    first_page: 14
+    notes: >
+      Given name is Catherine but she is called Kitty throughout -- a second,
+      smaller name-collision case (with Lady Catherine de Bourgh) alongside
+      this novel's own text, kept for awareness though it is not this
+      sprint's headline collision case (that is Wuthering Heights).
+  - canonical_name: Sir William Lucas
+    aliases: [Sir William, Sir William Lucas]
+    importance_tier: minor
+    first_page: 13
+  - canonical_name: Anne de Bourgh
+    aliases: [Miss de Bourgh, Anne de Bourgh]
+    importance_tier: minor
+    first_page: 54
+  - canonical_name: Georgiana Darcy
+    aliases: [Georgiana, Miss Darcy, Georgiana Darcy]
+    importance_tier: minor
+    first_page: 85
+  - canonical_name: Colonel Fitzwilliam
+    aliases: [Colonel Fitzwilliam]
+    importance_tier: minor
+    first_page: 115
+  - canonical_name: Mrs. Gardiner
+    aliases: [Mrs. Gardiner]
+    importance_tier: minor
+    first_page: 97
+  - canonical_name: Mr. Gardiner
+    aliases: [Mr. Gardiner]
+    importance_tier: minor
+    first_page: 97
+  - canonical_name: Mrs. Philips
+    aliases: [Mrs. Philips]
+    importance_tier: minor
+    first_page: 28
+  - canonical_name: Colonel Forster
+    aliases: [Colonel Forster]
+    importance_tier: minor
+    first_page: 25
+  - canonical_name: Mrs. Long
+    aliases: [Mrs. Long]
+    importance_tier: minor
+    first_page: 12
+  - canonical_name: Mrs. Reynolds
+    aliases: [Mrs. Reynolds]
+    importance_tier: mentioned
+    first_page: 157
+  - canonical_name: Mr. Denny
+    aliases: [Denny, Mr. Denny]
+    importance_tier: mentioned
+    first_page: 55
+rejected_non_characters:
+  - surface_form: Netherfield
+    reason: Bingley's rented estate -- a place, not a person.
+    kind: place
+  - surface_form: Longbourn
+    reason: The Bennet family home -- a place, not a person.
+    kind: place
+  - surface_form: Pemberley
+    reason: Darcy's estate -- a place, not a person.
+    kind: place
+  - surface_form: Rosings
+    reason: Lady Catherine's estate -- a place, not a person.
+    kind: place
+  - surface_form: Meryton
+    reason: The nearby market town -- a place, not a person.
+    kind: place

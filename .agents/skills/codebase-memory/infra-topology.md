@@ -31,6 +31,38 @@ corpus's wall clock/cost nightly. Both ingestion scripts currently skip with
 exit 0 on a 501 from `POST /api/projects/{id}/books` — that's S2.1 (be1) not
 merged into the checkout being tested yet, not a bug; see HANDOFF.md.
 
+**Built (S3):** `scripts/seed_corpus.py`'s chapter-heading gap is **fixed**
+(SCR-1, `plans/sprint-3/SCR.md`) — a chapter heading now renders in 16pt
+`Courier-Bold` instead of the same 10pt/regular font as body text, which
+crosses the threshold (empirically ~1.4x body size) where Docling's layout
+model emits `SECTION_HEADER` instead of `TEXT`. Verified directly against the
+installed model, both on a synthetic probe and on the real regenerated
+`corpus/downloads/pride-and-prejudice.pdf` (`CHAPTER III.`/`CHAPTER IV.`
+labelled `section_header`). `paginate()`'s line-to-page assignment is
+unchanged by this — only `pdf_sha256` moved; page counts are identical to
+before. `eval/**` (new, do1-owned): `eval/schema/roster.schema.json`,
+`eval/gold/{pride_and_prejudice,wuthering_heights}/roster.yaml` (S3.13, pinned
+to the regenerated corpus's checksums), `eval/metrics.py` (roster P/R/F1,
+a real B³ implementation verified against a hand-computed toy example,
+tier accuracy, rejection precision, cascade-stage contribution),
+`eval/loaders.py` (schema + checksum-pinning enforcement — a repaginated
+corpus fails loudly), `eval/runners/extraction.py` (PR-comment markdown
+renderer), `scripts/label_roster.py` (terminal review tool, reused for
+Sprint 8's question set). `api/ops/extraction_quality.py` and
+`api/ops/extraction_cost.py` (S3.14/S3.15) wire `eval/metrics.py` against the
+real `Character`/`CharacterAppearance`/`CharacterMention`/`RejectedCandidate`
+tables, behind two new do1-owned routes: `GET /ops/extraction-quality` and
+`GET /ops/extraction-cost` (both `?book_id=`, response models defined
+locally rather than in the frozen `api/contracts/api.py` — see SCR-2).
+`api/ops/vllm_metrics.py` scrapes vLLM's own Prometheus `/metrics` for
+prefix-cache hit rate and KV-cache usage; `GET /ops/metrics`'s
+`prefix_cache_hit_rate` field (frozen since S2.17, previously always `None`)
+is now populated live from it when `INFERENCE_MODE=local`.
+`.github/workflows/extraction-quality.yml` (new) runs the one-novel reduced
+set on PRs touching `api/extraction/**`; `scripts/nightly_corpus_ingestion.py`
+(S2.18) extended to also post extraction quality/cost for gold-labelled books
+alongside its existing wall-clock/cost report.
+
 **Broken / partial:** the Sprint 1 `api/llm.py` `CACHE_DIR` absolute-path
 defect is gone — fixed by the Sprint 2 contract freeze (`3cdc9fb`), confirmed
 by `grep -rn "/home/" .` returning nothing outside `.gitignore`d files.
@@ -38,9 +70,13 @@ by `grep -rn "/home/" .` returning nothing outside `.gitignore`d files.
 down the shared singleton stack to time it would have disrupted every other
 worktree mid-sprint — see HANDOFF.md). The nightly corpus job's wall clock is
 API-inference, not the local-vLLM number NFR-perf is judged on (no GPU on
-`ubuntu-latest`).
+`ubuntu-latest`). `.github/workflows/extraction-quality.yml` and
+`scripts/pr_extraction_quality.py` are unverified end to end on a real GitHub
+Actions run and against real `api/extraction/**` output — be1's pass 1 had
+not merged as of this writing, so the closest available check was confirming
+the script's HTTP/DB-adjacent logic and lint/unit tests pass; see HANDOFF.md.
 
-**Not built:** anything Sprint 3+.
+**Not built:** anything Sprint 4+.
 
 ## Services
 
@@ -125,11 +161,25 @@ make migrate                      make bootstrap        make reset-db
 make test / test-api / test-web / test-integration
 make lint / fmt / openapi         make seed             make warm-models
 make worktrees SPRINT=3 SLUG=…    make ci-up / ci-smoke / ci-down
+make ci-up-extraction             S3.14: ci-up's subset + MinIO, for a real book upload
 make revision m="…"               ORCHESTRATOR ONLY — typed confirmation
 ```
 
 ## Gotchas
 
+- **`eval/` is a repo-root package, not under `api/`, and `api/ops/
+  extraction_quality.py`/`extraction_cost.py` import it anyway.** Works via
+  `PYTHONPATH=/app` (same trick that makes `import api...` work) — `api/
+  Dockerfile`'s runtime stage `COPY`s `eval/` and just `corpus/manifest.json`
+  (not `corpus/downloads/`, gitignored and multi-hundred-MB) into the image.
+  If a third do1-owned module starts importing `eval.*`, it already works;
+  if a new top-level dir needs the same trick, copy it the same way.
+- **`api/tests/pipeline/test_books_routes.py`'s exact `len(paths) == 34`
+  frozen-count assertion breaks on any agent's legitimate new route** —
+  be2's S3.6/S3.7 routes will hit this exactly the same way do1's two new
+  S3.14/S3.15 `/ops/*` routes did (SCR-3, `plans/sprint-3/SCR.md`). Not a
+  regression to chase if you see it; check whether an SCR already covers the
+  new count before assuming your branch broke something.
 - **Neo4j takes ~20s to accept connections** after container start; its
   healthcheck carries a 40s `start_period`. Retry on `ServiceUnavailable`.
 - **`proxy_buffering off`** in `web/nginx.conf` or SSE streaming silently hangs.
