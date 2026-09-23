@@ -11,7 +11,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from api.llm import plan_batches, structured_call
+from api.llm import LengthLimitError, plan_batches, structured_call
 
 from ..config.settings import settings
 from ..contracts.enums import LLMPurpose
@@ -113,18 +113,47 @@ async def discover_mentions(
 async def _sweep_batch(
     batch: list[tuple[DocumentChunk, int | None]], *, book_id: UUID
 ) -> list[MentionCandidate]:
+    """Sweep one batch, splitting in half and retrying if the reply overflows.
+
+    ``_OUTPUT_RESERVE`` is sized from an *assumed average* mentions-per-chunk
+    ratio, not a hard cap: a dialogue- and name-dense scene can produce far
+    more mentions than that for a batch well within the chunk-count cap, and
+    no fixed count is safe against every scene. A batch cut off by the length
+    limit is therefore halved and each half retried, recursively. A single
+    chunk that still overflows cannot be split further, so the error is
+    re-raised rather than skipping it: a silently missing chunk is a recall
+    hole nobody would see.
+    """
     passages = "\n\n".join(
         f"[{index}] {chunk.text}" for index, (chunk, _) in enumerate(batch, start=1)
     )
     prompt = MENTION_SWEEP_PROMPT.format(passages=passages)
 
-    result = await structured_call(
-        prompt,
-        MentionSweepOutput,
-        purpose=LLMPurpose.CHARACTER_EXTRACT,
-        book_id=str(book_id),
-        stage="extract_characters",
-    )
+    try:
+        result = await structured_call(
+            prompt,
+            MentionSweepOutput,
+            purpose=LLMPurpose.CHARACTER_EXTRACT,
+            book_id=str(book_id),
+            stage="extract_characters",
+        )
+    except LengthLimitError:
+        if len(batch) == 1:
+            raise
+
+        midpoint = len(batch) // 2
+        logger.info(
+            "book %s: a %d-chunk mention sweep hit the length limit; "
+            "splitting into %d and %d chunks",
+            book_id,
+            len(batch),
+            midpoint,
+            len(batch) - midpoint,
+        )
+        first_half = await _sweep_batch(batch[:midpoint], book_id=book_id)
+        second_half = await _sweep_batch(batch[midpoint:], book_id=book_id)
+
+        return [*first_half, *second_half]
 
     candidates: list[MentionCandidate] = []
     for chunk_mentions in result.chunks:
