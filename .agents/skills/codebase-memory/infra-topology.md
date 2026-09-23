@@ -76,7 +76,15 @@ Actions run and against real `api/extraction/**` output — be1's pass 1 had
 not merged as of this writing, so the closest available check was confirming
 the script's HTTP/DB-adjacent logic and lint/unit tests pass; see HANDOFF.md.
 
-**Not built:** anything Sprint 4+.
+**Built (S4, do1):** `eval/relation_metrics.py`, `eval/schema/relations.schema.json`,
+`eval/gold/pride_and_prejudice/relations.yaml`, `eval/runners/relations.py`,
+`api/ops/relation_quality.py` + `relation_cost.py` behind `GET /ops/relation-quality`
+and `/ops/relation-cost`, `api/ops/graph_rebuild.py` + `graph_fixture.py` (the
+drill), `scripts/ingest_book.py`, `scripts/judge_citations.py`,
+`.github/workflows/relation-quality.yml`. Make targets: `ingest`, `graph-rebuild`,
+`graph-rebuild-drill`, `eval-relations`, `judge-citations`, `docker-nocreds`.
+
+**Not built:** anything Sprint 5+.
 
 ## Services
 
@@ -166,6 +174,16 @@ make revision m="…"               ORCHESTRATOR ONLY — typed confirmation
 ```
 
 ## Gotchas
+
+- **`error getting credentials` on any image build.** Docker Desktop's WSL
+  helper (`credsStore: desktop.exe`) fails even for public images. The
+  Makefile detects that and exports `DOCKER_CONFIG=$PWD/.docker-nocreds` (a dir
+  holding `{}`); force with `NOCREDS=1`. Outside make: `make docker-nocreds`
+  prints the export line.
+- **`test` image is tagged per worktree** (`traverse-api-test:$TEST_IMAGE_TAG`).
+  Bare `docker compose` without it falls back to `dev`, shared across worktrees.
+- **`docker compose run` from a worktree can recreate the shared db/rabbitmq**
+  when the compose config differs from the running stack. Volumes survive.
 
 - **`eval/` is a repo-root package, not under `api/`, and `api/ops/
   extraction_quality.py`/`extraction_cost.py` import it anyway.** Works via
