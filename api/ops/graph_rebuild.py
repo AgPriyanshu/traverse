@@ -195,6 +195,11 @@ async def run_drill(
     )
 
 
+async def _initial_upsert(book_id: str) -> None:
+    """Project a freshly seeded fixture once, so the drill has a graph to wipe."""
+    await asyncio.to_thread(_run_upsert, book_id, UPSERT_TIMEOUT_S)
+
+
 async def _resolve_book(book_id: str | None, book_key: str | None) -> str:
     if book_id:
         return book_id
@@ -244,13 +249,24 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--book-id")
     parser.add_argument("--book-key", help="e.g. pride-and-prejudice")
+    parser.add_argument(
+        "--fixture",
+        action="store_true",
+        help="Seed the synthetic drill graph in Postgres first (CI).",
+    )
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
-    if not (args.book_id or args.book_key):
-        parser.error("give --book-id or --book-key")
+    if not (args.book_id or args.book_key or args.fixture):
+        parser.error("give --book-id, --book-key or --fixture")
 
     async def go() -> DrillReport:
-        book_id = await _resolve_book(args.book_id, args.book_key)
+        if args.fixture:
+            from .graph_fixture import seed_fixture_graph
+
+            book_id = str(await seed_fixture_graph())
+            await _initial_upsert(book_id)
+        else:
+            book_id = await _resolve_book(args.book_id, args.book_key)
 
         return await run_drill(book_id)
 
