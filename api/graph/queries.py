@@ -219,7 +219,8 @@ async def shortest_path(
     hops = max(1, min(max_hops, MAX_HOPS))
     query = f"""
     MATCH (a:Character {{id: $a}}), (b:Character {{id: $b}})
-    MATCH p = shortestPath((a)-[:RELATED*..{hops} {{inverse: false}}]-(b))
+    MATCH p = shortestPath((a)-[:RELATED*..{hops}]-(b))
+    WHERE all(r IN relationships(p) WHERE r.inverse = false)
     RETURN [r IN relationships(p) | r.id] AS ids
     """
     async with neo_session() as neo:

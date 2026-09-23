@@ -18,14 +18,14 @@ Symbols over line numbers.
 | `pipeline.resolve_aliases` task body (clusters → `Character`/`CharacterAppearance`/`CharacterMention`, idempotent replace) | `api/pipeline/tasks.py`, `api/extraction/repository.py` | **Built** |
 | `cluster_contexts`, `MentionContext`, `similarity_threshold` (embedding similarity, stage 4 of the cascade) | `api/graph/similarity.py` | **Built** (S3.8) — threshold measured against real BGE-M3 + real text, not assumed; see `plans/sprint-3/HANDOFF.md`. Reuses `retrieval/repository.py::embedding_model()`, never a second copy. `api/extraction/similarity.py` lazy-imports it (degraded no-op if unavailable) — both are now landed so the degradation path is dead code in practice, kept for the same defensive reason it was written |
 | `merge_characters`, `split_character` (transactional, mention-accurate) | `api/graph/merge.py`, wired at `POST /characters/merge` and `POST /characters/{id}/split` | **Built** (S3.7) — both recompute appearances and derived fields from actual `CharacterMention` rows rather than adjusting counters, which is what makes a merge followed by a split restore the original partition |
-| `relations.extract` (pass 2) | `api/relations/` | S4 |
+| `relations.extract` (pass 2) | `api/relations/` | **Built** (S4; `extract.py`, `validator.py`, `aggregate.py`, `graph/upsert.py`, reads in `graph/queries.py`) |
 | `pipeline.reconcile_characters` | `api/reconcile/` | S5 |
 | Cross-book blocking (death, namesake, kinship) | `api/reconcile/` | S5 |
 | Appearance recompute, order independence | `api/reconcile/` | S5 |
 | Series-position validity, `/relations/arc` | `api/graph/` | S5 |
-| Off-roster validator, quote-substring check | `api/relations/` | S4 |
-| `relations.aggregate` | `api/relations/` | S4 |
-| `graph.upsert` | `api/graph/` | S4 |
+| Off-roster validator, quote-substring check | `api/relations/` | **Built** (S4; `extract.py`, `validator.py`, `aggregate.py`, `graph/upsert.py`, reads in `graph/queries.py`) |
+| `relations.aggregate` | `api/relations/` | **Built** (S4; `extract.py`, `validator.py`, `aggregate.py`, `graph/upsert.py`, reads in `graph/queries.py`) |
+| `graph.upsert` | `api/graph/` | **Built** (S4; `extract.py`, `validator.py`, `aggregate.py`, `graph/upsert.py`, reads in `graph/queries.py`) |
 
 ## Alias resolution cascade (S3)
 

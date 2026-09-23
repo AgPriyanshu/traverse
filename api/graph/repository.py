@@ -284,7 +284,7 @@ async def get_character(
     base = to_character_out(character, orders.get(character.id, []))
 
     return CharacterDetailOut(
-        **base.model_dump(),
+        **base.model_dump(exclude={"mentions_per_chapter"}),
         alias_detail=alias_detail,
         attributes=attributes,
         appearances=appearances,
