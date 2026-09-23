@@ -132,6 +132,41 @@ class TestChapterCarryForward:
         assert numbers[0] == 1
         assert all(number is not None for number in numbers[: len(numbers)])
 
+    async def test_a_heading_with_no_body_text_still_gets_a_chunk(
+        self, chunker: DocumentChunker
+    ) -> None:
+        """A chapter with nothing before the next heading must not vanish.
+
+        Real for a cluster of Pride and Prejudice's short back-half chapters
+        (some run 2-3 pages with almost no body text of their own).
+        Docling's own ``HierarchicalChunker`` drops a heading entirely —
+        never yields any chunk carrying it — when nothing follows it before
+        the next heading, unless ``always_emit_headings=True`` is passed to
+        the ``HybridChunker`` this method constructs. Chapter *detection*
+        (``_prepare_chapters`` walks every heading-like doc item directly,
+        independent of chunking) is unaffected — the gap is specifically
+        between "detected" and "carries a chunk", which is what
+        ``page_ranges_from_payloads`` needs to place every chapter.
+        """
+        doc = DoclingDocument(name="novel")
+        for page in (1, 2, 3):
+            doc.pages[page] = PageItem(page_no=page, size=Size(width=612, height=792))
+        doc.add_heading("Chapter 1", level=1, prov=prov(1))
+        doc.add_text(label="text", text="Body text of chapter one.", prov=prov(1))
+        # Chapter 2 has no body of its own before Chapter 3's heading — the
+        # case that silently disappears without ``always_emit_headings``.
+        doc.add_heading("Chapter 2", level=1, prov=prov(2))
+        doc.add_heading("Chapter 3", level=1, prov=prov(3))
+        doc.add_text(label="text", text="Body text of chapter three.", prov=prov(3))
+
+        chapters = await chunker.detect_chapters(doc)
+        assert [chapter.number for chapter in chapters] == [1, 2, 3]
+
+        chunks = await chunker.generate_chunks(doc, embed=False)
+        numbers = {chunk.chapter_number for chunk in chunks}
+
+        assert numbers == {1, 2, 3}
+
 
 class TestChapterDetectionFixes:
     """Regression coverage for the three known S1 defects fixed in S2.3."""
