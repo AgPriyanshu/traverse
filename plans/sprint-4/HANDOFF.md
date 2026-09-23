@@ -1,0 +1,13 @@
+
+## be2 → all · pass 2, aggregation, projection and read APIs (S4.1 – S4.7)
+
+- **Stages.** `relations.extract` stages validated facts as `books/{id}/relations_extracted.json` in object storage (nothing is an edge yet). `relations.aggregate` recomputes the **whole project** from raw evidence (this book's facts plus other books' evidence rows), so book order never matters, and replaces every non-`human_verified` relation. `graph.upsert` projects the project into Neo4j in one write transaction.
+- **be1 inputs.** `api/relations/inputs.py` imports `api.pipeline.prefilter.pass2_candidates(book_id, session=...)` and falls back to a local distinct-character rule when absent. `api/relations/speakers.py` imports `api.pipeline.scene_repository.list_dialogue_lines` and falls back to the model's `asserted_by`. Both are lazy imports: neither exists on `ai-master` yet, so the real-signature path is **untested** until be1 merges (A-3.3). Re-check on merge.
+- **Deviation from be1's note.** An unresolved dialogue speaker keeps the fact `dialogue` (edge becomes hearsay, no speaker) rather than `narrated`; marking it narrated would state a character's claim as fact.
+- **Predicate to family map** is `api/graph/ontology.yaml` (`GET /graph/ontology`). I added transitions from acquaintance/friend/rival/enemy to engaged/married so the Elizabeth–Darcy arc is legal.
+- **Stored direction.** Postgres holds one canonical direction per fact (`parent_of` over `child_of`, symmetric pairs sorted by character id). Neo4j also holds materialised inverse edges (`inverse: true`); reads for the explorer use `inverse: false` only.
+- **GraphOut** is unchanged. `page_refs` are `PageRefOut{book_order, page}`; the Postgres fallback used to return bare ints and is fixed. `truncated` is set at 2000 edges. `limit_*` filters on the edge's and node's first position; page refs are not trimmed, so a later cited page can be visible on an early edge (spoiler caveat for S8).
+- **Evidence pagination.** `GET /relations/{id}/evidence?limit=&offset=`, ordered by (book, chapter, page, id), 404 for an unknown relation. `GET /relations/arc?a=&b=` returns all states for the pair in either direction, one element if nothing changed. `GET /graph/path?from=&to=` takes character ids, `max_hops` capped at 4; no path returns `found=false`.
+- **Rejection stats** (off-roster rate etc.) are logged and stored in the artifact's `summary`. Reasons: unknown_predicate, not_extractable, off_roster_subject/object, self_relation, empty_quote, quote_not_in_chunk, quote_names_other_characters.
+- **Confidence formula** is in `api/relations/aggregate.py` (0.5 count, 0.3 agreement, 0.2 mean item confidence).
+- Filed SCR-13 to SCR-15.
