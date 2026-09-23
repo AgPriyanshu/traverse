@@ -383,5 +383,7 @@ class TestStillFrozen:
         # GET /ops/extraction-cost (do1's SCR-3: this exact assertion
         # collides with any sprint that adds a route in any agent's owned
         # router — bumped here at the merge train once the final count
-        # across all four branches was known, same as Sprint 2's SCR-6).
-        assert len(response.json()["paths"]) == 36
+        # across all four branches was known, same as Sprint 2's SCR-6), +2 at
+        # Sprint 4's for GET /ops/relation-quality and GET /ops/relation-cost
+        # (do1's SCR-16).
+        assert len(response.json()["paths"]) == 38

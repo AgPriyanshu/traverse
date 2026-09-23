@@ -61,6 +61,9 @@ async def build_scenes_and_speakers(
         )
         for chunk, _ in chunk_rows
     ]
+    # Read ORM attributes now: the repository calls below commit, which
+    # expires every loaded row and turns a later access into a lazy load.
+    chunk_texts = {chunk.id: chunk.text for chunk, _ in chunk_rows}
     drafts = segment_scenes(chunks)
 
     await scene_repository.delete_book_scenes(session, book_id)
@@ -68,7 +71,6 @@ async def build_scenes_and_speakers(
 
     forms_by_character = {row.character_id: row.forms for row in forms}
     names = {row.character_id: row.canonical_name for row in forms}
-    chunk_texts = {chunk.id: chunk.text for chunk, _ in chunk_rows}
 
     work = []
     for draft in drafts:
