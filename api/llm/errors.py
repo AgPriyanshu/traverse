@@ -5,7 +5,7 @@ Subclassing the worker retry contract (``api.workers.errors``) is what makes
 having to know that its failure came from ``api.llm`` at all.
 """
 
-from openai import APIConnectionError, APIStatusError
+from openai import APIConnectionError, APIStatusError, LengthFinishReasonError
 
 from ..workers.errors import PermanentError, TransientError
 
@@ -52,6 +52,11 @@ def classify_call_error(exc: Exception) -> TransientLLMError | PermanentLLMError
     """
     if isinstance(exc, TransientLLMError | PermanentLLMError):
         return exc
+
+    # The client raises this itself, mid-call, when a reply is cut off by the
+    # length limit, so ``structured_call`` never sees a ``finish_reason``.
+    if isinstance(exc, LengthFinishReasonError):
+        return LengthLimitError(str(exc))
 
     if isinstance(exc, APIConnectionError):
         return TransientLLMError(str(exc))

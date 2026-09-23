@@ -1,8 +1,15 @@
 import httpx
 import openai
 import pytest
+from openai import LengthFinishReasonError
+from openai.types.chat import ChatCompletion
 
-from api.llm.errors import PermanentLLMError, TransientLLMError, classify_call_error
+from api.llm.errors import (
+    LengthLimitError,
+    PermanentLLMError,
+    TransientLLMError,
+    classify_call_error,
+)
 
 _REQUEST = httpx.Request("POST", "http://localhost:8080/v1/chat/completions")
 
@@ -55,3 +62,15 @@ def test_already_classified_error_passes_through() -> None:
     original = TransientLLMError("already known")
 
     assert classify_call_error(original) is original
+
+
+def test_the_clients_own_length_exception_becomes_length_limit_error() -> None:
+    completion = ChatCompletion.model_construct(
+        id="x", choices=[], created=0, model="m", object="chat.completion"
+    )
+    exc = LengthFinishReasonError(completion=completion)
+
+    classified = classify_call_error(exc)
+
+    assert isinstance(classified, LengthLimitError)
+    assert isinstance(classified, PermanentLLMError)
