@@ -122,12 +122,10 @@ export const GraphListView = ({
                     variant="outline"
                     borderColor="border.control"
                     color="fg"
+                    aria-label={`Evidence for ${node.canonical_name} ${predicateLabel(edge.predicate)} ${other?.canonical_name ?? ""}`}
                     onClick={() => { onSelectEdge(edge); }}
                   >
                     Evidence
-                    <Text as="span" srOnly>
-                      {` for ${node.canonical_name} ${predicateLabel(edge.predicate)} ${other?.canonical_name ?? ""}`}
-                    </Text>
                   </Button>
                 </Box>
               );

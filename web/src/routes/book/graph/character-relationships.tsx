@@ -124,12 +124,10 @@ export const CharacterRelationships = ({
                       variant="outline"
                       borderColor="border.control"
                       color="fg"
+                      aria-label={`Evidence for ${predicateLabel(edge.predicate)} ${otherName}`}
                       onClick={() => { handleSelect(edge.id); }}
                     >
                       Evidence
-                      <Text as="span" srOnly>
-                        {` for ${predicateLabel(edge.predicate)} ${otherName}`}
-                      </Text>
                     </Button>
                   </HStack>
                 </Box>
