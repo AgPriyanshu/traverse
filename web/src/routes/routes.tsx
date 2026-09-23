@@ -71,7 +71,9 @@ export const routes: RouteObject[] = [
               },
               {
                 path: "graph",
-                element: <NotYetBuilt screen="The graph explorer" sprint={4} />,
+                lazy: async () => ({
+                  Component: (await import("./book/graph/graph-explorer")).GraphExplorer,
+                }),
               },
               {
                 path: "ask",

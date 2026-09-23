@@ -16,14 +16,25 @@ const contrast = (a: string, b: string): number => {
 };
 
 const GROUNDS = ["paper", "surface", "sunken"] as const;
-const INKS = ["ink", "ink2", "ink3", "accent", "ok", "warn", "err"] as const;
+const INKS = [
+  "ink",
+  "ink2",
+  "ink3",
+  "accent",
+  "ok",
+  "warn",
+  "err",
+  "kinship",
+  "romantic",
+  "social",
+  "adversarial",
+] as const;
 const THEMES = ["light", "dark"] as const;
 
 /**
  * NFR-a11y is an acceptance criterion on this sprint, not a Sprint 9 sweep, so
- * the palette is checked rather than eyeballed. Relation colours are excluded
- * until Sprint 4 renders them — see DCR-2, where light `social` measures
- * 4.34:1 on `sunken`.
+ * the palette is checked rather than eyeballed. Relation colours are included
+ * now that Sprint 4 renders them (DCR-2 fixed light `social` on `sunken`).
  */
 describe("the palette clears 4.5:1 on every ground it is used on", () => {
   for (const theme of THEMES) {

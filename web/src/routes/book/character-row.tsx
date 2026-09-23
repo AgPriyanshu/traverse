@@ -3,6 +3,7 @@ import { Link as RouterLink } from "react-router";
 import { PageRef } from "@/components/ui";
 import type { Character } from "@/lib/api";
 import { formatAliasRun, formatCount } from "@/lib/format";
+import { toPoints } from "./spark-points";
 import { SparklineBars } from "./sparkline-bars";
 
 export type CharacterRowProps = {
@@ -23,6 +24,7 @@ export const CharacterRow = ({ character, bookId, bookTitle }: CharacterRowProps
   const aliases = character.aliases ?? [];
   const topAliases = aliases.slice(0, TOP_ALIAS_COUNT);
   const remainingAliasCount = aliases.length - topAliases.length;
+  const points = toPoints(character.mentions_per_chapter ?? {});
 
   return (
     <Box
@@ -90,11 +92,8 @@ export const CharacterRow = ({ character, bookId, bookTitle }: CharacterRowProps
         </Box>
 
         <Stack gap="0.5" flex={{ md: "0 0 9.5rem" }} display={{ base: "none", sm: "flex" }}>
-          {/* `CharacterOut` (the list contract) has no per-chapter histogram yet —
-             SCR-1, plans/sprint-3/SCR.md. `SparklineBars` degrades to a labelled
-             placeholder rather than fabricating a chapter shape it doesn't have. */}
           <SparklineBars
-            data={[]}
+            data={points}
             width={148}
             height={26}
             ariaLabel={`mentions per chapter for ${character.canonical_name}`}

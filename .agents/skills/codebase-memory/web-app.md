@@ -32,12 +32,9 @@ surface form with `resolution_method` shown per mention as the trust
 affordance the brief asks for. 136 Vitest tests, all passing; `pnpm
 tsc --noEmit`, `pnpm lint`, `pnpm build` all clean.
 
-**Known gap, not fixed this sprint — see Gotchas below:** `CharacterOut` (the
-roster list contract) carries no per-chapter histogram, so the roster row's
-"across the book" sparkline renders a labelled placeholder, not real data
-(SCR-1, `plans/sprint-3/SCR.md`). `MentionOut` carries a page but no
-`SpanBox`, so a mention's click-through lands on the page without a
-highlight, unlike a citation's `?highlight=` (SCR-2, same file).
+**Built (S4, fe1):** graph explorer (`routes/book/graph/`): `graph-explorer.tsx` (route, URL-param filters via `graph-filters.ts`), `graph-canvas.tsx` (Cytoscape + fcose, layout computed once, filters hide in place), `graph-list-view.tsx` (the accessible equal), `evidence-panel.tsx` + `evidence-item.tsx` (drawer, `?edge=`), `relation-arc.tsx` + `arc-segments.ts`, `character-relationships.tsx` (detail-page panel). Family colour + line style live in `relation-style.ts`. The roster sparkline now reads `CharacterOut.mentions_per_chapter`. See `plans/sprint-4/SCR.md` SCR-10 to 12 and DCR-5 for known gaps.
+
+**Known gap:** `MentionOut` and `EvidenceOut` carry a page but no `SpanBox`, so their click-through lands on the page without a highlight (Sprint 3 SCR-9, Sprint 4 SCR-10). The roster sparkline gap (Sprint 3 SCR-1) is closed.
 
 `web/src/design-system/tokens.ts` **exists** (DCR-1, landed at the Sprint 2
 freeze) — `palette`, `shadow`, `type`, `space`, `radius`, `motion`. `theme.ts`

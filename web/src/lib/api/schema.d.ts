@@ -95,7 +95,16 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Upload Book */
+        /**
+         * Upload Book
+         * @description Stream an uploaded PDF to storage and queue its ingestion.
+         *
+         *     Hashing happens while the file streams to a temp path so a 200 MB upload
+         *     never sits in memory whole (F1.1). A ``content_hash`` collision short
+         *     circuits everything after it (F1.5): the object is never re-uploaded and
+         *     the caller gets back the book that already exists, at ``200`` rather than
+         *     ``202`` since nothing was queued.
+         */
         post: operations["upload_book_api_projects__project_id__books_post"];
         delete?: never;
         options?: never;
@@ -137,6 +146,10 @@ export interface paths {
          *
          *     The stages come from the latest ingestion run, so a re-process reports its
          *     own attempt rather than a merge of every run the book has ever had.
+         *     ``status`` is derived from those stages rather than read off the stored
+         *     column: nothing currently updates ``book.status`` as stages complete or
+         *     fail, so the column alone would report every book "queued" forever,
+         *     including one already dead-lettered (see HANDOFF.md).
          */
         get: operations["get_book_status_api_books__book_id__status_get"];
         put?: never;
@@ -156,7 +169,17 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Reprocess Book */
+        /**
+         * Reprocess Book
+         * @description Re-run ingestion for a book from a named stage onward.
+         *
+         *     Everything before ``from_stage`` is left untouched, and any chapter a
+         *     human has since verified survives regardless of where the re-run starts
+         *     — ``upsert_chapters`` never overwrites one (F5.4). Omitting ``from_stage``
+         *     resumes from this book's first stage that has not already succeeded, so
+         *     a "Retry" action does not require the caller to already know which stage
+         *     is dead-lettered.
+         */
         post: operations["reprocess_book_api_books__book_id__reprocess_post"];
         delete?: never;
         options?: never;
@@ -171,7 +194,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Chapters */
+        /**
+         * List Chapters
+         * @description Return a book's chapters, in page order, each with its chunk count.
+         */
         get: operations["list_chapters_api_books__book_id__chapters_get"];
         put?: never;
         post?: never;
@@ -188,7 +214,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Chunks */
+        /**
+         * List Chunks
+         * @description Return a page of a book's chunks, in document order.
+         */
         get: operations["list_chunks_api_books__book_id__chunks_get"];
         put?: never;
         post?: never;
@@ -205,7 +234,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Render Page */
+        /**
+         * Render Page
+         * @description Return a page's rendered image, dimensions and text-span boxes.
+         *
+         *     Rendered lazily from the source PDF and cached on first request (S2.6);
+         *     a re-request for the same page never re-touches the source. See
+         *     ``pipeline/render.py`` and the coordinate contract in ``HANDOFF.md``.
+         */
         get: operations["render_page_api_books__book_id__pages__page__get"];
         put?: never;
         post?: never;
@@ -248,12 +284,13 @@ export interface paths {
         };
         /**
          * Get Character
-         * @description Return one character with its per-book appearances.
-         *
-         *     Alias detail, attributes and per-chapter mention counts land in S3.6.
+         * @description Return one character: aliases, attributes, appearances and evidence.
          *
          *     Raises:
-         *         HTTPException: 404 when no such character exists.
+         *         HTTPException: 404 when no such character exists, or it exists but is
+         *             not yet visible at the given reading position — the same
+         *             spoiler gate ``list_characters`` applies, so a deep link cannot
+         *             bypass it.
          */
         get: operations["get_character_api_characters__character_id__get"];
         put?: never;
@@ -271,7 +308,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Mentions */
+        /**
+         * List Mentions
+         * @description Return one character's mentions, page-ordered and paginated.
+         *
+         *     Raises:
+         *         HTTPException: 404 when no such character exists.
+         */
         get: operations["list_mentions_api_characters__character_id__mentions_get"];
         put?: never;
         post?: never;
@@ -307,7 +350,15 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Merge Characters */
+        /**
+         * Merge Characters
+         * @description Merge ``source_ids`` into ``target_id``, one transaction, zero orphans.
+         *
+         *     Raises:
+         *         HTTPException: 404 if a source or the target does not exist; 400 if
+         *             the request is otherwise invalid (target in sources, sources
+         *             spanning more than one project, or a colliding canonical name).
+         */
         post: operations["merge_characters_api_characters_merge_post"];
         delete?: never;
         options?: never;
@@ -324,7 +375,15 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Split Character */
+        /**
+         * Split Character
+         * @description Split ``mention_ids`` off ``character_id`` into a new character.
+         *
+         *     Raises:
+         *         HTTPException: 404 if ``character_id`` does not exist; 400 if the
+         *             request is otherwise invalid (a mention id not on this
+         *             character, every mention named, or a colliding canonical name).
+         */
         post: operations["split_character_api_characters__character_id__split_post"];
         delete?: never;
         options?: never;
@@ -491,7 +550,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Search */
+        /**
+         * Search
+         * @description Hybrid search: dense (pgvector) + lexical (``ts_rank_cd``), RRF-fused.
+         *
+         *     Raises:
+         *         HTTPException: 404 when the project does not exist.
+         */
         get: operations["search_api_search_get"];
         put?: never;
         post?: never;
@@ -566,8 +631,61 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Metrics */
+        /**
+         * Metrics
+         * @description Per-stage cost and timing (S2.17). ``prefix_cache_hit_rate`` is live from
+         *     vLLM as of S3.15 (``api/ops/vllm_metrics.py``) when running local inference.
+         */
         get: operations["metrics_api_ops_metrics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ops/extraction-quality": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Extraction Quality
+         * @description Roster P/R/F1, B3, tier accuracy, rejection precision (S3.14).
+         *
+         *     Informational only this sprint — a regression gate lands in Sprint 8
+         *     (F6.4). Returns ``gold_available=False`` for any book without a labelled
+         *     gold set (``eval/gold/**``); today that is every book except Pride and
+         *     Prejudice and Wuthering Heights (S3.13).
+         */
+        get: operations["extraction_quality_api_ops_extraction_quality_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ops/extraction-cost": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Extraction Cost
+         * @description Tokens, cost at both rates, and wall clock/100 pages for pass 1 (S3.15).
+         *
+         *     Prefix-cache hit rate and KV-cache usage are read live from vLLM when
+         *     ``INFERENCE_MODE=local``; ``None`` under ``INFERENCE_MODE=api`` since
+         *     there is no local cache to report on.
+         */
+        get: operations["extraction_cost_api_ops_extraction_cost_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -583,7 +701,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Pipeline Runs */
+        /**
+         * Pipeline Runs
+         * @description Most recent ingestion runs, newest first, each with its stages and trace.
+         */
         get: operations["pipeline_runs_api_ops_pipeline_runs_get"];
         put?: never;
         post?: never;
@@ -600,7 +721,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Dead Letter */
+        /**
+         * Dead Letter
+         * @description Every book whose latest run has a stage currently `failed`.
+         */
         get: operations["dead_letter_api_ops_pipeline_dead_letter_get"];
         put?: never;
         post?: never;
@@ -837,16 +961,16 @@ export interface components {
              * @default false
              */
             human_verified: boolean;
+            /** Mentions Per Chapter */
+            mentions_per_chapter?: {
+                [key: string]: number;
+            };
             /** Alias Detail */
             alias_detail?: components["schemas"]["AliasOut"][];
             /** Attributes */
             attributes?: components["schemas"]["AttributeOut"][];
             /** Appearances */
             appearances?: components["schemas"]["AppearanceOut"][];
-            /** Mentions Per Chapter */
-            mentions_per_chapter?: {
-                [key: string]: number;
-            };
         };
         /** CharacterMergeRequest */
         CharacterMergeRequest: {
@@ -900,6 +1024,10 @@ export interface components {
              * @default false
              */
             human_verified: boolean;
+            /** Mentions Per Chapter */
+            mentions_per_chapter?: {
+                [key: string]: number;
+            };
         };
         /** CharacterSplitRequest */
         CharacterSplitRequest: {
@@ -1100,6 +1228,116 @@ export interface components {
             asserted_by?: string | null;
             /** Confidence */
             confidence?: number | null;
+        };
+        /**
+         * ExtractionCostOut
+         * @description ``GET /ops/extraction-cost`` response -- S3.15.
+         */
+        ExtractionCostOut: {
+            /**
+             * Book Id
+             * Format: uuid
+             */
+            book_id: string;
+            /** Page Count */
+            page_count?: number | null;
+            /** Stages */
+            stages?: components["schemas"]["ExtractionStageCost"][];
+            /**
+             * Total Cost Usd Local
+             * @default 0
+             */
+            total_cost_usd_local: number;
+            /** Total Cost Usd Api Equivalent */
+            total_cost_usd_api_equivalent?: number | null;
+            /** Prefix Cache Hit Rate */
+            prefix_cache_hit_rate?: number | null;
+            /** Gpu Kv Cache Usage Pct */
+            gpu_kv_cache_usage_pct?: number | null;
+        };
+        /**
+         * ExtractionQualityOut
+         * @description ``GET /ops/extraction-quality`` response.
+         *
+         *     Locally defined here rather than in ``api/contracts/api.py`` -- that file
+         *     is frozen as of the S3 freeze (BRANCH.md) and this response is consumed
+         *     only by this sprint's ops dashboard, not by another agent's owned code.
+         */
+        ExtractionQualityOut: {
+            /**
+             * Book Id
+             * Format: uuid
+             */
+            book_id: string;
+            /** Book Key */
+            book_key?: string | null;
+            /** Gold Available */
+            gold_available: boolean;
+            /** Error */
+            error?: string | null;
+            /** Roster Precision */
+            roster_precision?: number | null;
+            /** Roster Recall */
+            roster_recall?: number | null;
+            /** Roster F1 */
+            roster_f1?: number | null;
+            /** Roster True Positives */
+            roster_true_positives?: number | null;
+            /** Roster False Positives */
+            roster_false_positives?: number | null;
+            /** Roster False Negatives */
+            roster_false_negatives?: number | null;
+            /** B3 Precision */
+            b3_precision?: number | null;
+            /** B3 Recall */
+            b3_recall?: number | null;
+            /** B3 F1 */
+            b3_f1?: number | null;
+            /** B3 N Items */
+            b3_n_items?: number | null;
+            /** Tier Accuracy */
+            tier_accuracy?: number | null;
+            /** Rejection Precision */
+            rejection_precision?: number | null;
+            /** Wrongly Rejected */
+            wrongly_rejected?: string[];
+            /** Cascade Contribution */
+            cascade_contribution?: {
+                [key: string]: number;
+            };
+            /** Cascade Fractions */
+            cascade_fractions?: {
+                [key: string]: number;
+            };
+        };
+        /** ExtractionStageCost */
+        ExtractionStageCost: {
+            /** Stage */
+            stage: string;
+            /**
+             * Input Tokens
+             * @default 0
+             */
+            input_tokens: number;
+            /**
+             * Output Tokens
+             * @default 0
+             */
+            output_tokens: number;
+            /**
+             * Cost Usd Local
+             * @default 0
+             */
+            cost_usd_local: number;
+            /** Cost Usd Api Equivalent */
+            cost_usd_api_equivalent?: number | null;
+            /**
+             * Duration Ms
+             * @default 0
+             */
+            duration_ms: number;
+            /** Wall Clock Ms Per 100 Pages */
+            wall_clock_ms_per_100_pages?: number | null;
         };
         /** GraphEdgeOut */
         GraphEdgeOut: {
@@ -2391,7 +2629,10 @@ export interface operations {
     };
     get_character_api_characters__character_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                limit_book_order?: number | null;
+                limit_chapter?: number | null;
+            };
             header?: never;
             path: {
                 character_id: string;
@@ -2443,6 +2684,7 @@ export interface operations {
             query?: {
                 limit?: number;
                 offset?: number;
+                limit_book_order?: number | null;
                 limit_chapter?: number | null;
             };
             header?: never;
@@ -3280,6 +3522,104 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MetricsOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    extraction_quality_api_ops_extraction_quality_get: {
+        parameters: {
+            query: {
+                book_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExtractionQualityOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    extraction_cost_api_ops_extraction_cost_get: {
+        parameters: {
+            query: {
+                book_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExtractionCostOut"];
                 };
             };
             /** @description Not Found */

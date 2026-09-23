@@ -1,13 +1,14 @@
 import { Box, Button, Flex, HStack, Heading, Link, Span, Stack, Text } from "@chakra-ui/react";
 import { useMemo, useState } from "react";
 import { Link as RouterLink, useParams, useSearchParams } from "react-router";
-import { EmptyState, ErrorState, LoadingSkeleton, PageRef } from "@/components/ui";
+import { ErrorState, LoadingSkeleton, PageRef } from "@/components/ui";
 import type { Chapter } from "@/lib/api";
 import { useBook, useCharacter, useChapters } from "@/lib/api";
 import { formatCount } from "@/lib/format";
 import { chapterKeyForPage } from "./chapter-lookup";
 import { CharacterTierBadge } from "./character-tier-badge";
 import { RESOLUTION_METHOD_LABEL } from "./character-labels";
+import { CharacterRelationships } from "./graph/character-relationships";
 import { MentionInspectorDrawer } from "./mention-inspector-drawer";
 import { MentionsTimeline } from "./mentions-timeline";
 import { usePagedMentions } from "./use-paged-mentions";
@@ -343,9 +344,12 @@ export const CharacterDetail = () => {
             <Heading as="h2" textStyle="subheading">
               Relationships
             </Heading>
-            <EmptyState
-              title="Coming in Sprint 4"
-              description="Traverse will show who this character is connected to here, with the evidence behind every edge — kinship, romantic, social and adversarial."
+            <CharacterRelationships
+              characterId={characterId}
+              bookId={bookId}
+              bookTitle={book.data?.title}
+              chapters={chapterList}
+              chapterCount={book.data?.chapter_count ?? 0}
             />
           </Stack>
         </Box>

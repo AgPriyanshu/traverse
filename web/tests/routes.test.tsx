@@ -20,7 +20,6 @@ const ROUTES: [path: string, heading: RegExp][] = [
   // error state rather than the generic `<NotYetBuilt>` placeholder.
   ["/books/abc-123/characters", /not built yet/i],
   ["/books/abc-123/characters/c-1", /not built yet/i],
-  ["/books/abc-123/graph", /the graph explorer is not built yet/i],
   ["/books/abc-123/ask", /ask is not built yet/i],
   ["/books/abc-123/review", /the review queue is not built yet/i],
   ["/projects", /projects is not built yet/i],
