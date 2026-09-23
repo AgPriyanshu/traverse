@@ -248,7 +248,16 @@ class DocumentChunker:
             MissingProvenanceError: If a chunk carries no page provenance.
         """
         tokenizer = _tokenizer(self.settings.embedding_model_id, CHUNK_MAX_TOKENS)
-        chunker = HybridChunker(tokenizer=tokenizer)
+        # Docling drops a heading entirely (yields no chunk for it at all)
+        # when nothing follows it before the next heading — real for a run of
+        # very short chapters. Once dropped, the heading never appears in any
+        # chunk's ``meta.headings``, and the cursor below can only step onto
+        # headings it sees: skip one and it desyncs from ``ordered_headings``
+        # for the rest of the document, misattributing every later chunk to
+        # the last chapter it did see. ``always_emit_headings`` makes Docling
+        # emit an empty-text chunk for such a heading instead, so it still
+        # gets attributed to a chunk.
+        chunker = HybridChunker(tokenizer=tokenizer, always_emit_headings=True)
         chunks: list[DocChunk] = cast(
             list[DocChunk], list(chunker.chunk(dl_doc=document))
         )
