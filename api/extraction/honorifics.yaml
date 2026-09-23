@@ -1,0 +1,53 @@
+# Honorific / title tokens stripped before name comparison (S3.3 cascade stage 2).
+#
+# Data-driven so a new language's titles are a YAML edit, not a code change —
+# Sprint 9 adds Russian patronymics for Anna Karenina against this same file.
+# Matching is case-insensitive and token-boundary aware; a trailing "." is
+# optional in the source text either way.
+
+prefixes:
+  - Mr
+  - Mrs
+  - Ms
+  - Miss
+  - Mister
+  - Mistress
+  - Master
+  - Dr
+  - Doctor
+  - Prof
+  - Professor
+  - Sir
+  - Dame
+  - Lord
+  - Lady
+  - Madame
+  - Mme
+  - Mademoiselle
+  - Mlle
+  - Monsieur
+  - M
+  - Herr
+  - Frau
+  - Fraulein
+  - Capt
+  - Captain
+  - Col
+  - Colonel
+  - Rev
+  - Reverend
+  - Father
+  - Fr
+  - Aunt
+  - Uncle
+
+# Suffixed honorifics attach directly to the given name with no space
+# ("Kazu-san"); the hyphen is optional in source text ("Kazusan" not handled —
+# real corpora always hyphenate).
+suffixes:
+  - san
+  - kun
+  - sama
+  - chan
+  - sensei
+  - dono

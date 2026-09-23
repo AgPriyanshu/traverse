@@ -22,6 +22,12 @@ TABLES_TOUCHED_BY_TESTS = (
     "ingestionrun",
     "documentchunk",
     "chapter",
+    "charactermention",
+    "characterappearance",
+    "character",
+    "bookcharactercandidate",
+    "rejectedcandidate",
+    "reviewtask",
     "book",
     "project",
 )

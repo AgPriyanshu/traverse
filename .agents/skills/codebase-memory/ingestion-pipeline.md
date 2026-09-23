@@ -24,8 +24,9 @@ not grep for it.
 | `stage()`, `StageRecord`, `open_run`, `finish_run` | `api/workers/stages.py` | Built |
 | `celery_app` re-export, `import_task_modules`, `missing_stage_tasks`, `warm_models` | `api/workers/app.py` | Built — worker entry point |
 | repository (`create_book`, `get_book_by_hash`, `bulk_insert_chunks`, `upsert_chapters`, `set_book_status`, `get_stage_statuses`) | `api/pipeline/repository.py` | Built |
-| `pipeline.*` task registrations (6) | `api/pipeline/tasks.py` | Built — registered; bodies raise `NotImplementedError` until S2/S3 |
+| `pipeline.*` task registrations (6) | `api/pipeline/tasks.py` | Built — registered; `reconcile_characters` body still raises `NotImplementedError` until S5 |
 | `pipeline.parse_and_chunk` / `segment_chapters` / `embed_chunks` bodies | `api/pipeline/tasks.py` | Built |
+| `pipeline.extract_characters` / `resolve_aliases` bodies | `api/pipeline/tasks.py` (logic in `api/extraction/`) | Built (S3) |
 | `render_page`, `PageOutOfRangeError` | `api/pipeline/render.py` | Built — renders straight from the source PDF via `pypdfium2`, not Docling; caches PNG + span JSON at `books/{id}/pages/{n}.{png,json}` |
 | `ObjectStore.put_bytes` / `get_bytes` | `api/pipeline/storage.py` | Built — small in-memory payloads (page renders, span metadata), alongside the streaming `put_stream`/`get_object` pair |
 | `pass2_candidates` prefilter | `api/pipeline/` | S4 |

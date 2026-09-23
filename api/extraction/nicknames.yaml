@@ -1,0 +1,47 @@
+# Nickname / diminutive table (S3.3 cascade stage 3).
+#
+# Canonical given name -> known diminutives. High-precision and free compared
+# to embedding or LLM stages, so it earns its place early in the cascade.
+# Matching is case-insensitive against the *first token* of an honorific-
+# stripped name, so "Lizzy Bennet" matches "Elizabeth Bennet" on the shared
+# surname carried by the honorific-stripping stage.
+
+Elizabeth: [Lizzy, Eliza, Liz, Beth, Betsy, Bess, Elsie, Eliz]
+Catherine: [Cathy, Kitty, Kate, Cate, Cat, Katie, Cathie]
+Katherine: [Kathy, Kitty, Kate, Katie, Kat]
+Margaret: [Meg, Peggy, Maggie, Margie, Madge, Marge, Greta]
+Elinor: [Nell, Nellie, Nora]
+Eleanor: [Nell, Nellie, Nora, Ellie]
+William: [Will, Bill, Billy, Liam, Willie]
+Charles: [Charlie, Chuck, Chas]
+Richard: [Dick, Rich, Rick, Ricky]
+Robert: [Rob, Bob, Bobby, Robbie, Bert]
+Edward: [Ted, Ned, Eddie, Teddy]
+Henry: [Harry, Hal, Hank]
+Frederick: [Fred, Freddie, Freddy]
+Thomas: [Tom, Tommy]
+George: [Georgie]
+John: [Jack, Johnny, Jock]
+James: [Jim, Jimmy, Jamie]
+Alexander: [Alex, Sandy, Xander, Sasha]
+Anthony: [Tony]
+Nicholas: [Nick, Nicky]
+Michael: [Mike, Mickey, Misha]
+Samuel: [Sam, Sammy]
+Benjamin: [Ben, Benny]
+Daniel: [Dan, Danny]
+Joseph: [Joe, Joey]
+Isabella: [Bella, Bell, Izzy]
+Josephine: [Jo, Josie]
+Caroline: [Carrie, Carol, Lina]
+Emily: [Em, Emmy]
+Frances: [Fanny, Franny, Fran]
+Georgiana: [Georgie]
+Harriet: [Hattie]
+Louisa: [Lou, Louie, Lulu]
+Lydia: [Lyddie]
+Mary: [Molly, Polly, Mamie]
+Sarah: [Sally]
+Susan: [Sue, Susie, Suzy]
+Victoria: [Vicky, Tori]
+Anna: [Annie, Ann, Anya, Nan, Nancy]
