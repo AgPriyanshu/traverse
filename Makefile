@@ -14,16 +14,34 @@ WAIT         := scripts/wait_for_healthy.sh
 # so running compose directly still works -- it is just shared again.
 export TEST_IMAGE_TAG ?= $(notdir $(CURDIR))
 
+# Docker Desktop's WSL credential helper (`credsStore: desktop.exe`) can fail
+# with `error getting credentials` even for public images. Every image this
+# repo pulls is public, so an empty Docker config is a safe workaround: when the
+# helper does not answer, point DOCKER_CONFIG at a repo-local dir holding `{}`.
+# Force it with `make NOCREDS=1 ...`, disable it with `make NOCREDS=0 ...`. For
+# a bare `docker compose` outside make: export DOCKER_CONFIG=$PWD/.docker-nocreds
+# after running `make docker-nocreds`.
+NOCREDS ?= $(shell docker-credential-desktop.exe list >/dev/null 2>&1 || \
+	{ command -v docker-credential-desktop.exe >/dev/null 2>&1 && echo 1; })
+ifeq ($(NOCREDS),1)
+export DOCKER_CONFIG := $(CURDIR)/.docker-nocreds
+$(shell mkdir -p $(DOCKER_CONFIG) && [ -f $(DOCKER_CONFIG)/config.json ] || echo '{}' > $(DOCKER_CONFIG)/config.json)
+endif
+
 .DEFAULT_GOAL := help
 .PHONY: help env up up-dev up-gpu up-obs down down-hard logs ps build health \
         migrate revision shell-api shell-db shell-neo4j shell-worker \
         test test-api test-web test-integration lint fmt openapi \
         seed reset-db bootstrap worktrees warm-models ci-up ci-smoke ci-down \
-        ci-up-extraction ingest graph-rebuild graph-rebuild-drill eval-relations \
+        ci-up-extraction docker-nocreds ingest graph-rebuild graph-rebuild-drill eval-relations \
         judge-citations
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_-]+:.*?## /{printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+docker-nocreds: ## Create .docker-nocreds/ so bare docker commands can bypass a broken credential helper
+	@mkdir -p .docker-nocreds && echo '{}' > .docker-nocreds/config.json
+	@echo 'export DOCKER_CONFIG=$(CURDIR)/.docker-nocreds'
 
 # ── Environment ───────────────────────────────────────────────────────────────
 

@@ -55,7 +55,9 @@ def _get(base_url: str, path: str) -> Any:
 def collect_items(base_url: str, book_id: str) -> list[dict[str, Any]]:
     """Every evidence item of every edge in the book's graph."""
     book = next(b for b in _get(base_url, "/api/books") if b["id"] == book_id)
-    graph = _get(base_url, f"/api/projects/{book['project_id']}/graph?book_id={book_id}")
+    graph = _get(
+        base_url, f"/api/projects/{book['project_id']}/graph?book_id={book_id}"
+    )
     names = {n["id"]: n["canonical_name"] for n in graph["nodes"]}
     items = []
     for edge in graph["edges"]:
@@ -104,10 +106,18 @@ def judge(
             + (f"-{item['page_end']}" if item["page_end"] != item["page_start"] else "")
             + f"\n  QUOTE: {item['quote']}"
         )
-        answer = input_fn("Does that page support the claim? [y/n/s/q] ").strip().lower()
+        answer = (
+            input_fn("Does that page support the claim? [y/n/s/q] ").strip().lower()
+        )
         if answer.startswith("q"):
             break
-        verdict = True if answer.startswith("y") else False if answer.startswith("n") else None
+        verdict = (
+            True
+            if answer.startswith("y")
+            else False
+            if answer.startswith("n")
+            else None
+        )
         done[item_key(item)] = {
             **item,
             "supported": verdict,
@@ -135,13 +145,17 @@ def main() -> int:
     def save(done: dict[str, dict[str, Any]]) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(
-            json.dumps({"book_key": args.book_key, "judgements": list(done.values())}, indent=2)
+            json.dumps(
+                {"book_key": args.book_key, "judgements": list(done.values())}, indent=2
+            )
             + "\n"
         )
 
     if not args.summary:
         book_id = resolve_book_id(args.api_base_url, args.book_key)
-        sample = draw_sample(collect_items(args.api_base_url, book_id), args.n, args.seed)
+        sample = draw_sample(
+            collect_items(args.api_base_url, book_id), args.n, args.seed
+        )
         existing = judge(sample, existing, save=save)
 
     score = citation_page_accuracy(existing.values())

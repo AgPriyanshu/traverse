@@ -144,7 +144,9 @@ async def compute_relation_cost(
         hit_rate = stats.prefix_cache_hit_rate if stats else None
 
     api_costs = [
-        s.cost_usd_api_equivalent for s in stages if s.cost_usd_api_equivalent is not None
+        s.cost_usd_api_equivalent
+        for s in stages
+        if s.cost_usd_api_equivalent is not None
     ]
     wall_clock = sum(s.duration_ms for s in stages)
 

@@ -100,7 +100,9 @@ async def snapshot(project_id: UUID | str) -> GraphSnapshot:
     appearances = [
         dict(r) for r in (await client.execute(_APPEARANCES, **params)).records
     ]
-    evidence_free = sum(1 for e in edges if not e["evidence_count"] or not e["page_refs"])
+    evidence_free = sum(
+        1 for e in edges if not e["evidence_count"] or not e["page_refs"]
+    )
 
     return GraphSnapshot(
         nodes=len(nodes),
@@ -236,7 +238,9 @@ def _render(report: DrillReport) -> str:
         f"  elapsed {report.elapsed_s:.1f}s (budget {REBUILD_BUDGET_S:.0f}s)",
     ]
     if not report.wipe_effective:
-        lines.append("  the wipe changed nothing (empty graph?): the drill proved nothing")
+        lines.append(
+            "  the wipe changed nothing (empty graph?): the drill proved nothing"
+        )
     if not report.identical:
         lines.append("  projection differs from the pre-wipe state")
     if report.after.evidence_free_edges:

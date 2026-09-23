@@ -123,7 +123,11 @@ def render_markdown(
                 f"{_delta(cur, prev)} |"
             )
 
-        lines += ["", "| Predicate | TP | FP | FN | P | R | F1 |", "| --- | --- | --- | --- | --- | --- | --- |"]
+        lines += [
+            "",
+            "| Predicate | TP | FP | FN | P | R | F1 |",
+            "| --- | --- | --- | --- | --- | --- | --- |",
+        ]
         for row in quality.get("per_predicate", []):
             lines.append(
                 f"| {row['predicate']} | {row['true_positives']} | "
@@ -201,7 +205,9 @@ def main() -> int:
 
     try:
         book_id = args.book_id or resolve_book_id(args.api_base_url, args.book_key)
-        quality = _get(args.api_base_url, f"/api/ops/relation-quality?book_id={book_id}")
+        quality = _get(
+            args.api_base_url, f"/api/ops/relation-quality?book_id={book_id}"
+        )
         cost = _get(args.api_base_url, f"/api/ops/relation-cost?book_id={book_id}")
     except (urllib.error.URLError, LookupError) as exc:
         raise SystemExit(f"relation eval failed: {exc}") from exc

@@ -151,7 +151,10 @@ def _report_relations(book_key: str, book_id: str) -> tuple[list[str], list[str]
     if status_quality != 200:
         return [f"### {book_key}", f"- relation-quality: HTTP {status_quality}"], []
 
-    lines = [f"### {book_key}", render_markdown(quality, cost if status_cost == 200 else None)]
+    lines = [
+        f"### {book_key}",
+        render_markdown(quality, cost if status_cost == 200 else None),
+    ]
     failures = [f"{book_key}: {p}" for p in invariant_violations(quality)]
     if status_cost == 200:
         if cost.get("prefix_cache_alert"):
@@ -248,7 +251,11 @@ def main() -> int:
         ]
 
     if relation_lines:
-        report_lines += ["", "## Relation quality and pass-2 cost (S4.14/S4.15)", *relation_lines]
+        report_lines += [
+            "",
+            "## Relation quality and pass-2 cost (S4.14/S4.15)",
+            *relation_lines,
+        ]
 
     if ingested_any:
         status_code, metrics = _request("GET", "/api/ops/metrics")

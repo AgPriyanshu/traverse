@@ -44,6 +44,7 @@ def _first_present(totals: dict[str, float], names: tuple[str, ...]) -> float | 
 
     return None
 
+
 _METRIC_LINE_RE = re.compile(
     r"^([a-zA-Z_:][a-zA-Z0-9_:]*)(?:\{[^}]*\})?\s+([0-9.eE+-]+)$"
 )

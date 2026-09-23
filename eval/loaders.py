@@ -170,7 +170,9 @@ def load_gold_relations(
         }
     )
     if unknown:
-        raise RosterSchemaError(f"relations name characters not in the roster: {unknown}")
+        raise RosterSchemaError(
+            f"relations name characters not in the roster: {unknown}"
+        )
 
     if verify_checksum:
         _verify_corpus_checksum(book_key, document)
