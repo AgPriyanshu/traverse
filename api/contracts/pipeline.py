@@ -44,6 +44,7 @@ class ChunkPayload(BaseModel):
     page_end: int = Field(ge=1)
     chapter_number: int | None = None
     token_count: int | None = None
+    headings: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _pages_coherent(self) -> "ChunkPayload":

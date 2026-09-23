@@ -169,6 +169,7 @@ class CharacterOut(BaseModel):
     appears_in_books: list[int] = Field(default_factory=list)
     collision_suspected: bool = False
     human_verified: bool = False
+    mentions_per_chapter: dict[str, int] = Field(default_factory=dict)
 
 
 class MentionOut(BaseModel):

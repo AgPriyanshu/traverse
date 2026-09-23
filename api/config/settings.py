@@ -46,6 +46,12 @@ class Settings(BaseSettings):
     frontier_model: str | None = None
     frontier_api_key: SecretStr | None = None
 
+    # Reranker, mention clustering and tiering (Sprint 2/3 SCRs).
+    reranker_enabled: bool = False
+    reranker_model_id: str = "BAAI/bge-reranker-v2-m3"
+    mention_similarity_threshold: float = 0.65
+    tiering_method: str = "mention_count"
+
     # Embeddings.
     embedding_model_id: str = "BAAI/bge-m3"
     embedding_dimensions: int = 1024
