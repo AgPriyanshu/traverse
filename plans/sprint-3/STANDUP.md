@@ -42,3 +42,50 @@ ops endpoints; otherwise S3.13-S3.15 are complete per devops-1.md's DoD.
 this branch (SCR-3, see HANDOFF.md) — not a bug in do1's own code, a
 cross-agent frozen-count collision that be2 will independently hit this
 sprint regardless of what happens with this branch.
+## be2
+
+**Landed:** S3.6 (character read APIs — `list_mentions` and `get_character`
+implemented for real against Postgres, paginated, `limit_book_order`/
+`limit_chapter`-aware on every character endpoint including the mentions and
+per-chapter histogram, not just the roster; fixed a real bug found along the
+way — `list_characters`' reading-position filter excluded every character
+whose first book had a `NULL series_order` instead of treating it as "no
+restriction", inconsistent with the pattern `retrieval/repository.py`
+already established for the same nullable column), S3.7 (`merge`/`split`,
+transactional, mention re-pointing, appearance consolidation and derived-field
+recomputation shared between both directions so a merge followed by a split
+restores the original partition), S3.8 (`cluster_contexts` + a real measured
+precision/recall curve from actual *Pride and Prejudice* text and the real
+BGE-M3 model — see HANDOFF.md, threshold set to 0.65, precision-biased on
+purpose), S3.9 (relation extraction spike run against a live vLLM with the
+real Qwen3-8B-AWQ model — full findings in HANDOFF.md, delivered before Day
+4). All on `ai/be2/sprint-3-characters`; nothing merged to `ai-master` yet.
+
+**Next:** Nothing left in `backend-2.md`'s scope for Sprint 3. Available to
+help unblock be1's S3.1-S3.5 landing against the read APIs and the
+similarity service, or to start early on S4 prep if the orchestrator wants
+that.
+
+**Blocked:** Not blocked. Filed SCR-6 (non-blocking) for
+`settings.mention_similarity_threshold` — shipped S3.8 with a `getattr`
+default in the meantime (same pattern as Sprint 2's SCR-5), so nothing is
+waiting on it. Flagged a real infra bug to do1 in HANDOFF.md: the `vllm`
+compose service's cache-path layout disagrees with `api`/`celery-worker`'s,
+so a cold `docker compose --profile gpu up` re-downloads the whole model
+instead of finding the warmed cache — cost me about 10 minutes during the
+S3.9 spike, not blocking but worth a one-line fix before Sprint 4's demo day.
+
+**Correction to an earlier version of this note:** I initially flagged
+`test_the_openapi_document_still_lists_every_frozen_path` as a pre-existing
+36-vs-34 path-count mismatch unrelated to this branch. That was wrong, and
+the cause was exactly the shared-image trap `docker compose --profile test
+run --rm test` without an immediately preceding `build test` can fall into
+— `traverse-api-test:dev` is one tag shared by all four worktrees, and a
+`run` a few minutes after a `build` (with another worktree's agent doing its
+own build in between) silently tests someone else's tree. Rebuilding
+immediately before the final run reproduced the correct, frozen count (34)
+and the full suite is green:
+`docker compose --profile test build test && docker compose --profile test
+run --rm --no-deps test pytest api/tests -q` → **261 passed, 1 skipped, 0
+failed.** Lesson for next sprint: never trust a `test` run that isn't
+preceded by its own `build` in the same breath.

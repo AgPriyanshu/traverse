@@ -1,3 +1,4 @@
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import func, or_
@@ -5,16 +6,20 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
 from ..contracts.api import (
+    AliasOut,
     AppearanceOut,
+    AttributeOut,
     CharacterDetailOut,
     CharacterOut,
     GraphEdgeOut,
     GraphNodeOut,
     GraphOut,
+    MentionOut,
 )
 from ..contracts.enums import ImportanceTier, RelationFamily
-from ..db.models.character_model import Character, CharacterAppearance
-from ..db.models.project_model import Book, Project
+from ..db.models.character_model import Character, CharacterAppearance, CharacterMention
+from ..db.models.chunk_model import DocumentChunk
+from ..db.models.project_model import Book, Chapter, Project
 from ..db.models.relation_model import Relation, RelationEvidence
 
 # A force-directed view stops being readable long before this, and an uncapped
@@ -36,7 +41,7 @@ async def project_exists(session: SQLModelAsyncSession, project_id: UUID) -> boo
     return result.first() is not None
 
 
-async def _appearance_orders(
+async def appearance_orders(
     session: SQLModelAsyncSession, character_ids: list[UUID]
 ) -> dict[UUID, list[int]]:
     """Return each character's book series orders, ascending.
@@ -62,7 +67,33 @@ async def _appearance_orders(
     return {character_id: sorted(values) for character_id, values in orders.items()}
 
 
-def _to_character_out(character: Character, appears_in: list[int]) -> CharacterOut:
+def _within_reading_position(
+    series_order: int | None,
+    chapter: int | None,
+    *,
+    limit_book_order: int | None,
+    limit_chapter: int | None,
+) -> bool:
+    """Whether a ``(series_order, chapter)`` position is visible at a reading position.
+
+    Mirrors the SQL predicate below and in ``retrieval/repository.py``'s
+    ``_reading_position_filter``. ``series_order`` is nullable in the schema
+    even though a standalone book's convention is ``(1, chapter)``
+    (``data-model.md``) — a ``None`` here is treated as "no restriction", the
+    same way the retrieval arm already does, rather than as a bare SQL NULL
+    comparison that would silently hide every such row.
+    """
+    if limit_book_order is None or series_order is None:
+        return True
+    if series_order != limit_book_order:
+        return series_order < limit_book_order
+    if limit_chapter is None:
+        return chapter is None
+
+    return chapter is None or chapter <= limit_chapter
+
+
+def to_character_out(character: Character, appears_in: list[int]) -> CharacterOut:
     return CharacterOut(
         id=character.id,
         project_id=character.project_id,
@@ -130,9 +161,15 @@ async def list_characters(
         # Reading position is a series position, compared as a row: a character
         # first seen in book 3 must not surface for a reader on book 2, and one
         # first seen later in the current book must not surface either.
+        # ``Book.series_order`` is nullable (standalone), and a bare NULL
+        # comparison in SQL is neither true nor false — it would silently drop
+        # every such character the moment a caller passed a reading position.
+        # Treated as "no restriction", matching ``retrieval/repository.py``'s
+        # ``_reading_position_filter``.
         first_book = select(Book.series_order).where(Book.id == Character.first_book_id)
         statement = statement.where(
             or_(
+                first_book.scalar_subquery().is_(None),
                 first_book.scalar_subquery() < limit_book_order,
                 (first_book.scalar_subquery() == limit_book_order)
                 & (
@@ -149,30 +186,57 @@ async def list_characters(
 
     result = await session.exec(statement)
     characters = list(result.all())
-    orders = await _appearance_orders(session, [item.id for item in characters])
+    orders = await appearance_orders(session, [item.id for item in characters])
 
     return [
-        _to_character_out(character, orders.get(character.id, []))
+        to_character_out(character, orders.get(character.id, []))
         for character in characters
     ]
 
 
 async def get_character(
-    session: SQLModelAsyncSession, character_id: UUID
+    session: SQLModelAsyncSession,
+    character_id: UUID,
+    *,
+    limit_book_order: int | None = None,
+    limit_chapter: int | None = None,
 ) -> CharacterDetailOut | None:
     """Return one character with its per-book appearances, or ``None``.
-
-    Alias detail, attributes and per-chapter mention counts land in S3.6.
 
     Args:
         session: An open database session.
         character_id: The character to fetch.
+        limit_book_order: Reading position — book. ``None`` means no limit.
+            A character not yet met at this position is hidden entirely
+            (returns ``None``), the same as it would be filtered out of
+            ``list_characters``, so a deep link cannot leak a future
+            character past the roster filter.
+        limit_chapter: Reading position — chapter within that book.
+
+    Returns:
+        The character with alias detail, attributes, appearances and a
+        per-chapter mention histogram, or ``None`` if it does not exist or is
+        not yet visible at the given reading position.
     """
     character = await session.get(Character, character_id)
     if character is None:
         return None
 
-    orders = await _appearance_orders(session, [character.id])
+    if limit_book_order is not None:
+        first_order = None
+        if character.first_book_id is not None:
+            first_order = (await book_orders(session, {character.first_book_id})).get(
+                character.first_book_id
+            )
+        if not _within_reading_position(
+            first_order,
+            character.first_chapter,
+            limit_book_order=limit_book_order,
+            limit_chapter=limit_chapter,
+        ):
+            return None
+
+    orders = await appearance_orders(session, [character.id])
     result = await session.exec(
         select(CharacterAppearance, Book)
         .join(Book, Book.id == CharacterAppearance.book_id)
@@ -191,11 +255,397 @@ async def get_character(
             surface_forms=list(appearance.surface_forms or []),
         )
         for appearance, book in result.all()
+        if _within_reading_position(
+            book.series_order,
+            appearance.first_chapter,
+            limit_book_order=limit_book_order,
+            limit_chapter=limit_chapter,
+        )
     ]
 
-    base = _to_character_out(character, orders.get(character.id, []))
+    alias_detail = await _alias_detail(session, character.project_id, character.id)
+    attributes = await _visible_attributes(
+        session,
+        character.attributes,
+        limit_book_order=limit_book_order,
+        limit_chapter=limit_chapter,
+    )
+    mentions_per_chapter = await _mentions_per_chapter(
+        session,
+        character.id,
+        limit_book_order=limit_book_order,
+        limit_chapter=limit_chapter,
+    )
 
-    return CharacterDetailOut(**base.model_dump(), appearances=appearances)
+    base = to_character_out(character, orders.get(character.id, []))
+
+    return CharacterDetailOut(
+        **base.model_dump(),
+        alias_detail=alias_detail,
+        attributes=attributes,
+        appearances=appearances,
+        mentions_per_chapter=mentions_per_chapter,
+    )
+
+
+async def book_orders(
+    session: SQLModelAsyncSession, book_ids: set[UUID]
+) -> dict[UUID, int | None]:
+    """Return each book's series order, keyed by id.
+
+    Args:
+        session: An open database session.
+        book_ids: Books to look up.
+    """
+    if not book_ids:
+        return {}
+
+    result = await session.exec(
+        select(Book.id, Book.series_order).where(Book.id.in_(book_ids))
+    )
+
+    return dict(result.all())
+
+
+async def _chapter_number_for_page(
+    session: SQLModelAsyncSession, book_id: UUID, page: int
+) -> int | None:
+    """Return the chapter a page falls in, or ``None`` if unresolvable.
+
+    Args:
+        session: An open database session.
+        book_id: The book the page belongs to.
+        page: A 1-indexed page number.
+    """
+    result = await session.exec(
+        select(Chapter.number)
+        .where(Chapter.book_id == book_id)
+        .where(Chapter.page_start <= page)
+        .where(Chapter.page_end >= page)
+        .limit(1)
+    )
+
+    return result.first()
+
+
+def _parse_attributes(raw: dict[str, Any] | None) -> list[AttributeOut]:
+    """Flatten ``character.attributes`` JSONB into evidenced entries.
+
+    Shape written by S3.5's attribute extraction: ``{label: [{"value",
+    "book_id", "page"}, ...]}`` — a list per label because a stated attribute
+    (age, occupation) can be reasserted with new evidence later in the series.
+    An entry missing ``value`` or ``page`` is dropped rather than raised on:
+    PRD F2.3's citation guarantee means an attribute this endpoint cannot cite
+    must not render, not crash the endpoint.
+
+    Args:
+        raw: The character's ``attributes`` column, or ``None``.
+    """
+    if not raw:
+        return []
+
+    entries: list[AttributeOut] = []
+    for label, values in raw.items():
+        if isinstance(values, dict):
+            values = [values]
+        if not isinstance(values, list):
+            continue
+
+        for entry in values:
+            if not isinstance(entry, dict):
+                continue
+            value = entry.get("value")
+            page = entry.get("page")
+            if value is None or page is None:
+                continue
+
+            book_id = entry.get("book_id")
+            entries.append(
+                AttributeOut(
+                    label=label,
+                    value=str(value),
+                    book_id=UUID(str(book_id)) if book_id else None,
+                    page=int(page),
+                )
+            )
+
+    return entries
+
+
+async def _visible_attributes(
+    session: SQLModelAsyncSession,
+    raw: dict[str, Any] | None,
+    *,
+    limit_book_order: int | None,
+    limit_chapter: int | None,
+) -> list[AttributeOut]:
+    """Parse and, at a reading position, spoiler-filter a character's attributes.
+
+    Args:
+        session: An open database session.
+        raw: The character's ``attributes`` column, or ``None``.
+        limit_book_order: Reading position — book. ``None`` means no limit.
+        limit_chapter: Reading position — chapter within that book.
+    """
+    entries = _parse_attributes(raw)
+    if limit_book_order is None or not entries:
+        return entries
+
+    book_ids = {entry.book_id for entry in entries if entry.book_id is not None}
+    orders = await book_orders(session, book_ids)
+
+    visible: list[AttributeOut] = []
+    for entry in entries:
+        order = orders.get(entry.book_id) if entry.book_id is not None else None
+        chapter = None
+        # Same book as the reading position: an attribute carries only a page,
+        # not a chapter, so resolving visibility needs one lookup — cheap here
+        # since a character has at most a handful of attributes, unlike the
+        # thousands of mentions the histogram below has to stay one query for.
+        if order == limit_book_order:
+            chapter = await _chapter_number_for_page(session, entry.book_id, entry.page)
+        if _within_reading_position(
+            order,
+            chapter,
+            limit_book_order=limit_book_order,
+            limit_chapter=limit_chapter,
+        ):
+            visible.append(entry)
+
+    return visible
+
+
+async def _alias_detail(
+    session: SQLModelAsyncSession, project_id: UUID, character_id: UUID
+) -> list[AliasOut]:
+    """Return one character's surface forms with counts and ambiguity.
+
+    Args:
+        session: An open database session.
+        project_id: Scopes the ambiguity check to this project.
+        character_id: The character whose mentions are grouped.
+    """
+    result = await session.exec(
+        select(
+            CharacterMention.surface_form,
+            CharacterMention.resolution_method,
+            func.count(CharacterMention.id),
+        )
+        .where(CharacterMention.character_id == character_id)
+        .group_by(CharacterMention.surface_form, CharacterMention.resolution_method)
+    )
+    rows = result.all()
+    if not rows:
+        return []
+
+    forms = {surface_form for surface_form, _method, _count in rows}
+    ambiguous = await _ambiguous_surface_forms(session, project_id, character_id, forms)
+
+    aliases = [
+        AliasOut(
+            surface_form=surface_form,
+            count=count,
+            resolution_method=method,
+            ambiguous=surface_form in ambiguous,
+        )
+        for surface_form, method, count in rows
+    ]
+    aliases.sort(key=lambda alias: (-alias.count, alias.surface_form))
+
+    return aliases
+
+
+async def _ambiguous_surface_forms(
+    session: SQLModelAsyncSession,
+    project_id: UUID,
+    character_id: UUID,
+    forms: set[str],
+) -> set[str]:
+    """Return the surface forms also used by a *different* character in this project.
+
+    "Ambiguous" here means context-dependent: the same string ("Miss Bennet")
+    resolves to more than one person in the project, which is exactly what
+    fe1's alias chip needs to flag rather than the resolver's confidence.
+
+    Args:
+        session: An open database session.
+        project_id: Scopes the search to this project.
+        character_id: Excluded — a form is not ambiguous with itself.
+        forms: Candidate surface forms to check.
+    """
+    if not forms:
+        return set()
+
+    result = await session.exec(
+        select(CharacterMention.surface_form)
+        .join(Character, Character.id == CharacterMention.character_id)
+        .where(Character.project_id == project_id)
+        .where(CharacterMention.character_id != character_id)
+        .where(CharacterMention.surface_form.in_(forms))
+        .distinct()
+    )
+
+    return set(result.all())
+
+
+def _mention_reading_position_filter(
+    statement, *, limit_book_order: int | None, limit_chapter: int | None
+):
+    """Restrict a ``CharacterMention``/``Book``/``Chapter`` join to a reading position.
+
+    Args:
+        statement: A statement that has already joined ``Book`` (on
+            ``CharacterMention.book_id``) and outer-joined ``Chapter``.
+        limit_book_order: Reading position — book. ``None`` means no limit.
+        limit_chapter: Reading position — chapter within that book.
+    """
+    if limit_book_order is None:
+        return statement
+
+    return statement.where(
+        or_(
+            Book.series_order.is_(None),
+            Book.series_order < limit_book_order,
+            (Book.series_order == limit_book_order)
+            & (
+                Chapter.number.is_(None)
+                if limit_chapter is None
+                else Chapter.number <= limit_chapter
+            ),
+        )
+    )
+
+
+async def _mentions_per_chapter(
+    session: SQLModelAsyncSession,
+    character_id: UUID,
+    *,
+    limit_book_order: int | None = None,
+    limit_chapter: int | None = None,
+) -> dict[str, int]:
+    """Return a character's mention count per chapter, in one grouped query.
+
+    fe1's mentions timeline (S3.11) needs this precomputed — building it
+    client-side from paginated mentions would mean fetching every mention.
+
+    Args:
+        session: An open database session.
+        character_id: The character to histogram.
+        limit_book_order: Reading position — book. ``None`` means no limit.
+        limit_chapter: Reading position — chapter within that book.
+
+    Returns:
+        Chapter number (as a string) to mention count. A mention whose chunk
+        carries no chapter (front matter, or the known Sprint 2 gap where
+        chapter detection finds none) is bucketed under ``"unknown"``.
+    """
+    statement = (
+        select(Chapter.number, func.count(CharacterMention.id))
+        .select_from(CharacterMention)
+        .join(DocumentChunk, DocumentChunk.id == CharacterMention.chunk_id)
+        .join(Book, Book.id == CharacterMention.book_id)
+        .outerjoin(Chapter, Chapter.id == DocumentChunk.chapter_id)
+        .where(CharacterMention.character_id == character_id)
+    )
+    statement = _mention_reading_position_filter(
+        statement, limit_book_order=limit_book_order, limit_chapter=limit_chapter
+    )
+    statement = statement.group_by(Chapter.number)
+
+    result = await session.exec(statement)
+
+    histogram: dict[str, int] = {}
+    for number, count in result.all():
+        key = "unknown" if number is None else str(number)
+        histogram[key] = histogram.get(key, 0) + count
+
+    return histogram
+
+
+def _context_snippet(
+    text: str, start: int | None, end: int | None, *, pad: int = 80
+) -> str | None:
+    """Return a short window of ``text`` around a mention's character span.
+
+    Args:
+        text: The chunk's full text.
+        start: The mention's start offset, or ``None`` if unrecorded.
+        end: The mention's end offset, or ``None`` if unrecorded.
+        pad: Characters of surrounding context on each side.
+    """
+    if start is None or end is None:
+        return None
+
+    lo = max(0, start - pad)
+    hi = min(len(text), end + pad)
+
+    return text[lo:hi]
+
+
+async def list_mentions(
+    session: SQLModelAsyncSession,
+    character_id: UUID,
+    *,
+    limit: int = 50,
+    offset: int = 0,
+    limit_book_order: int | None = None,
+    limit_chapter: int | None = None,
+) -> list[MentionOut] | None:
+    """Return one character's mentions, page-ordered and paginated.
+
+    Args:
+        session: An open database session.
+        character_id: The character whose mentions are listed.
+        limit: Rows to return.
+        offset: Rows to skip — pagination is ``LIMIT``/``OFFSET`` in SQL, not
+            a fetch-all-then-slice, so a 2,000-mention character never loads
+            more than one page into memory.
+        limit_book_order: Reading position — book. ``None`` means no limit.
+        limit_chapter: Reading position — chapter within that book.
+
+    Returns:
+        Mentions ordered by page, or ``None`` if the character does not exist.
+    """
+    character = await session.get(Character, character_id)
+    if character is None:
+        return None
+
+    statement = (
+        select(CharacterMention, DocumentChunk.text)
+        .join(DocumentChunk, DocumentChunk.id == CharacterMention.chunk_id)
+        .join(Book, Book.id == CharacterMention.book_id)
+        .outerjoin(Chapter, Chapter.id == DocumentChunk.chapter_id)
+        .where(CharacterMention.character_id == character_id)
+    )
+    statement = _mention_reading_position_filter(
+        statement, limit_book_order=limit_book_order, limit_chapter=limit_chapter
+    )
+    statement = (
+        statement.order_by(
+            CharacterMention.page,
+            CharacterMention.char_start.nulls_first(),
+            CharacterMention.id,
+        )
+        .offset(offset)
+        .limit(limit)
+    )
+
+    result = await session.exec(statement)
+
+    mentions = [
+        MentionOut(
+            id=mention.id,
+            chunk_id=mention.chunk_id,
+            book_id=mention.book_id,
+            surface_form=mention.surface_form,
+            page=mention.page,
+            context=_context_snippet(text, mention.char_start, mention.char_end),
+            resolution_method=mention.resolution_method,
+        )
+        for mention, text in result.all()
+    ]
+
+    return mentions
 
 
 async def get_graph(

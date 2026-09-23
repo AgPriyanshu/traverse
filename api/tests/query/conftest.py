@@ -3,6 +3,7 @@ from collections.abc import AsyncIterator
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import delete
 
 from api.db.engine import db_session
 from api.db.models.project_model import Book, Project
@@ -31,17 +32,19 @@ async def project() -> AsyncIterator[Project]:
 
     yield row
 
+    # A raw DELETE, not ``session.get`` + ``session.delete``: the latter
+    # loads the ORM relationship graph (``Project.books``, ``Book.chapters``,
+    # ...) and, without ``passive_deletes=True`` on those relationships
+    # (``api/db/models/**`` is orchestrator-owned, not ours to add it to),
+    # SQLAlchemy tries to null out each child's NOT NULL foreign key itself
+    # instead of leaving it to the DB. A raw statement never touches the ORM
+    # cascade machinery, so Postgres's own ``ON DELETE CASCADE`` (already
+    # declared on every one of these FKs) does the actual cleanup — which is
+    # also just correct: a test that seeded chapters, chunks, characters or
+    # mentions off this project must not need to know that to clean up.
     async with db_session() as session:
-        stored = await session.get(Book, row.id)
-        if stored is not None:
-            await session.delete(stored)
-            await session.commit()
-
-    async with db_session() as session:
-        stored = await session.get(Project, row.id)
-        if stored is not None:
-            await session.delete(stored)
-            await session.commit()
+        await session.execute(delete(Project).where(Project.id == row.id))
+        await session.commit()
 
 
 @pytest.fixture
@@ -60,8 +63,7 @@ async def book(project: Project) -> AsyncIterator[Book]:
 
     yield row
 
+    # See ``project``'s teardown above for why this is a raw statement.
     async with db_session() as session:
-        stored = await session.get(Book, row.id)
-        if stored is not None:
-            await session.delete(stored)
-            await session.commit()
+        await session.execute(delete(Book).where(Book.id == row.id))
+        await session.commit()

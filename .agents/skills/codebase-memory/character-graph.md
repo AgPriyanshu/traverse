@@ -10,11 +10,11 @@ Symbols over line numbers.
 | Neo4j `AsyncDriver` singleton, `connect`, `close`, `session`, `execute`, `apply_schema`, `healthcheck` | `api/graph/client.py` | **Built** — `api/db/graph_db.py` is gone |
 | `reset(book_id)`, `reset_project(project_id)` | `api/graph/projection.py` | **Built** |
 | Ontology (`load`, `Ontology`, `Predicate`, `family_of`, `inverse_of`, `is_symmetric`, `is_extracted`, `is_legal_transition`, `prompt_fragment`, `to_contract`) | `api/graph/ontology.py` + `ontology.yaml` | **Built** |
-| Roster and graph reads (`project_exists`, `list_characters`, `get_character`, `get_graph`) | `api/graph/repository.py` | **Built** — Postgres-backed; S4.7 moves `get_graph` to Neo4j |
+| Roster and graph reads (`project_exists`, `list_characters`, `get_character`, `get_graph`, `list_mentions`) | `api/graph/repository.py` | **Built** — Postgres-backed; S4.7 moves `get_graph` to Neo4j. `get_character`/`list_mentions` are `limit_book_order`/`limit_chapter`-aware (S3.6); `get_character` also returns `alias_detail`, `attributes` and a one-query `mentions_per_chapter` histogram |
 | `pipeline.extract_characters` (pass 1) | `api/extraction/` | S3 |
 | Alias cascade, `honorifics.yaml`, nickname tables | `api/extraction/` | S3 |
-| `cluster_contexts` (embedding similarity) | `api/graph/` | S3 |
-| Merge / split endpoints | `api/routes/characters.py` | S3 |
+| `cluster_contexts`, `MentionContext`, `similarity_threshold` (embedding similarity, stage 4 of the cascade) | `api/graph/similarity.py` | **Built** (S3.8) — threshold measured against real BGE-M3 + real text, not assumed; see `plans/sprint-3/HANDOFF.md`. Reuses `retrieval/repository.py::embedding_model()`, never a second copy |
+| `merge_characters`, `split_character` (transactional, mention-accurate) | `api/graph/merge.py`, wired at `POST /characters/merge` and `POST /characters/{id}/split` | **Built** (S3.7) — both recompute appearances and derived fields from actual `CharacterMention` rows rather than adjusting counters, which is what makes a merge followed by a split restore the original partition |
 | `relations.extract` (pass 2) | `api/relations/` | S4 |
 | `pipeline.reconcile_characters` | `api/reconcile/` | S5 |
 | Cross-book blocking (death, namesake, kinship) | `api/reconcile/` | S5 |

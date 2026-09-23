@@ -22,7 +22,14 @@ LEXICAL_LIMIT = 50
 
 
 @lru_cache(maxsize=1)
-def _embedding_model() -> SentenceTransformer:
+def embedding_model() -> SentenceTransformer:
+    """Return the process-wide BGE-M3 handle, loading it on first use.
+
+    Public (not ``_``-prefixed) because ``graph/similarity.py``'s mention
+    clustering (S3.8) reuses this exact handle rather than loading a second
+    copy — two ``SentenceTransformer`` instances is exactly the kind of
+    thing that doubles resident memory for no reason (BRANCH.md §9).
+    """
     # No explicit cache_folder: same as DocumentChunker's loader
     # (api/pipeline/chunking.py), letting it resolve the standard HF cache
     # rather than settings.models_cache_dir, which is a container path
@@ -39,7 +46,7 @@ def embed_query(text: str) -> list[float]:
     wrong neighbours rather than an error, so this mirrors
     ``DocumentChunker.embed_texts`` exactly.
     """
-    vector = _embedding_model().encode(
+    vector = embedding_model().encode(
         [text], normalize_embeddings=True, show_progress_bar=False
     )[0]
 

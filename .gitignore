@@ -35,3 +35,8 @@ design/canvas/traverse-ui.html
 # S2.16 seeded corpus — `make seed` rebuilds these deterministically from
 # corpus/manifest.json (tracked); the fetched .txt and built .pdf are not.
 corpus/downloads/
+
+# S3.9 relation-extraction spike (api/notebooks/) fetches Pride and
+# Prejudice at run time and caches it alongside the script; the cache is
+# reproducible from the script, never corpus data to track.
+api/notebooks/.pride_and_prejudice_cache.txt
