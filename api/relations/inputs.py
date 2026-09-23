@@ -1,4 +1,3 @@
-import importlib
 import logging
 from uuid import UUID
 
@@ -8,37 +7,29 @@ from . import repository
 
 logger = logging.getLogger(__name__)
 
-# be1 owns the prefilter (S4.10). Where it lands is settled in
-# plans/sprint-4/HANDOFF.md; until then this probes the likely homes and falls
-# back to the same rule computed locally from ``CharacterMention``.
-_PREFILTER_HOMES = ("api.extraction.prefilter", "api.pipeline.prefilter")
-
 
 async def candidate_chunk_ids(
     session: SQLModelAsyncSession, book_id: UUID
 ) -> tuple[set[UUID], str]:
     """Return the chunk ids pass 2 should read, and which source decided.
 
+    Prefers be1's prefilter (``api.pipeline.prefilter.pass2_candidates``, S4.10),
+    which also keeps single-mention chunks whose scene has two participants.
+    Falls back to the same distinct-character rule computed locally from
+    ``CharacterMention`` when be1's module is not in this checkout.
+
     Returns:
         ``(chunk ids, source)`` where source is ``"be1"`` or ``"local"``.
     """
-    for module_name in _PREFILTER_HOMES:
-        try:
-            module = importlib.import_module(module_name)
-        except ImportError:
-            continue
+    try:
+        from ..pipeline.prefilter import pass2_candidates
+    except ImportError:
+        logger.warning("api.pipeline.prefilter is absent; using the local prefilter")
+        ids = await repository.chunks_with_two_characters(session, book_id)
 
-        function = getattr(module, "pass2_candidates", None)
-        if function is None:
-            continue
+        return ids, "local"
 
-        refs = await function(book_id)
-        ids = {
-            getattr(ref, "chunk_id", None) or getattr(ref, "id", ref) for ref in refs
-        }
+    refs = await pass2_candidates(book_id, session=session)
+    ids = {ref.chunk_id for ref in refs}
 
-        return ids, "be1"
-
-    ids = await repository.chunks_with_two_characters(session, book_id)
-
-    return ids, "local"
+    return ids, "be1"

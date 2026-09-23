@@ -97,7 +97,7 @@ async def _aggregate_relations(book_id: UUID, record: StageRecord) -> None:
         project_id, book_order = await repository.book_project_and_order(
             session, book_id
         )
-        staged, _source = await speakers.attribute_speakers(session, staged)
+        staged, _source = await speakers.attribute_speakers(session, book_id, staged)
         earlier = await repository.load_facts_from_other_books(
             session, project_id, book_id
         )

@@ -4,42 +4,42 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
-from ..db import models
 from ..db.models import DocumentChunk
 from .extract import ExtractedFact
-from .validator import fold
 
 logger = logging.getLogger(__name__)
 
+_OFFSET_TOLERANCE = 2
+
 
 async def attribute_speakers(
-    session: SQLModelAsyncSession, facts: list[ExtractedFact]
+    session: SQLModelAsyncSession, book_id: UUID, facts: list[ExtractedFact]
 ) -> tuple[list[ExtractedFact], str]:
     """Replace the model's guessed speaker with be1's attribution where present.
 
-    be1's speaker attribution (S4.9) resolves who said each dialogue line
-    without asking the model twice. Where it has a line covering a dialogue
-    quote, its speaker wins over the model's ``asserted_by``. Where it has none,
-    or its table is absent from this checkout, the model's own guess stands.
+    be1's speaker attribution (S4.9,
+    ``api.pipeline.scene_repository.list_dialogue_lines``) resolves who said
+    each dialogue line without asking the model twice. Where it has a resolved
+    line covering a dialogue quote, its speaker wins over the model's
+    ``asserted_by``. Otherwise the model's own guess stands, and a dialogue
+    fact stays dialogue: an unresolved speaker still makes the edge hearsay.
 
     Returns:
         The facts, and ``"be1"`` or ``"model"`` for which source was available.
     """
-    line_model = getattr(models, "DialogueLine", None)
     dialogue = [f for f in facts if f.assertion_type == "dialogue"]
-    if line_model is None or not dialogue:
+    if not dialogue:
         return facts, "model"
 
+    try:
+        from ..pipeline.scene_repository import list_dialogue_lines
+    except ImportError:
+        logger.warning("scene_repository is absent; keeping the model's speakers")
+
+        return facts, "model"
+
+    lines = await list_dialogue_lines(session, book_id)
     chunk_ids = {f.chunk_id for f in dialogue}
-    lines = (
-        (
-            await session.execute(
-                select(line_model).where(line_model.chunk_id.in_(chunk_ids))
-            )
-        )
-        .scalars()
-        .all()
-    )
     texts = dict(
         (
             await session.execute(
@@ -51,7 +51,8 @@ async def attribute_speakers(
     )
     by_chunk: dict[UUID, list] = {}
     for line in lines:
-        by_chunk.setdefault(line.chunk_id, []).append(line)
+        if line.speaker_character_id is not None:
+            by_chunk.setdefault(line.chunk_id, []).append(line)
 
     out = []
     for fact in facts:
@@ -67,20 +68,19 @@ async def attribute_speakers(
 def _speaker_for(
     fact: ExtractedFact, text: str, by_chunk: dict[UUID, list]
 ) -> UUID | None:
-    position = fold(text).find(fold(fact.quote))
+    position = text.find(fact.quote)
+    if position < 0:
+        position = text.casefold().find(fact.quote.casefold())
     if position < 0:
         return None
 
-    # ``fold`` preserves length for the characters lines are offset by, except
-    # collapsed whitespace; offsets are therefore approximate, so nearest wins.
-    candidates = [
+    covering = [
         line
         for line in by_chunk.get(fact.chunk_id, [])
-        if line.speaker_character_id is not None
-        and line.char_start - 20 <= position <= line.char_end + 20
+        if line.char_start - _OFFSET_TOLERANCE <= position and position < line.char_end
     ]
-    if not candidates:
+    if not covering:
         return None
-    best = min(candidates, key=lambda line: abs(line.char_start - position))
+    best = max(covering, key=lambda line: line.confidence)
 
     return best.speaker_character_id
