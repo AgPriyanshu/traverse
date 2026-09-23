@@ -42,6 +42,8 @@ class Settings(BaseSettings):
     llm_model: str = "Qwen/Qwen3-8B-AWQ"
     llm_max_context: int = 16384
     llm_output_reserve: int = 2048
+    llm_max_output_tokens: int = 6144
+    llm_enable_thinking: bool = False
     llm_max_concurrency: int = 8
     frontier_model: str | None = None
     frontier_api_key: SecretStr | None = None

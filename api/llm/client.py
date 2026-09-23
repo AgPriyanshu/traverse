@@ -42,10 +42,25 @@ def get_llm(purpose: LLMPurpose) -> ChatOpenAI:
     route = route_for(purpose)
     api_key = settings.frontier_api_key if route.frontier else None
 
+    if route.frontier:
+        return ChatOpenAI(
+            model=route.model,
+            base_url=route.base_url,
+            api_key=api_key or SecretStr("not-needed"),
+        )
+
+    # Qwen3 reasons before answering unless told not to, and without a cap a
+    # runaway reply fills the whole context before any JSON appears: a single
+    # 1k-token chunk once produced a 15k-token completion. The cap makes a
+    # runaway fail fast as a length error the caller can split and retry.
     model = ChatOpenAI(
         model=route.model,
         base_url=route.base_url,
-        api_key=api_key or SecretStr("not-needed"),
+        api_key=SecretStr("not-needed"),
+        max_tokens=settings.llm_max_output_tokens,
+        extra_body={
+            "chat_template_kwargs": {"enable_thinking": settings.llm_enable_thinking}
+        },
     )
 
     return model
