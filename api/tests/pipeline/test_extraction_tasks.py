@@ -14,12 +14,14 @@ from api.contracts.pipeline import ChunkPayload
 from api.db.models import Book, Character, Project
 from api.extraction import attributes as attribute_extraction
 from api.extraction import discovery as discovery_module
+from api.extraction import rejection as rejection_module
 from api.extraction import repository as extraction_repository
 from api.extraction.schemas import (
     AttributesOutput,
     ChunkMentionsOutput,
     MentionOutput,
     MentionSweepOutput,
+    RejectionOutput,
 )
 from api.pipeline import repository, tasks
 from api.workers.stages import StageRecord
@@ -101,6 +103,16 @@ async def book_with_chunks(session: SQLModelAsyncSession, project: Project) -> B
     await repository.bulk_insert_chunks(session, row.id, payloads)
 
     return row
+
+
+@pytest.fixture(autouse=True)
+def _no_model_for_rejection(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The stage now classifies uncertain candidates; tests must not need a model."""
+
+    async def person(*args, **kwargs):
+        return RejectionOutput(kind=CandidateKind.PERSON, reason="")
+
+    monkeypatch.setattr(rejection_module, "structured_call", person)
 
 
 class TestExtractCharactersTask:
