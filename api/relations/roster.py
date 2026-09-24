@@ -92,7 +92,12 @@ class Roster:
         return hits
 
     def prompt_block(self) -> str:
-        """Render the roster deterministically for the stable prompt prefix."""
+        """Render the roster deterministically for the stable prompt prefix.
+
+        Names and aliases only. Pass 1 descriptors and tiers were tried and
+        removed: the model copied descriptor lines verbatim as "quotes" and
+        treated their guesses ("brother to Miss Bingley") as text evidence.
+        """
         lines = []
         for entry in self.entries:
             aliases = sorted(
@@ -100,8 +105,7 @@ class Roster:
                 key=lambda a: (len(a), a.casefold(), a),
             )[:_MAX_ALIASES_SHOWN]
             aka = f" (aka {'; '.join(aliases)})" if aliases else ""
-            detail = f" - {entry.descriptor}" if entry.descriptor else ""
-            lines.append(f"- {entry.canonical_name}{aka} [{entry.tier.value}]{detail}")
+            lines.append(f"- {entry.canonical_name}{aka}")
 
         block = "\n".join(lines)
 

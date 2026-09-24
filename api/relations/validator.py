@@ -7,6 +7,7 @@ from uuid import UUID
 
 from ..contracts.graph import QUOTE_MAX_CHARS
 from ..graph import ontology
+from .cues import has_cue
 from .roster import Roster
 from .schemas import RawRelation
 
@@ -25,6 +26,9 @@ class RejectReason(StrEnum):
     EMPTY_QUOTE = "empty_quote"
     QUOTE_NOT_IN_CHUNK = "quote_not_in_chunk"
     QUOTE_NAMES_OTHERS = "quote_names_other_characters"
+    QUOTE_NAMES_NEITHER = "quote_names_neither_endpoint"
+    ENDPOINT_NOT_IN_CHUNK = "endpoint_not_in_chunk"
+    PREDICATE_CUE_MISSING = "predicate_cue_missing"
 
 
 @dataclass(frozen=True)
@@ -154,9 +158,18 @@ def _reject_reason(
         reason = RejectReason.EMPTY_QUOTE
     elif not quote_in_chunk(raw.quote, chunk_text):
         reason = RejectReason.QUOTE_NOT_IN_CHUNK
+    elif not (
+        roster.mentions(chunk_text, subject_id)
+        and roster.mentions(chunk_text, object_id)
+    ):
+        reason = RejectReason.ENDPOINT_NOT_IN_CHUNK
     else:
         named = roster.mentioned_in(raw.quote)
         if named and subject_id not in named and object_id not in named:
             reason = RejectReason.QUOTE_NAMES_OTHERS
+        elif not named & {subject_id, object_id}:
+            reason = RejectReason.QUOTE_NAMES_NEITHER
+        elif not has_cue(predicate, raw.quote):
+            reason = RejectReason.PREDICATE_CUE_MISSING
 
     return reason
