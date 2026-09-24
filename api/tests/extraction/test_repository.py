@@ -189,3 +189,9 @@ class TestPersistAndDeleteCharacters:
 
         survivor = await session.get(Character, character.id)
         assert survivor is not None
+
+
+async def test_set_cluster_keys_ignores_candidates_a_rerun_deleted(session) -> None:
+    from api.extraction import repository
+
+    await repository.set_cluster_keys(session, {uuid.uuid4(): "Elizabeth Bennet"})

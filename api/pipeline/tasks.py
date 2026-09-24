@@ -23,6 +23,7 @@ from ..extraction import discovery, rejection
 from ..extraction import repository as extraction_repository
 from ..tasks import celery_app
 from ..workers.errors import PermanentError, TransientError
+from ..workers.locks import book_roster_lock
 from ..workers.policy import RETRY_POLICY
 from ..workers.stages import StageRecord, stage
 from . import repository, scene_stage
@@ -57,6 +58,14 @@ async def _fetch_to_temp(key: str, dest: Path, *, missing_is_permanent: bool) ->
         await store.get_object(key, dest)
     except StorageError as exc:
         raise TransientError(str(exc)) from exc
+
+
+def _locked(body: StageBody) -> StageBody:
+    async def run(book_id: UUID, record: StageRecord) -> None:
+        async with book_roster_lock(book_id):
+            await body(book_id, record)
+
+    return run
 
 
 async def _run_stage(book_id: UUID, name: StageName, body: StageBody) -> dict:
@@ -357,13 +366,13 @@ def embed_chunks(book_id: str) -> dict:
 @celery_app.task(name=StageName.EXTRACT_CHARACTERS.value, **RETRY_POLICY)
 def extract_characters(book_id: str) -> dict:
     """Pass 1 — discover candidate character mentions."""
-    return _execute(book_id, StageName.EXTRACT_CHARACTERS, _extract_characters)
+    return _execute(book_id, StageName.EXTRACT_CHARACTERS, _locked(_extract_characters))
 
 
 @celery_app.task(name=StageName.RESOLVE_ALIASES.value, **RETRY_POLICY)
 def resolve_aliases(book_id: str) -> dict:
     """Cluster surface forms into one canonical character per person."""
-    return _execute(book_id, StageName.RESOLVE_ALIASES, _resolve_aliases)
+    return _execute(book_id, StageName.RESOLVE_ALIASES, _locked(_resolve_aliases))
 
 
 @celery_app.task(name=StageName.RECONCILE_CHARACTERS.value, **RETRY_POLICY)
