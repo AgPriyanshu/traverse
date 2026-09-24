@@ -58,8 +58,8 @@ class TestHonorificStage:
 
         assert len(clusters) == 1
         assert clusters[0].canonical_name == "Mr. Darcy"
-        assert clusters[0].surface_forms["Darcy"] == ResolutionMethod.EXACT
-        assert clusters[0].surface_forms["Mr. Darcy"] == ResolutionMethod.HONORIFIC
+        assert clusters[0].surface_forms["Mr. Darcy"] == ResolutionMethod.EXACT
+        assert clusters[0].surface_forms["Darcy"] == ResolutionMethod.HONORIFIC
 
 
 class TestNicknameStage:

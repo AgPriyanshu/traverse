@@ -16,7 +16,8 @@ _HONORIFICS_PATH = Path(__file__).parent / "honorifics.yaml"
 _NICKNAMES_PATH = Path(__file__).parent / "nicknames.yaml"
 
 _WHITESPACE_RE = re.compile(r"\s+")
-_PUNCT_RE = re.compile(r"[.,;:!?'’‘\"()\[\]]")
+_PUNCT_RE = re.compile(r"[.,;:!?'’‘\"()\[\]_*]")
+_POSSESSIVE_RE = re.compile(r"['’]s\b", re.IGNORECASE)
 
 
 @lru_cache(maxsize=1)
@@ -50,7 +51,7 @@ def _nickname_lookup() -> dict[str, str]:
 def normalize(surface_form: str) -> str:
     """Fold case, punctuation and whitespace for exact-match clustering (stage 1)."""
     decomposed = unicodedata.normalize("NFKD", surface_form)
-    stripped = _PUNCT_RE.sub("", decomposed)
+    stripped = _PUNCT_RE.sub("", _POSSESSIVE_RE.sub("", decomposed))
     collapsed = _WHITESPACE_RE.sub(" ", stripped).strip().lower()
 
     return collapsed
@@ -134,3 +135,53 @@ def nickname_key(surface_form: str) -> str:
     tokens[0] = lookup.get(tokens[0], tokens[0])
 
     return " ".join(tokens)
+
+
+GENDERED_TITLES = frozenset({"mr", "mrs", "miss", "ms", "master", "madam"})
+
+
+def gendered_title(surface_form: str) -> str | None:
+    """Return a leading Mr/Mrs/Miss-style title, which distinguishes people.
+
+    "Mr. Darcy" and "Miss Darcy" are different characters, so the honorific
+    stage must not fold them together the way it folds "Sir William" into
+    "William".
+    """
+    tokens = normalize(surface_form).split(" ")
+    title = tokens[0] if tokens and tokens[0] in GENDERED_TITLES else None
+
+    return title
+
+
+def titled_token_set_key(surface_form: str) -> str:
+    """Like :func:`token_set_key`, but keeps a gendered title in the key."""
+    key = f"{gendered_title(surface_form) or ''}|{token_set_key(surface_form)}"
+
+    return key
+
+
+def titled_nickname_key(surface_form: str) -> str:
+    """Like :func:`nickname_key`, but keeps a gendered title in the key."""
+    key = f"{gendered_title(surface_form) or ''}|{nickname_key(surface_form)}"
+
+    return key
+
+
+def content_tokens(surface_form: str) -> list[str]:
+    """Name tokens with honorifics removed and the first token nickname-folded."""
+    core = strip_honorifics(surface_form)
+    tokens = core.split(" ") if core else []
+
+    if tokens:
+        tokens[0] = _nickname_lookup().get(tokens[0], tokens[0])
+
+    return tokens
+
+
+def honorific_of(surface_form: str) -> str | None:
+    """Return a leading honorific of any kind (Mr, Lady, Colonel, Sir, ...)."""
+    prefixes, _ = _honorifics()
+    tokens = normalize(surface_form).split(" ")
+    honorific = tokens[0] if tokens and tokens[0] in prefixes else None
+
+    return honorific

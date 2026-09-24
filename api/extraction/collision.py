@@ -13,10 +13,7 @@ from dataclasses import dataclass
 
 from .normalization import strip_honorifics
 
-_GENERATIONAL_RE = re.compile(
-    r"\b(the\s+)?(young|younger|elder|eldest|senior|junior|old(?:er)?)\b",
-    re.IGNORECASE,
-)
+_GENERATIONAL_MARKERS = r"young|younger|elder|eldest|senior|junior|old|older"
 _DEATH_RE = re.compile(
     r"\b(died|death of|dead|buried|her grave|his grave|passed away)\b",
     re.IGNORECASE,
@@ -58,11 +55,33 @@ def _context_texts(contexts: list[dict]) -> list[tuple[int, str]]:
 
 
 def _generational_conflict(
-    contexts_a: list[dict], contexts_b: list[dict]
+    name_a: str,
+    name_b: str,
+    contexts_a: list[dict],
+    contexts_b: list[dict],
 ) -> str | None:
+    """A marker counts only when it qualifies one of the names being compared.
+
+    "the old lady" or "the eldest Miss Bennet" says nothing about whether
+    "Elizabeth" and "Elizabeth Bennet" are two people; "young Catherine" does.
+    """
+    tokens = {
+        token
+        for name in (name_a, name_b)
+        for token in strip_honorifics(name).split(" ")
+        if len(token) >= 3
+    }
+    if not tokens:
+        return None
+
+    pattern = re.compile(
+        rf"\b(?:{_GENERATIONAL_MARKERS})\s+"
+        rf"(?:(?:miss|mrs?|lady|sir)\.?\s+)?(?:{'|'.join(map(re.escape, tokens))})\b",
+        re.IGNORECASE,
+    )
     for contexts in (contexts_a, contexts_b):
         for _, text in _context_texts(contexts):
-            match = _GENERATIONAL_RE.search(text)
+            match = pattern.search(text)
             if match:
                 return f"generational marker in context: {match.group(0)!r}"
 
@@ -77,7 +96,8 @@ def _kinship_conflict(
 ) -> str | None:
     for name, contexts in ((name_b, contexts_a), (name_a, contexts_b)):
         for _, text in _context_texts(contexts):
-            if _KINSHIP_RE.search(text) and name.split(" ")[0].lower() in text.lower():
+            given = (strip_honorifics(name).split(" ") or [""])[0]
+            if _KINSHIP_RE.search(text) and given and given in text.lower():
                 return f"kinship phrase links {name_a!r} and {name_b!r}: {text!r}"
 
     return None
@@ -149,7 +169,7 @@ def check(
             "surname or qualifier"
         )
 
-    reason = _generational_conflict(contexts_a, contexts_b)
+    reason = _generational_conflict(name_a, name_b, contexts_a, contexts_b)
     if reason:
         return Collision(reason)
 
