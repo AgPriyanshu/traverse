@@ -14,8 +14,10 @@ would happily merge is blocked outright when contextual evidence contradicts
 it, and the cluster is flagged ``collision_suspected`` instead.
 """
 
+import asyncio
 import itertools
 import logging
+import time
 from collections import defaultdict
 from dataclasses import dataclass
 from uuid import UUID
@@ -24,12 +26,16 @@ from ..contracts.enums import CandidateKind, LLMPurpose, ResolutionMethod
 from ..db.models import BookCharacterCandidate
 from ..llm import structured_call
 from . import collision
+from .filtering import plausible_character_name
 from .normalization import (
+    content_tokens,
+    gendered_title,
+    honorific_of,
     is_canonical_first_token,
-    nickname_key,
     normalize,
     strip_honorifics,
-    token_set_key,
+    titled_nickname_key,
+    titled_token_set_key,
 )
 from .prompts import ADJUDICATION_PROMPT
 from .schemas import AdjudicationOutput
@@ -40,6 +46,16 @@ logger = logging.getLogger(__name__)
 # judge co-presence/kinship/lifespan signals without paying for a candidate's
 # entire (possibly hundred-mention) context list.
 _MAX_CONTEXTS_PER_SIDE = 8
+
+# vLLM runs 16 sequences at once; adjudication shares it with nothing else in
+# this stage, so half of that keeps the queue short without idling the GPU.
+_ADJUDICATION_CONCURRENCY = 8
+
+# A bare surname merges into the fuller cluster it names only when that
+# cluster has this many times the mentions of any rival ("Darcy" is Mr. Darcy,
+# not Miss Darcy). A given name never gets this: "Jane" stays unmerged if two
+# clusters could claim it.
+_SURNAME_DOMINANCE = 3.0
 
 
 @dataclass
@@ -65,20 +81,26 @@ class Cluster:
 
 
 def _choose_canonical(surface_forms: set[str], mention_counts: dict[str, int]) -> str:
-    """Prefer the most complete, then the most frequent, surface form.
+    """Prefer the most complete proper name, then the most frequent form.
 
     "Elizabeth Bennet" over "Elizabeth" over "Lizzy" — a canonical name that
-    disambiguates on its own is what S3.4 needs from every merge, not just
-    the ones a collision was actually found in.
+    disambiguates on its own is what S3.4 needs from every merge. Completeness
+    counts name tokens, not the honorific, so "Mr. Fitzwilliam Darcy" does not
+    beat "Fitzwilliam Darcy" merely for its title, and an all-caps or
+    punctuation-laden variant loses to a cleanly cased one.
     """
 
-    def sort_key(form: str) -> tuple[int, int, int]:
-        token_count = len(form.split())
+    def sort_key(form: str) -> tuple[int, int, int, int, int]:
+        tokens = content_tokens(form)
+        cleanly_cased = int(form == form.strip(" ._,") and not form.isupper())
+        has_title = int(gendered_title(form) is not None)
 
         return (
-            token_count,
+            len(tokens),
+            cleanly_cased,
             int(is_canonical_first_token(form)),
             mention_counts.get(form, 0),
+            has_title,
         )
 
     return max(surface_forms, key=sort_key)
@@ -142,7 +164,7 @@ def _merge_by_key(
 
     merged: list[Cluster] = []
     for key, group in groups.items():
-        if not key or len(group) == 1:
+        if not key.strip("|") or len(group) == 1:
             merged.extend(group)
             continue
 
@@ -193,15 +215,44 @@ def _blocking_pairs(clusters: list[Cluster]) -> list[tuple[Cluster, Cluster]]:
     return pairs
 
 
+def _honorifics_of(cluster: Cluster) -> set[str]:
+    found = {honorific_of(form) for form in cluster.surface_forms}
+    found.discard(None)
+
+    return found  # type: ignore[return-value]
+
+
+def _may_be_same_person(a: Cluster, b: Cluster) -> bool:
+    """Cheap veto before a pair reaches the embedding or LLM stage.
+
+    "Mr. Darcy" and "Miss Darcy" differ by title; "Elizabeth Bennet" and "Jane
+    Bennet" differ by given name. Neither pair is worth a model call.
+    """
+    honorifics_a, honorifics_b = _honorifics_of(a), _honorifics_of(b)
+    if honorifics_a and honorifics_b and honorifics_a.isdisjoint(honorifics_b):
+        return False
+
+    tokens_a, tokens_b = (
+        content_tokens(a.canonical_name),
+        content_tokens(b.canonical_name),
+    )
+    different_given_names = (
+        len(tokens_a) >= 2 and len(tokens_b) >= 2 and tokens_a[0] != tokens_b[0]
+    )
+
+    return not different_given_names
+
+
 async def _merge_pairs_to_fixpoint(clusters: list[Cluster], decide) -> list[Cluster]:
     """Repeatedly merge blocked-together pairs until a full round finds none.
 
-    A single pass over ``_blocking_pairs`` only ever merges disjoint pairs —
-    once ``a`` merges into a combined cluster, any other pair naming the
-    original ``a`` is skipped for that round. A residue group larger than
-    two (six of Elizabeth's aliases, all sharing "Bennet") needs several
-    rounds to fully consolidate, so this loops until one round makes no
-    further progress rather than assuming one pass suffices.
+    Each round decides every candidate pair concurrently (bounded), then
+    applies the merges in order, skipping a pair whose member was already
+    merged this round. A residue group larger than two (six of Elizabeth's
+    aliases, all sharing "Bennet") needs several rounds to consolidate, so
+    this loops until a round makes no progress. Decisions are cached by the
+    pair's member candidates: a pair judged "different" in round one is not
+    paid for again in round two.
 
     Args:
         clusters: Current clusters.
@@ -215,22 +266,33 @@ async def _merge_pairs_to_fixpoint(clusters: list[Cluster], decide) -> list[Clus
         Clusters after every reachable merge has been made.
     """
     result = list(clusters)
+    gate = asyncio.Semaphore(_ADJUDICATION_CONCURRENCY)
+    cache: dict[tuple[frozenset[UUID], frozenset[UUID]], ResolutionMethod | None] = {}
+
+    async def cached(a: Cluster, b: Cluster) -> ResolutionMethod | None:
+        key = (frozenset(a.candidate_ids), frozenset(b.candidate_ids))
+        if key in cache:
+            return cache[key]
+
+        async with gate:
+            cache[key] = await decide(a, b)
+
+        return cache[key]
 
     while True:
+        pairs = [
+            (a, b) for a, b in _blocking_pairs(result) if _may_be_same_person(a, b)
+        ]
+        decisions = await asyncio.gather(*(cached(a, b) for a, b in pairs))
+
         merged_out: set[int] = set()
         next_result: list[Cluster] = []
 
-        for a, b in _blocking_pairs(result):
-            if id(a) in merged_out or id(b) in merged_out:
+        for (a, b), method in zip(pairs, decisions, strict=True):
+            if method is None or id(a) in merged_out or id(b) in merged_out:
                 continue
 
-            method = await decide(a, b)
-
-            if method is None:
-                continue
-
-            combined = _combine(a, b, method)
-            next_result.append(combined)
+            next_result.append(_combine(a, b, method))
             merged_out.add(id(a))
             merged_out.add(id(b))
 
@@ -239,6 +301,102 @@ async def _merge_pairs_to_fixpoint(clusters: list[Cluster], decide) -> list[Clus
 
         next_result.extend(c for c in result if id(c) not in merged_out)
         result = next_result
+
+    return result
+
+
+def _subsumes(short: Cluster, long: Cluster) -> bool:
+    """Whether ``long`` names the same person more completely than ``short``."""
+    title_short = gendered_title(short.canonical_name)
+    title_long = gendered_title(long.canonical_name)
+    tokens_short = content_tokens(short.canonical_name)
+    tokens_long = content_tokens(long.canonical_name)
+
+    if title_short and title_long and title_short != title_long:
+        return False
+
+    if not tokens_short or short is long:
+        return False
+
+    # "Mr. Bennet" could be any male Bennet and "Colonel Fitzwilliam" is not
+    # "Fitzwilliam Darcy", so a titled form only folds into a fuller form
+    # carrying the same title; the model stage, which sees the contexts,
+    # decides the rest.
+    honorific_short = honorific_of(short.canonical_name)
+    if honorific_short and honorific_short != honorific_of(long.canonical_name):
+        return False
+
+    if len(tokens_long) > len(tokens_short):
+        remaining = iter(tokens_long)
+
+        return all(token in remaining for token in tokens_short)
+
+    return (
+        tokens_short == tokens_long and title_short is None and title_long is not None
+    )
+
+
+def _pick_subsuming_target(short: Cluster, targets: list[Cluster]) -> Cluster | None:
+    if len(targets) == 1:
+        return targets[0]
+
+    tokens = content_tokens(short.canonical_name)
+    bare_surname = (
+        len(tokens) == 1
+        and gendered_title(short.canonical_name) is None
+        and all(content_tokens(t.canonical_name)[-1] == tokens[0] for t in targets)
+    )
+    if not bare_surname:
+        return None
+
+    ranked = sorted(targets, key=lambda t: t.total_mentions, reverse=True)
+    if ranked[0].total_mentions >= _SURNAME_DOMINANCE * ranked[1].total_mentions:
+        return ranked[0]
+
+    return None
+
+
+def _merge_subsumed(clusters: list[Cluster]) -> list[Cluster]:
+    """Fold an incomplete form into the one fuller cluster it can only mean.
+
+    "Elizabeth" into "Elizabeth Bennet", "Mr. Wickham" into "George Wickham",
+    "Darcy" into "Mr. Darcy" (but not "Miss Darcy"). Ambiguous forms are left
+    for the model stage rather than guessed, and every merge still passes the
+    collision guard.
+    """
+    result = list(clusters)
+
+    while True:
+        changed = False
+
+        for short in sorted(
+            result, key=lambda c: len(content_tokens(c.canonical_name))
+        ):
+            targets = [other for other in result if _subsumes(short, other)]
+            target = _pick_subsuming_target(short, targets) if targets else None
+
+            if target is None:
+                continue
+
+            found = collision.check(
+                target.canonical_name,
+                short.canonical_name,
+                target.contexts,
+                short.contexts,
+            )
+            if found is not None:
+                _flag_collision(target, short, found.reason)
+                continue
+
+            combined = _combine(target, short, ResolutionMethod.HONORIFIC)
+            result = [c for c in result if c is not short and c is not target]
+            result.append(combined)
+            changed = True
+
+            break
+
+        if not changed:
+            break
 
     return result
 
@@ -324,19 +482,43 @@ async def cluster_candidates(
     Returns:
         One ``Cluster`` per resolved character, book-local.
     """
-    persons = [c for c in candidates if c.kind == CandidateKind.PERSON]
+    persons = [
+        c
+        for c in candidates
+        if c.kind == CandidateKind.PERSON and plausible_character_name(c.surface_form)
+    ]
 
+    timings: list[str] = []
+
+    def mark(stage: str, started: float, count: int) -> None:
+        timings.append(f"{stage}={time.perf_counter() - started:.1f}s/{count}")
+
+    started = time.perf_counter()
     clusters = _seed_clusters(persons)
     clusters = _merge_by_key(
         clusters, key_fn=normalize, method=ResolutionMethod.NORMALISED
     )
     clusters = _merge_by_key(
-        clusters, key_fn=token_set_key, method=ResolutionMethod.HONORIFIC
+        clusters, key_fn=titled_token_set_key, method=ResolutionMethod.HONORIFIC
     )
     clusters = _merge_by_key(
-        clusters, key_fn=nickname_key, method=ResolutionMethod.NICKNAME
+        clusters, key_fn=titled_nickname_key, method=ResolutionMethod.NICKNAME
     )
+    clusters = _merge_subsumed(clusters)
+    mark("deterministic", started, len(clusters))
+
+    started = time.perf_counter()
     clusters = await _merge_by_embedding(clusters)
+    mark("embedding", started, len(clusters))
+
+    started = time.perf_counter()
     clusters = await _merge_by_llm(clusters, book_id=book_id)
+    mark("llm", started, len(clusters))
+
+    logger.info(
+        "book %s alias cascade (stage/seconds/clusters left): %s",
+        book_id,
+        " ".join(timings),
+    )
 
     return clusters

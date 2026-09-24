@@ -7,7 +7,7 @@ inline (``api/AGENTS.md``).
 import logging
 from uuid import UUID
 
-from sqlalchemy import delete, insert, select, update
+from sqlalchemy import bindparam, delete, insert, select, update
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
 from ..contracts.enums import CandidateKind, ReviewTaskType
@@ -231,11 +231,20 @@ async def set_cluster_keys(
     if not assignments:
         return
 
+    table = BookCharacterCandidate.__table__  # type: ignore[attr-defined]
     rows = [
-        {"id": candidate_id, "cluster_key": cluster_key}
+        {"candidate_id": candidate_id, "key": cluster_key}
         for candidate_id, cluster_key in assignments.items()
     ]
-    await session.execute(update(BookCharacterCandidate), rows)
+    # A Core update by key, not an ORM bulk update: the ORM path raises
+    # StaleDataError if any row was deleted by a concurrent re-run, and this
+    # write has nothing to protect that a missing row would violate.
+    statement = (
+        update(table)
+        .where(table.c.id == bindparam("candidate_id"))
+        .values(cluster_key=bindparam("key"))
+    )
+    await session.execute(statement, rows)
     await session.commit()
 
 

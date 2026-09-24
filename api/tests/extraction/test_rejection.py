@@ -14,6 +14,7 @@ def _candidate(surface_form: str, kind: CandidateKind, contexts: list[dict]) -> 
             self.surface_form = surface_form
             self.kind = kind
             self.contexts = contexts
+            self.mention_count = 50
 
     return _Candidate()
 

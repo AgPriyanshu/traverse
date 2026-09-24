@@ -19,6 +19,7 @@ from ..contracts.enums import LLMPurpose
 from ..contracts.extraction import CharacterCandidate
 from ..contracts.llm import BatchPlan
 from ..db.models import DocumentChunk
+from .filtering import plausible_character_name
 from .prompts import MENTION_SWEEP_PROMPT
 from .schemas import MentionSweepOutput
 
@@ -196,7 +197,7 @@ def _dedupe_within_chunk(
     for mention in mentions:
         form = mention.surface_form.strip()  # type: ignore[attr-defined]
 
-        if not form:
+        if not form or not plausible_character_name(form):
             continue
 
         counts[form] += 1

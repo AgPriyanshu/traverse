@@ -38,6 +38,10 @@ the expression used BOTH ways, classify it as "person" and set
 "is_ambiguous" to true — a person mention must never be discarded because the
 same word also names a place.
 
+A real-world author, critic, editor, artist or historical figure named in a
+preface, footnote or comparison, or a character from a DIFFERENT book, is not a
+character in this story: classify it as "unknown".
+
 Contexts where "{surface_form}" appears:
 {contexts}
 
