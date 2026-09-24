@@ -109,6 +109,16 @@ async def test_scores_a_matched_character_and_a_false_positive(
     assert result.roster_false_negatives == gold_character_count - 1
     assert result.tier_accuracy == pytest.approx(1.0)  # Elizabeth's tier matched
 
+    # The mentioned-tier Netherfield is the unjudged tail, so it cannot count
+    # against the named-tier precision; the named recall denominator excludes
+    # the mentioned gold characters.
+    named_gold = sum(
+        1 for c in gold["characters"] if c["importance_tier"] != "mentioned"
+    )
+    assert result.roster_named_true_positives == 1
+    assert result.roster_named_false_positives == 0
+    assert result.roster_named_false_negatives == named_gold - 1
+
 
 async def test_rejection_and_cascade_metrics_read_their_own_tables(
     session: SQLModelAsyncSession, project: Project

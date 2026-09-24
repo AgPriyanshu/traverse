@@ -15,11 +15,14 @@
 book_key: wuthering-heights
 corpus_pdf_sha256: 68f6058e17d7ba0cdf9154d43bd366267bbad7d9c6f10b4f907bf26141e0962a
 page_count: 211
-labelled_by: do1 (seeded from public-domain textual evidence, S3.13)
+labelled_by: do1 (seeded from public-domain textual evidence, S3.13; completed to the full named human cast, S4)
 labelled_at: "2026-09-22T00:00:00+00:00"
 source_notes: >
   Character list and tiers cross-checked against the standard published
-  reading of Wuthering Heights (Gutenberg edition 768). Pending
+  reading of Wuthering Heights (Gutenberg edition 768). Complete-cast pass (S4):
+  every capitalised person-name was checked; animals (Skulker, Throttler, Juno,
+  Phoenix, Charlie, Fanny, Minny) and Biblical figures are deliberately absent.
+  Pending
   re-verification against be1's real pass-1 output via scripts/label_roster.py
   once S3.1/S3.3/S3.4 merge (plans/sprint-3/HANDOFF.md) -- this book is the
   committed regression fixture for S3.4's collision guard
@@ -69,7 +72,7 @@ characters:
     importance_tier: major
     first_page: 29
   - canonical_name: Hareton Earnshaw
-    aliases: [Hareton]
+    aliases: [Hareton, Mr. Hareton]
     importance_tier: major
     first_page: 2
     notes: >
@@ -107,6 +110,51 @@ characters:
     aliases: [Zillah]
     importance_tier: minor
     first_page: 10
+  - canonical_name: Kenneth
+    aliases: [Kenneth, Mr. Kenneth, Doctor Kenneth]
+    importance_tier: minor
+    first_page: 38
+    notes: The Gimmerton doctor.
+  - canonical_name: Mr. Green
+    aliases: [Mr. Green]
+    importance_tier: mentioned
+    first_page: 176
+    notes: Edgar Linton's lawyer.
+  - canonical_name: Jabez Branderham
+    aliases: [Jabez Branderham, Jabez]
+    importance_tier: mentioned
+    first_page: 14
+    notes: The preacher of Lockwood's dream sermon.
+  - canonical_name: Robert
+    aliases: [Robert]
+    importance_tier: mentioned
+    first_page: 29
+    notes: A Thrushcross Grange servant.
+  - canonical_name: Michael
+    aliases: [Michael]
+    importance_tier: mentioned
+    first_page: 154
+    notes: A Thrushcross Grange groom.
+  - canonical_name: Mary
+    aliases: [Mary]
+    importance_tier: mentioned
+    first_page: 29
+    notes: A Thrushcross Grange maid.
+  - canonical_name: Jenny
+    aliases: [Jenny]
+    importance_tier: mentioned
+    first_page: 29
+    notes: A Wuthering Heights servant.
+  - canonical_name: John
+    aliases: [John]
+    importance_tier: mentioned
+    first_page: 29
+    notes: A Thrushcross Grange servant.
+  - canonical_name: Dame Archer
+    aliases: [Dame Archer]
+    importance_tier: mentioned
+    first_page: 38
+    notes: Nurse who brings the baby Linton to Heathcliff's household.
 rejected_non_characters:
   - surface_form: Wuthering Heights
     reason: The Earnshaw farmhouse -- a place, not a person (also the book's title).

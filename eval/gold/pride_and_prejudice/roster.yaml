@@ -4,13 +4,17 @@
 # first_page values were computed against this exact corpus build (not
 # guessed): scripts/seed_corpus.py's own paginate() was run over
 # corpus/downloads/pride-and-prejudice.txt and each alias's first regex match
-# was located by page. first_chapter is left null everywhere -- chapter-level
+# was located by page.
+#
+# Sprint 4: completed to every named person who appears on the page (aside
+# from the ambiguous ones listed under source_notes), so a correct extraction
+# is not scored as a false positive. One-line characters are tier `mentioned`. first_chapter is left null everywhere -- chapter-level
 # grouping is deferred pending a corpus with real structural headings
 # (plans/sprint-3/SCR.md SCR-1); do not backfill it with a guess.
 book_key: pride-and-prejudice
 corpus_pdf_sha256: 9d16f8644fb30853da423ea1797133a04fbc1be0064dc874093c213a38d86959
 page_count: 245
-labelled_by: do1 (seeded from public-domain textual evidence, S3.13)
+labelled_by: do1 (seeded from public-domain textual evidence, S3.13; completed to the full named cast, S4)
 labelled_at: "2026-09-22T00:00:00+00:00"
 source_notes: >
   Character list and tiers cross-checked against the standard published
@@ -18,7 +22,11 @@ source_notes: >
   Saintsbury-introduced illustrated edition also used to build this corpus).
   Every first_page value is a direct grep of the actual paginated corpus text
   for the character's earliest-appearing alias, not an estimate -- see the
-  module docstring above. Pending re-verification against be1's real pass-1
+  module docstring above. Complete-cast pass (S4): every capitalised person-name in the story
+  pages was checked; unnamed relations, families in the plural (the Webbs, the
+  Gouldings, the Harringtons) and old Mr. Darcy / Wickham's father (an alias
+  collision with the living men) are deliberately absent.
+  Pending re-verification against be1's real pass-1
   output via scripts/label_roster.py once S3.1 merges (plans/sprint-3/HANDOFF.md).
 characters:
   - canonical_name: Elizabeth Bennet
@@ -59,7 +67,7 @@ characters:
     first_page: 22
     notes: Becomes Mrs. Collins after marrying William Collins mid-novel.
   - canonical_name: Lydia Bennet
-    aliases: [Lydia, Miss Lydia]
+    aliases: [Lydia, Miss Lydia, Mrs. Wickham]
     importance_tier: major
     first_page: 13
   - canonical_name: Caroline Bingley
@@ -127,6 +135,135 @@ characters:
     aliases: [Denny, Mr. Denny]
     importance_tier: mentioned
     first_page: 55
+  - canonical_name: Mr. Hurst
+    aliases: [Mr. Hurst]
+    importance_tier: minor
+    first_page: 17
+    notes: Louisa Bingley's husband, at Netherfield.
+  - canonical_name: Mrs. Hurst
+    aliases: [Mrs. Hurst, Louisa]
+    importance_tier: minor
+    first_page: 17
+    notes: Bingley's elder sister, married to Mr. Hurst.
+  - canonical_name: Lady Lucas
+    aliases: [Lady Lucas]
+    importance_tier: minor
+    first_page: 13
+  - canonical_name: Maria Lucas
+    aliases: [Maria, Maria Lucas, Miss Maria]
+    importance_tier: minor
+    first_page: 19
+    notes: Charlotte's younger sister.
+  - canonical_name: Mrs. Forster
+    aliases: [Mrs. Forster]
+    importance_tier: mentioned
+    first_page: 144
+    notes: The colonel's wife, Lydia's friend at Brighton.
+  - canonical_name: Mrs. Jenkinson
+    aliases: [Mrs. Jenkinson]
+    importance_tier: mentioned
+    first_page: 77
+    notes: Miss de Bourgh's companion.
+  - canonical_name: Mr. Philips
+    aliases: [Mr. Philips]
+    importance_tier: mentioned
+    first_page: 28
+    notes: Mrs. Philips's husband, an attorney.
+  - canonical_name: Mrs. Hill
+    aliases: [Mrs. Hill]
+    importance_tier: mentioned
+    first_page: 190
+    notes: Longbourn's housekeeper.
+  - canonical_name: Mr. Jones
+    aliases: [Mr. Jones]
+    importance_tier: mentioned
+    first_page: 31
+    notes: The apothecary.
+  - canonical_name: Mr. Robinson
+    aliases: [Mr. Robinson]
+    importance_tier: mentioned
+    first_page: 22
+  - canonical_name: Captain Carter
+    aliases: [Captain Carter]
+    importance_tier: mentioned
+    first_page: 29
+    notes: A militia officer.
+  - canonical_name: Colonel Miller
+    aliases: [Colonel Miller]
+    importance_tier: mentioned
+    first_page: 149
+    notes: Colonel of the regiment that left before the Bennets' story opens.
+  - canonical_name: Sir Lewis de Bourgh
+    aliases: [Sir Lewis de Bourgh, Sir Lewis]
+    importance_tier: mentioned
+    first_page: 51
+    notes: Lady Catherine's late husband.
+  - canonical_name: Mary King
+    aliases: [Miss King, Mary King]
+    importance_tier: mentioned
+    first_page: 19
+    notes: The heiress Wickham courts briefly.
+  - canonical_name: Mrs. Younge
+    aliases: [Mrs. Younge]
+    importance_tier: mentioned
+    first_page: 133
+    notes: Georgiana's former companion, harbouring Wickham and Lydia.
+  - canonical_name: Mrs. Annesley
+    aliases: [Mrs. Annesley]
+    importance_tier: mentioned
+    first_page: 170
+    notes: Georgiana's companion at Pemberley.
+  - canonical_name: Lady Anne Darcy
+    aliases: [Lady Anne Darcy, Lady Anne]
+    importance_tier: mentioned
+    first_page: 64
+    notes: Darcy's late mother, Lady Catherine's sister.
+  - canonical_name: Mr. Stone
+    aliases: [Mr. Stone]
+    importance_tier: mentioned
+    first_page: 201
+  - canonical_name: Mr. Morris
+    aliases: [Mr. Morris]
+    importance_tier: mentioned
+    first_page: 12
+    notes: Bingley's agent for the Netherfield lease.
+  - canonical_name: Mr. Pratt
+    aliases: [Pratt]
+    importance_tier: mentioned
+    first_page: 144
+    notes: A militia officer.
+  - canonical_name: Miss Watson
+    aliases: [Miss Watson]
+    importance_tier: mentioned
+    first_page: 29
+  - canonical_name: Miss Pope
+    aliases: [Miss Pope]
+    importance_tier: mentioned
+    first_page: 112
+    notes: Lady Metcalfe's governess, praised by Lady Catherine.
+  - canonical_name: Miss Grantley
+    aliases: [Miss Grantley]
+    importance_tier: mentioned
+    first_page: 41
+  - canonical_name: Chamberlayne
+    aliases: [Chamberlayne]
+    importance_tier: mentioned
+    first_page: 144
+    notes: A militia officer dressed up as a woman in Lydia's anecdote.
+  - canonical_name: Mrs. Nicholls
+    aliases: [Nicholls]
+    importance_tier: mentioned
+    first_page: 46
+    notes: Netherfield's cook.
+  - canonical_name: Sally
+    aliases: [Sally]
+    importance_tier: mentioned
+    first_page: 184
+    notes: A Longbourn servant.
+  - canonical_name: Lady Metcalfe
+    aliases: [Lady Metcalfe]
+    importance_tier: mentioned
+    first_page: 112
 rejected_non_characters:
   - surface_form: Netherfield
     reason: Bingley's rented estate -- a place, not a person.

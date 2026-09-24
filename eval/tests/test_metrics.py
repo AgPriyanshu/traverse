@@ -7,6 +7,7 @@ from eval.metrics import (
     precision_recall_f1,
     rejection_precision,
     roster_precision_recall_f1,
+    roster_precision_recall_f1_for_tiers,
     tier_accuracy,
 )
 
@@ -131,3 +132,38 @@ def test_cascade_stage_contribution_tallies_and_normalises():
     assert result.total == 6
     assert result.counts == {"exact": 2, "nickname": 1, "llm": 3}
     assert math.isclose(result.fractions["llm"], 0.5)
+
+
+def _c(id_, tier, *aliases):
+    return CharacterCluster(id_, id_, aliases=aliases, importance_tier=tier)
+
+
+def test_named_tier_scoring_ignores_the_unjudged_mentioned_tail():
+    gold = [
+        _c("Ann", "major"),
+        _c("Bob", "minor"),
+        _c("Cy", "mentioned"),
+        _c("Di", "minor"),
+    ]
+    predicted = [
+        _c("Ann", "major"),  # TP
+        _c("Cy", "minor"),  # matches a gold mentioned: out of scope, neither TP nor FP
+        _c("Eve", "mentioned"),  # unmatched tail: dropped
+        _c("Fay", "minor"),  # unmatched, claims a named tier: FP
+    ]
+
+    overall = roster_precision_recall_f1(gold, predicted)
+    named = roster_precision_recall_f1_for_tiers(gold, predicted)
+
+    assert (overall.true_positives, overall.false_positives) == (2, 2)
+    assert (named.true_positives, named.false_positives) == (1, 1)
+    assert named.false_negatives == 2  # Bob and Di are missed
+    assert math.isclose(named.precision, 0.5)
+
+
+def test_named_tier_scoring_cannot_hide_a_hallucinated_named_character():
+    named = roster_precision_recall_f1_for_tiers(
+        [_c("Ann", "major")], [_c("Ann", "major"), _c("Zed", "major")]
+    )
+
+    assert named.false_positives == 1

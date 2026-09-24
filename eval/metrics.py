@@ -137,6 +137,49 @@ def roster_precision_recall_f1(
     )
 
 
+NAMED_TIERS = ("protagonist", "major", "minor")
+
+
+def roster_precision_recall_f1_for_tiers(
+    gold: list[CharacterCluster],
+    predicted: list[CharacterCluster],
+    tiers: tuple[str, ...] = NAMED_TIERS,
+) -> PrecisionRecallF1:
+    """Roster P/R/F1 restricted to characters above the ``mentioned`` tail.
+
+    The tail of one-line characters is where a gold roster is least complete
+    and where reasonable labellers disagree, so an overall precision that
+    counts every predicted tail character as right or wrong mostly measures
+    the gold's completeness. This scores the part of the cast the product
+    depends on, without changing how anything is matched:
+
+    * Matching is the same full-roster ``match_rosters`` used overall.
+    * Gold in scope: gold characters whose gold tier is in ``tiers``. An
+      unmatched one is a false negative.
+    * Predicted in scope: a predicted character matched to a gold character is
+      in scope by that gold character's tier (matched to a ``mentioned`` gold
+      character, it is dropped, neither right nor wrong). An unmatched one is in
+      scope by its own predicted tier, and counts as a false positive: claiming
+      someone is a minor-or-above character who is in no gold roster is exactly
+      the error this measures. Unmatched predictions tiered ``mentioned`` are
+      the unjudged tail and are dropped.
+
+    Unlike the overall number this can be gamed only by tiering, not by the
+    gold's size, and both are reported together so neither hides the other.
+    """
+    result = match_rosters(gold, predicted)
+    gold_tier = {g.id: g.importance_tier for g in gold}
+    predicted_tier = {p.id: p.importance_tier for p in predicted}
+
+    true_positives = sum(1 for m in result.matches if gold_tier[m.gold_id] in tiers)
+    false_negatives = sum(1 for gid in result.unmatched_gold if gold_tier[gid] in tiers)
+    false_positives = sum(
+        1 for pid in result.unmatched_predicted if predicted_tier[pid] in tiers
+    )
+
+    return precision_recall_f1(true_positives, false_positives, false_negatives)
+
+
 @dataclass(frozen=True)
 class BCubedResult:
     """B-cubed precision/recall/F1 (Bagga & Baldwin 1998) for alias clustering.
@@ -303,6 +346,8 @@ __all__ = [
     "match_rosters",
     "precision_recall_f1",
     "rejection_precision",
+    "NAMED_TIERS",
     "roster_precision_recall_f1",
+    "roster_precision_recall_f1_for_tiers",
     "tier_accuracy",
 ]

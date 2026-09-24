@@ -173,3 +173,16 @@ Anyone mid-run around that time may have seen a dropped connection.
 - `web/src/lib/api/schema.d.ts` was regenerated from `app.openapi()` (the committed file predated the Sprint 4 freeze). Docstrings now appear as comments, which is generator behaviour.
 - New deps: `cytoscape`, `cytoscape-fcose` (no types, so `web/src/types/cytoscape-fcose.d.ts`).
 - Filed SCR-10, SCR-11, SCR-12 and DCR-5 in `plans/sprint-4/SCR.md`.
+
+## do1 -> be1: complete gold rosters and tier-scoped roster metric
+
+- `eval/gold/pride_and_prejudice/roster.yaml` now lists 52 characters (every
+  named person on the story pages, one-line ones as `mentioned`); Wuthering
+  Heights 23 (animals and Biblical names excluded). Same corpus checksum pins.
+- `GET /ops/extraction-quality` adds `roster_named_*` (protagonist+major+minor).
+  Same matching; an unmatched prediction counts only if it claims a named tier,
+  a prediction matched to a `mentioned` gold character is dropped. Overall
+  numbers are unchanged in definition. Definition is in
+  `eval.metrics.roster_precision_recall_f1_for_tiers`.
+- Known gaps: the Harringtons, the Webbs, old Mr. Darcy and Wickham's father are
+  not labelled (plural or alias collision).
