@@ -27,7 +27,9 @@ from ..db.models import BookCharacterCandidate
 from ..llm import structured_call
 from . import collision
 from .filtering import plausible_character_name
+from .generations import split_generations
 from .normalization import (
+    GENDERED_TITLES,
     content_tokens,
     gendered_title,
     honorific_of,
@@ -39,7 +41,7 @@ from .normalization import (
 )
 from .prompts import ADJUDICATION_PROMPT
 from .schemas import AdjudicationOutput
-from .sex import is_given_name, sex_conflict
+from .sex import cluster_sexes, is_given_name, sex_conflict
 
 logger = logging.getLogger(__name__)
 
@@ -268,6 +270,14 @@ def _has_given_name_form(cluster: Cluster, surname: str) -> bool:
 
 
 def _dominant(cluster: Cluster, siblings: list[Cluster]) -> bool:
+    """Whether a cluster is the one a bare surname conventionally names.
+
+    It must out-mention every rival by ``_SURNAME_DOMINANCE`` and must not be
+    a woman: bare surnames name men, and women are "Miss Bennet" or "Elizabeth".
+    """
+    if cluster_sexes(_all_forms(cluster)) == {"f"}:
+        return False
+
     rivals = [c.total_mentions for c in siblings if c is not cluster]
     dominant = not rivals or cluster.total_mentions >= _SURNAME_DOMINANCE * max(rivals)
 
@@ -282,20 +292,29 @@ def _surname_rule_vetoes(x: Cluster, y: Cluster, everyone: list[Cluster]) -> boo
     if _is_bare_surname(x) and y in siblings:
         return not _dominant(y, siblings)
 
-    if _is_bare_titled_surname(x, frozenset({"miss"})) and y in siblings:
-        women = [c for c in siblings if not _is_male(c) and not _is_bare_surname(c)]
-        return y in women and len(women) >= 2
+    if _is_bare_titled_surname(x, GENDERED_TITLES - {"mrs", "mistress"}):
+        # "Miss Bennet" and "Mr. Earnshaw" name one of several same-sex family
+        # members; picking one of them is a guess a model must not make.
+        opposite = "m" if honorific_of(x.canonical_name) in {"miss", "ms"} else "f"
+        candidates = [
+            c
+            for c in siblings
+            if not _is_bare_surname(c)
+            and len(content_tokens(c.canonical_name)) >= 2
+            and cluster_sexes(_all_forms(c)) != {opposite}
+        ]
+        return y in candidates and len(candidates) >= 2
 
-    if _is_bare_titled_surname(x, frozenset({"mrs", "lady"})):
-        return _has_given_name_form(y, surname or "")
+    if _is_bare_titled_surname(x, frozenset({"mrs", "lady", "mistress"})):
+        # A married-woman title names a wife, distinct from any given-name
+        # form of the family, but only when the family has a husband to be the
+        # wife of. "Mrs. Dean" with no Mr. Dean is Ellen Dean.
+        has_husband = any(
+            c is not y and cluster_sexes(_all_forms(c)) == {"m"} for c in siblings
+        )
+        return has_husband and _has_given_name_form(y, surname or "")
 
     return False
-
-
-def _is_male(cluster: Cluster) -> bool:
-    from .sex import cluster_sexes  # noqa: PLC0415
-
-    return cluster_sexes(_all_forms(cluster)) == {"m"}
 
 
 def _may_be_same_person(a: Cluster, b: Cluster, everyone: list[Cluster]) -> bool:
@@ -409,12 +428,24 @@ def _subsumes(short: Cluster, long: Cluster) -> bool:
     if sex_conflict(_all_forms(short), _all_forms(long)):
         return False
 
+    honorifics_short, honorifics_long = _honorifics_of(short), _honorifics_of(long)
+    if (
+        honorifics_short
+        and honorifics_long
+        and honorifics_short.isdisjoint(honorifics_long)
+    ):
+        return False
+
     # "Mr. Bennet" could be any male Bennet and "Colonel Fitzwilliam" is not
     # "Fitzwilliam Darcy", so a titled form only folds into a fuller form
     # carrying the same title; the model stage, which sees the contexts,
     # decides the rest.
     honorific_short = honorific_of(short.canonical_name)
-    if honorific_short and honorific_short != honorific_of(long.canonical_name):
+    if (
+        honorific_short
+        and honorific_short != honorific_of(long.canonical_name)
+        and not (honorific_short in GENDERED_TITLES and title_long is None)
+    ):
         return False
 
     if len(tokens_long) > len(tokens_short):
@@ -441,7 +472,7 @@ def _pick_subsuming_target(short: Cluster, targets: list[Cluster]) -> Cluster | 
         return None
 
     ranked = sorted(targets, key=lambda t: t.total_mentions, reverse=True)
-    if ranked[0].total_mentions >= _SURNAME_DOMINANCE * ranked[1].total_mentions:
+    if _dominant(ranked[0], targets):
         return ranked[0]
 
     return None
@@ -609,6 +640,8 @@ async def cluster_candidates(
     started = time.perf_counter()
     clusters = await _merge_by_llm(clusters, book_id=book_id)
     mark("llm", started, len(clusters))
+
+    clusters = split_generations(clusters)
 
     logger.info(
         "book %s alias cascade (stage/seconds/clusters left): %s",

@@ -137,7 +137,7 @@ def nickname_key(surface_form: str) -> str:
     return " ".join(tokens)
 
 
-GENDERED_TITLES = frozenset({"mr", "mrs", "miss", "ms", "master", "madam"})
+GENDERED_TITLES = frozenset({"mr", "mrs", "miss", "ms", "master", "madam", "mistress"})
 
 
 def gendered_title(surface_form: str) -> str | None:

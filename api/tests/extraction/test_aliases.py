@@ -81,10 +81,13 @@ class TestLLMStage:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         candidates = [
-            _candidate("Elizabeth Bennet", [_ctx(1, "Elizabeth Bennet spoke first.")]),
-            _candidate("Miss Bennet", [_ctx(2, "Miss Bennet smiled.")]),
+            _candidate("John Watson", [_ctx(1, "John Watson spoke first.")]),
+            _candidate("Dr. Watson", [_ctx(2, "Dr. Watson smiled.")]),
         ]
 
+        # A non-gendered title never folds deterministically into a fuller
+        # name, so this pair is left for the model stage.
+        #
         # Isolate this test to stage 5: with a real (now-merged)
         # api.graph.similarity available, stage 4 may itself cluster this
         # pair — a real embedding call is exactly what's under test in
@@ -106,7 +109,7 @@ class TestLLMStage:
         clusters = await aliases.cluster_candidates(candidates, book_id=uuid.uuid4())
 
         assert len(clusters) == 1
-        assert clusters[0].surface_forms["Miss Bennet"] == ResolutionMethod.LLM
+        assert clusters[0].surface_forms["Dr. Watson"] == ResolutionMethod.LLM
 
     async def test_collision_blocks_the_merge_before_calling_the_llm(
         self, monkeypatch: pytest.MonkeyPatch

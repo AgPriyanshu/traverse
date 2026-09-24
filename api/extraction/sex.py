@@ -8,7 +8,7 @@ from .normalization import content_tokens, normalize
 _GIVEN_NAMES_PATH = Path(__file__).parent / "given_names.yaml"
 _MALE_TITLES = frozenset({"mr", "sir", "lord", "master", "monsieur", "herr"})
 _FEMALE_TITLES = frozenset(
-    {"mrs", "miss", "ms", "lady", "madam", "madame", "dame", "mlle", "mme"}
+    {"mrs", "miss", "ms", "lady", "madam", "madame", "dame", "mlle", "mme", "mistress"}
 )
 
 
@@ -30,12 +30,14 @@ def is_given_name(token: str) -> bool:
 
 def form_sex(surface_form: str) -> str | None:
     """Infer ``"m"`` or ``"f"`` from a title or a known given name, else ``None``."""
-    tokens = normalize(surface_form).split(" ")
-    if tokens and tokens[0] in _MALE_TITLES:
-        return "m"
+    # Two tokens deep, so "Old Mrs. Linton" and "young Miss Bennet" still carry
+    # their title.
+    for token in normalize(surface_form).split(" ")[:2]:
+        if token in _MALE_TITLES:
+            return "m"
 
-    if tokens and tokens[0] in _FEMALE_TITLES:
-        return "f"
+        if token in _FEMALE_TITLES:
+            return "f"
 
     core = content_tokens(surface_form)
     inferred = _given_names().get(core[0]) if core else None
