@@ -12,6 +12,7 @@ import re
 from dataclasses import dataclass
 
 from .normalization import strip_honorifics
+from .sex import is_given_name
 
 _GENERATIONAL_MARKERS = r"young|younger|elder|eldest|senior|junior|old|older"
 _DEATH_RE = re.compile(
@@ -23,6 +24,22 @@ _KINSHIP_RE = re.compile(
     r"|\bher mother'?s name\b|\bhis father'?s name\b|\bnamed after\b",
     re.IGNORECASE,
 )
+
+
+_DEATH_PROXIMITY_CHARS = 50
+
+
+def _death_near(text: str, given: str) -> bool:
+    lowered = text.lower()
+    names = [m.start() for m in re.finditer(re.escape(given), lowered)]
+    deaths = [m.start() for m in _DEATH_RE.finditer(text)]
+    near = any(
+        abs(name - death) <= _DEATH_PROXIMITY_CHARS
+        for name in names
+        for death in deaths
+    )
+
+    return near
 
 
 @dataclass
@@ -65,12 +82,18 @@ def _generational_conflict(
     "the old lady" or "the eldest Miss Bennet" says nothing about whether
     "Elizabeth" and "Elizabeth Bennet" are two people; "young Catherine" does.
     """
-    tokens = {
-        token
-        for name in (name_a, name_b)
-        for token in strip_honorifics(name).split(" ")
-        if len(token) >= 3
-    }
+    # Only a given name can be qualified this way: "young Linton" is a
+    # different person from "Isabella Linton" but says nothing about whether
+    # "Isabella" and "Isabella Linton" agree, since Linton is everyone's surname.
+    tokens = set()
+    for name in (name_a, name_b):
+        parts = strip_honorifics(name).split(" ")
+        # A lone token is a surname unless it is a known given name; "old
+        # Linton" describes the family's patriarch, not whoever "Mr. Linton" is.
+        if parts and parts[0] and (len(parts) >= 2 or is_given_name(parts[0])):
+            tokens.add(parts[0])
+
+    tokens = {token for token in tokens if len(token) >= 3}
     if not tokens:
         return None
 
@@ -103,10 +126,17 @@ def _kinship_conflict(
     return None
 
 
-def _lifespan_conflict(contexts_a: list[dict], contexts_b: list[dict]) -> str | None:
-    def death_page(contexts: list[dict]) -> int | None:
+def _lifespan_conflict(
+    name_a: str, name_b: str, contexts_a: list[dict], contexts_b: list[dict]
+) -> str | None:
+    def death_page(contexts: list[dict], name: str) -> int | None:
+        # The death must sit next to the name: a context is a sentence, and
+        # a sentence naming someone often mentions a different person's death.
+        given = (strip_honorifics(name).split(" ") or [""])[0]
         pages = [
-            page for page, text in _context_texts(contexts) if _DEATH_RE.search(text)
+            page
+            for page, text in _context_texts(contexts)
+            if given and _death_near(text, given)
         ]
 
         return min(pages) if pages else None
@@ -116,7 +146,8 @@ def _lifespan_conflict(contexts_a: list[dict], contexts_b: list[dict]) -> str | 
 
         return min(pages) if pages else None
 
-    death_a, death_b = death_page(contexts_a), death_page(contexts_b)
+    death_a = death_page(contexts_a, name_a)
+    death_b = death_page(contexts_b, name_b)
     first_a, first_b = first_page(contexts_a), first_page(contexts_b)
 
     if (
@@ -183,7 +214,7 @@ def check(
     if reason:
         return Collision(reason)
 
-    reason = _lifespan_conflict(contexts_a, contexts_b)
+    reason = _lifespan_conflict(name_a, name_b, contexts_a, contexts_b)
     if reason:
         return Collision(reason)
 
