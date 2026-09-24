@@ -39,6 +39,7 @@ from .normalization import (
 )
 from .prompts import ADJUDICATION_PROMPT
 from .schemas import AdjudicationOutput
+from .sex import is_given_name, sex_conflict
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +56,7 @@ _ADJUDICATION_CONCURRENCY = 8
 # cluster has this many times the mentions of any rival ("Darcy" is Mr. Darcy,
 # not Miss Darcy). A given name never gets this: "Jane" stays unmerged if two
 # clusters could claim it.
-_SURNAME_DOMINANCE = 3.0
+_SURNAME_DOMINANCE = 2.0
 
 
 @dataclass
@@ -222,12 +223,94 @@ def _honorifics_of(cluster: Cluster) -> set[str]:
     return found  # type: ignore[return-value]
 
 
-def _may_be_same_person(a: Cluster, b: Cluster) -> bool:
-    """Cheap veto before a pair reaches the embedding or LLM stage.
+def _all_forms(cluster: Cluster) -> list[str]:
+    forms = [cluster.canonical_name, *cluster.surface_forms]
 
-    "Mr. Darcy" and "Miss Darcy" differ by title; "Elizabeth Bennet" and "Jane
-    Bennet" differ by given name. Neither pair is worth a model call.
+    return forms
+
+
+def _surname(cluster: Cluster) -> str | None:
+    tokens = content_tokens(cluster.canonical_name)
+
+    return tokens[-1] if tokens else None
+
+
+def _is_bare_surname(cluster: Cluster) -> bool:
+    tokens = content_tokens(cluster.canonical_name)
+    bare = (
+        len(tokens) == 1
+        and honorific_of(cluster.canonical_name) is None
+        and not is_given_name(tokens[0])
+    )
+
+    return bare
+
+
+def _is_bare_titled_surname(cluster: Cluster, titles: frozenset[str]) -> bool:
+    bare = (
+        len(content_tokens(cluster.canonical_name)) == 1
+        and honorific_of(cluster.canonical_name) in titles
+    )
+
+    return bare
+
+
+def _has_given_name_form(cluster: Cluster, surname: str) -> bool:
+    for form in _all_forms(cluster):
+        tokens = content_tokens(form)
+        if len(tokens) >= 2 and tokens[-1] == surname:
+            return True
+
+        if honorific_of(form) == "miss" and tokens == [surname]:
+            return True
+
+    return False
+
+
+def _dominant(cluster: Cluster, siblings: list[Cluster]) -> bool:
+    rivals = [c.total_mentions for c in siblings if c is not cluster]
+    dominant = not rivals or cluster.total_mentions >= _SURNAME_DOMINANCE * max(rivals)
+
+    return dominant
+
+
+def _surname_rule_vetoes(x: Cluster, y: Cluster, everyone: list[Cluster]) -> bool:
+    """Rules about a form that names a family, not a person, and its rivals."""
+    surname = _surname(x)
+    siblings = [c for c in everyone if c is not x and _surname(c) == surname]
+
+    if _is_bare_surname(x) and y in siblings:
+        return not _dominant(y, siblings)
+
+    if _is_bare_titled_surname(x, frozenset({"miss"})) and y in siblings:
+        women = [c for c in siblings if not _is_male(c) and not _is_bare_surname(c)]
+        return y in women and len(women) >= 2
+
+    if _is_bare_titled_surname(x, frozenset({"mrs", "lady"})):
+        return _has_given_name_form(y, surname or "")
+
+    return False
+
+
+def _is_male(cluster: Cluster) -> bool:
+    from .sex import cluster_sexes  # noqa: PLC0415
+
+    return cluster_sexes(_all_forms(cluster)) == {"m"}
+
+
+def _may_be_same_person(a: Cluster, b: Cluster, everyone: list[Cluster]) -> bool:
+    """Veto before a pair reaches the embedding or LLM stage, or a merge stands.
+
+    A model can be talked into anything by two similar contexts, so the rules
+    that must never be broken are checked here, in code: opposite sexes
+    ("Mr. Bingley" is not "Caroline Bingley"), conflicting titles, different
+    given names, a bare surname joining anything but its dominant cluster
+    ("Darcy" is not "Miss Darcy"), "Miss Bennet" picking one of several
+    sisters, and a bare "Lady Lucas" joining a "Charlotte Lucas".
     """
+    if sex_conflict(_all_forms(a), _all_forms(b)):
+        return False
+
     honorifics_a, honorifics_b = _honorifics_of(a), _honorifics_of(b)
     if honorifics_a and honorifics_b and honorifics_a.isdisjoint(honorifics_b):
         return False
@@ -236,11 +319,14 @@ def _may_be_same_person(a: Cluster, b: Cluster) -> bool:
         content_tokens(a.canonical_name),
         content_tokens(b.canonical_name),
     )
-    different_given_names = (
-        len(tokens_a) >= 2 and len(tokens_b) >= 2 and tokens_a[0] != tokens_b[0]
+    if len(tokens_a) >= 2 and len(tokens_b) >= 2 and tokens_a[0] != tokens_b[0]:
+        return False
+
+    vetoed = _surname_rule_vetoes(a, b, everyone) or _surname_rule_vetoes(
+        b, a, everyone
     )
 
-    return not different_given_names
+    return not vetoed
 
 
 async def _merge_pairs_to_fixpoint(clusters: list[Cluster], decide) -> list[Cluster]:
@@ -281,7 +367,9 @@ async def _merge_pairs_to_fixpoint(clusters: list[Cluster], decide) -> list[Clus
 
     while True:
         pairs = [
-            (a, b) for a, b in _blocking_pairs(result) if _may_be_same_person(a, b)
+            (a, b)
+            for a, b in _blocking_pairs(result)
+            if _may_be_same_person(a, b, result)
         ]
         decisions = await asyncio.gather(*(cached(a, b) for a, b in pairs))
 
@@ -316,6 +404,9 @@ def _subsumes(short: Cluster, long: Cluster) -> bool:
         return False
 
     if not tokens_short or short is long:
+        return False
+
+    if sex_conflict(_all_forms(short), _all_forms(long)):
         return False
 
     # "Mr. Bennet" could be any male Bennet and "Colonel Fitzwilliam" is not
@@ -375,14 +466,18 @@ def _merge_subsumed(clusters: list[Cluster]) -> list[Cluster]:
             targets = [other for other in result if _subsumes(short, other)]
             target = _pick_subsuming_target(short, targets) if targets else None
 
-            if target is None:
+            if target is None or _surname_rule_vetoes(short, target, result):
                 continue
 
+            # Kinship phrases ("the younger son of his uncle") name relatives
+            # near a surname; they cannot show that a shortened form of a name
+            # is a different person from its own full form.
             found = collision.check(
                 target.canonical_name,
                 short.canonical_name,
                 target.contexts,
                 short.contexts,
+                ignore_kinship=True,
             )
             if found is not None:
                 _flag_collision(target, short, found.reason)

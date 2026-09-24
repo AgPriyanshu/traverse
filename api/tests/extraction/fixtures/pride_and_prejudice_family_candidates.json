@@ -1,0 +1,761 @@
+[
+ {
+  "surface_form": "Mr. Darcy",
+  "mention_count": 344,
+  "contexts": [
+   {
+    "page": 16,
+    "count": 2,
+    "context": "His friend Mr. Darcy soon drew the attention of the room by his fine, tall person, handsome features, noble mien, and the report, which was in general circulation within five minutes after his entrance, of his having ten thousand a year.",
+    "chunk_id": "810f3bf0-ebff-4b04-9cea-66ee7a7e13ac",
+    "chapter_number": 2
+   },
+   {
+    "page": 16,
+    "count": 1,
+    "context": "Mr. Darcy walked off; and Elizabeth remained with no very cordial feelings towards him.",
+    "chunk_id": "31fb73d0-fb9f-4341-ba0c-392aefcd0cb8",
+    "chapter_number": 2
+   },
+   {
+    "page": 16,
+    "count": 1,
+    "context": "Mr. Darcy walked off; and Elizabeth remained with no very cordial feelings towards him.",
+    "chunk_id": "92cd78a3-401b-4e8a-a09b-95f4aaac5997",
+    "chapter_number": 2
+   },
+   {
+    "page": 20,
+    "count": 1,
+    "context": "Between him and Darcy there was a very steady friendship, in spite of a great opposition of character.",
+    "chunk_id": "af0c64c6-fa29-4f90-8b7f-4f4f3f1e4fa6",
+    "chapter_number": 4
+   }
+  ]
+ },
+ {
+  "surface_form": "Elizabeth",
+  "mention_count": 180,
+  "contexts": [
+   {
+    "page": 6,
+    "count": 1,
+    "context": "Nothing in even our author is finer and more delicately touched than the change of his demeanour at the sudden meeting in the grounds of Pemberley",
+    "chunk_id": "7fe1983d-baed-4dd8-a894-f9125ff19c55",
+    "chapter_number": null
+   },
+   {
+    "page": 6,
+    "count": 1,
+    "context": "As for his being in love, Elizabeth has given as just an exposition of the causes of that phenomenon as Darcy has of the conditions of his unregenerate state",
+    "chunk_id": "cf88ffc7-a203-48c1-82f9-ac69b3657544",
+    "chapter_number": null
+   },
+   {
+    "page": 7,
+    "count": 1,
+    "context": "Elizabeth of course belongs to the allegro or allegra division of the army of Venus. Miss Austen was always provokingly chary of description in regard to her beauties",
+    "chunk_id": "e3d2e1ed-b88d-4089-b5f4-5ae2494c38d5",
+    "chapter_number": null
+   },
+   {
+    "page": 7,
+    "count": 1,
+    "context": "Elizabeth, with nothing offensive, nothing viraginous, nothing of the 'New Woman' about her, has by nature what the best modern (not 'new') women have by education and experience",
+    "chunk_id": "2c934c9d-301a-48aa-a3de-1041f78bef8c",
+    "chapter_number": null
+   }
+  ]
+ },
+ {
+  "surface_form": "Mr. Bingley",
+  "mention_count": 138,
+  "contexts": [
+   {
+    "page": 12,
+    "count": 1,
+    "context": "Mr. Bennet was so odd a mixture of quick parts, sarcastic humour, reserve, and caprice, that the experience of three-and-twenty years had been insufficient to make his wife understand his character.",
+    "chunk_id": "64ccfff5-0241-41e3-a621-08a2e948d66e",
+    "chapter_number": 1
+   },
+   {
+    "page": 13,
+    "count": 1,
+    "context": "Mr. Bennet was so odd a mixture of quick parts, sarcastic humour, reserve, and caprice, that the experience of three-and-twenty years had been insufficient to make his wife understand his character.",
+    "chunk_id": "a29b9eeb-5c51-4250-8d1b-9cb846b727cd",
+    "chapter_number": 1
+   },
+   {
+    "page": 14,
+    "count": 1,
+    "context": "Mr. Bennet was among the earliest of those who waited on Mr. Bingley.",
+    "chunk_id": "067c1061-ca51-4393-99ac-0ae8ac438bfc",
+    "chapter_number": 2
+   },
+   {
+    "page": 16,
+    "count": 1,
+    "context": "Bennet's visit, and determining when they should ask him to dinner.",
+    "chunk_id": "53116b43-e453-4917-a3bb-49ee372b4144",
+    "chapter_number": 2
+   }
+  ]
+ },
+ {
+  "surface_form": "Mr. Bennet",
+  "mention_count": 89,
+  "contexts": [
+   {
+    "page": 3,
+    "count": 1,
+    "context": "the epicurean delight in dissecting, in displaying, in setting at work her fools and her mean persons",
+    "chunk_id": "9a387551-bd0d-48c4-92e1-7af99a0d57f6",
+    "chapter_number": null
+   },
+   {
+    "page": 3,
+    "count": 1,
+    "context": "Mr. Bennet",
+    "chunk_id": "09b8f497-df57-412e-9c8a-6ab098b956a0",
+    "chapter_number": null
+   },
+   {
+    "page": 12,
+    "count": 1,
+    "context": "Mr. Bennet was so odd a mixture of quick parts, sarcastic humour, reserve, and caprice, that the experience of three-and-twenty years had been insufficient to make his wife understand his character.",
+    "chunk_id": "64ccfff5-0241-41e3-a621-08a2e948d66e",
+    "chapter_number": 1
+   },
+   {
+    "page": 13,
+    "count": 1,
+    "context": "Mr. Bennet was so odd a mixture of quick parts, sarcastic humour, reserve, and caprice, that the experience of three-and-twenty years had been insufficient to make his wife understand his character.",
+    "chunk_id": "a29b9eeb-5c51-4250-8d1b-9cb846b727cd",
+    "chapter_number": 1
+   }
+  ]
+ },
+ {
+  "surface_form": "Mrs. Bennet",
+  "mention_count": 70,
+  "contexts": [
+   {
+    "page": 6,
+    "count": 1,
+    "context": "Mrs. Bennet we have glanced at",
+    "chunk_id": "4ddd1e59-1b6b-4728-a08a-74d5466eeb12",
+    "chapter_number": null
+   },
+   {
+    "page": 6,
+    "count": 1,
+    "context": "poor Mrs. Bennet's anguish over the entail. The Bingleys and the Gardiners and the Lucases, Miss Darcy and Miss de Bourgh, Jane, Wickham, and the rest",
+    "chunk_id": "7fe1983d-baed-4dd8-a894-f9125ff19c55",
+    "chapter_number": null
+   },
+   {
+    "page": 9,
+    "count": 1,
+    "context": "Mrs. Bennet and her two youngest girls 53 Heading to Chapter X. 60 No, no; stay where you are 67 Piling up the fire 69 Heading to Chapter XII. 75 Heading to Chapter XIII. 78 Heading to Chapter XIV. 84",
+    "chunk_id": "e8286fbe-7f1e-4658-9336-954b78507013",
+    "chapter_number": null
+   },
+   {
+    "page": 12,
+    "count": 1,
+    "context": "Mrs. Bennet was a woman of mean understanding, little information, and uncertain temper.",
+    "chunk_id": "64ccfff5-0241-41e3-a621-08a2e948d66e",
+    "chapter_number": 1
+   }
+  ]
+ },
+ {
+  "surface_form": "Jane",
+  "mention_count": 63,
+  "contexts": [
+   {
+    "page": 1,
+    "count": 1,
+    "context": "the loves of Jane and Bingley",
+    "chunk_id": "ed6e524b-493d-4964-8935-770c4164fc7c",
+    "chapter_number": null
+   },
+   {
+    "page": 6,
+    "count": 1,
+    "context": "The Bingleys and the Gardiners and the Lucases, Miss Darcy and Miss de Bourgh, Jane, Wickham, and the rest",
+    "chunk_id": "7fe1983d-baed-4dd8-a894-f9125ff19c55",
+    "chapter_number": null
+   },
+   {
+    "page": 7,
+    "count": 1,
+    "context": "And she lets the injury done to Jane and the contempt shown to the rest of her family aggravate this",
+    "chunk_id": "02f36465-12c4-4155-9f30-61921c3a6cee",
+    "chapter_number": null
+   },
+   {
+    "page": 19,
+    "count": 1,
+    "context": "Jane and Elizabeth were alone, the former, who had been cautious in her praise of Mr. Bingley before, expressed to her sister how very much she admired him.",
+    "chunk_id": "042a20ad-9fae-46e1-bc99-820885452a34",
+    "chapter_number": 4
+   }
+  ]
+ },
+ {
+  "surface_form": "Miss Bingley",
+  "mention_count": 61,
+  "contexts": [
+   {
+    "page": 20,
+    "count": 2,
+    "context": "Miss Bingley is to live with her brother, and keep his house; and I am much mistaken if we shall not find a very charming neighbour in her.",
+    "chunk_id": "af0c64c6-fa29-4f90-8b7f-4f4f3f1e4fa6",
+    "chapter_number": 4
+   },
+   {
+    "page": 21,
+    "count": 1,
+    "context": "Miss Bingley told me,",
+    "chunk_id": "5fea5c55-fa01-490d-926c-81263c28e7a9",
+    "chapter_number": 5
+   },
+   {
+    "page": 23,
+    "count": 1,
+    "context": "the younger sisters not worth speaking to, a wish of being better acquainted with _them_ was expressed towards the two eldest.",
+    "chunk_id": "7c6358d7-07d8-4981-9718-0f1fa1ee242e",
+    "chapter_number": 6
+   },
+   {
+    "page": 27,
+    "count": 1,
+    "context": "when thus accosted by Miss Bingley,-- 'I can guess the subject of your reverie.'",
+    "chunk_id": "d0a4141f-2266-477a-a629-889b7e5a019b",
+    "chapter_number": 6
+   }
+  ]
+ },
+ {
+  "surface_form": "Lydia",
+  "mention_count": 51,
+  "contexts": [
+   {
+    "page": 1,
+    "count": 1,
+    "context": "The elopement of Lydia and Wickham is not, like that of Crawford and Mrs. Rushworth, a coup de th\u00e9\u00e2tre",
+    "chunk_id": "ed6e524b-493d-4964-8935-770c4164fc7c",
+    "chapter_number": null
+   },
+   {
+    "page": 6,
+    "count": 1,
+    "context": "Much the same may be said of Kitty and Lydia",
+    "chunk_id": "4ddd1e59-1b6b-4728-a08a-74d5466eeb12",
+    "chapter_number": null
+   },
+   {
+    "page": 16,
+    "count": 1,
+    "context": "Lydia, my love, though you _are_ the youngest, I dare say Mr. Bingley will dance with you at the next ball.",
+    "chunk_id": "53116b43-e453-4917-a3bb-49ee372b4144",
+    "chapter_number": 2
+   },
+   {
+    "page": 28,
+    "count": 2,
+    "context": "Catherine was disconcerted, and made no answer; but Lydia, with perfect indifference, continued to express her admiration of Captain Carter, and her hope of seeing him in the course of the day, as he was going the next morning to London.",
+    "chunk_id": "29d495d6-717e-400f-bdcd-581fa02dae5d",
+    "chapter_number": 7
+   }
+  ]
+ },
+ {
+  "surface_form": "Darcy",
+  "mention_count": 27,
+  "contexts": [
+   {
+    "page": 6,
+    "count": 1,
+    "context": "the hero and the heroine are not tints to be dismissed. Darcy has always seemed to me by far the best and most interesting of Miss Austen's heroes",
+    "chunk_id": "7fe1983d-baed-4dd8-a894-f9125ff19c55",
+    "chapter_number": null
+   },
+   {
+    "page": 6,
+    "count": 1,
+    "context": "His being neither is exactly consistent with the probable feelings of a man spoilt in the common sense, but not really injured in disposition, and thoroughly in love. As for his being in love, Elizabeth has given as just an exposition of the causes of that phenomenon as Darcy has of the conditions of his unregenerate state",
+    "chunk_id": "cf88ffc7-a203-48c1-82f9-ac69b3657544",
+    "chapter_number": null
+   },
+   {
+    "page": 7,
+    "count": 1,
+    "context": "the great proposal scene with Darcy (which is, as it should be, the climax of the interest of the book), and in the final ladies' battle with Lady Catherine",
+    "chunk_id": "e3d2e1ed-b88d-4089-b5f4-5ae2494c38d5",
+    "chapter_number": null
+   },
+   {
+    "page": 7,
+    "count": 1,
+    "context": "the reproach that the ill-manners of this speech are overdone is certainly unjust; for things of the same kind, expressed no doubt less stiltedly but more coarsely, might have been heard in more than one ball-room during this very year from persons who ought to have been no worse bred than Darcy",
+    "chunk_id": "02f36465-12c4-4155-9f30-61921c3a6cee",
+    "chapter_number": null
+   }
+  ]
+ },
+ {
+  "surface_form": "Charlotte",
+  "mention_count": 25,
+  "contexts": [
+   {
+    "page": 24,
+    "count": 1,
+    "context": "Well,' said Charlotte",
+    "chunk_id": "2eaa5fa8-feca-4534-b207-0584b613f5aa",
+    "chapter_number": 6
+   },
+   {
+    "page": 87,
+    "count": 3,
+    "context": "Charlotte assured her friend of her satisfaction in being useful, and that it amply repaid her for the little sacrifice of her time.",
+    "chunk_id": "b2f06503-8ab7-4280-95f4-fc8f931ea151",
+    "chapter_number": 22
+   },
+   {
+    "page": 88,
+    "count": 7,
+    "context": "but that Charlotte could encourage him seemed almost as far from possibility as that she could encourage him herself",
+    "chunk_id": "f56272bd-d679-48cd-8612-3c944ee7012b",
+    "chapter_number": 22
+   },
+   {
+    "page": 92,
+    "count": 1,
+    "context": "Whenever Charlotte came to see them, she concluded her to be anticipating the hour of possession; and whenever she spoke in a low voice to Mr. Collins, was convinced that they were talking of the Longbourn estate, and resolving to turn herself and her daughters out of the house as soon as Mr. Bennet was dead.",
+    "chunk_id": "48602eb8-63c6-4c25-8adb-b33dccc79962",
+    "chapter_number": 23
+   }
+  ]
+ },
+ {
+  "surface_form": "Miss Bennet",
+  "mention_count": 23,
+  "contexts": [
+   {
+    "page": 9,
+    "count": 1,
+    "context": "A note for Miss Bennet 36 Cheerful prognostics 40 The apothecary came 43 Covering a screen 45 Mrs. Bennet and her two youngest girls 53",
+    "chunk_id": "e8286fbe-7f1e-4658-9336-954b78507013",
+    "chapter_number": null
+   },
+   {
+    "page": 21,
+    "count": 2,
+    "context": "Miss Bennet was therefore established as a sweet girl; and their brother felt authorized by such commendation to think of her as he chose.",
+    "chunk_id": "7e69af3e-add0-4319-8314-6a75bd0f9e67",
+    "chapter_number": 5
+   },
+   {
+    "page": 23,
+    "count": 1,
+    "context": "Miss Bennet's pleasing manners grew on the good-will of Mrs. Hurst and Miss Bingley",
+    "chunk_id": "7c6358d7-07d8-4981-9718-0f1fa1ee242e",
+    "chapter_number": 6
+   },
+   {
+    "page": 35,
+    "count": 1,
+    "context": "Elizabeth joined them again only to say that her sister was worse, and that she could not leave her.",
+    "chunk_id": "57abcf2b-0043-4883-9cd7-310a38c878a5",
+    "chapter_number": 8
+   }
+  ]
+ },
+ {
+  "surface_form": "Miss Darcy",
+  "mention_count": 23,
+  "contexts": [
+   {
+    "page": 6,
+    "count": 1,
+    "context": "The Bingleys and the Gardiners and the Lucases, Miss Darcy and Miss de Bourgh, Jane, Wickham, and the rest",
+    "chunk_id": "7fe1983d-baed-4dd8-a894-f9125ff19c55",
+    "chapter_number": null
+   },
+   {
+    "page": 40,
+    "count": 1,
+    "context": "'How delighted Miss Darcy will be to receive such a letter!'",
+    "chunk_id": "994284a3-27c6-4bdc-919b-7d75212192b5",
+    "chapter_number": 10
+   },
+   {
+    "page": 62,
+    "count": 1,
+    "context": "What sort of a girl is Miss Darcy?",
+    "chunk_id": "fe1b952a-0ac6-450a-ba5c-2fb85f6aca58",
+    "chapter_number": 16
+   },
+   {
+    "page": 64,
+    "count": 1,
+    "context": "What sort of a girl is Miss Darcy?",
+    "chunk_id": "c71605e6-fd15-409d-86ff-cdcc5dae54ce",
+    "chapter_number": 16
+   }
+  ]
+ },
+ {
+  "surface_form": "Bingley",
+  "mention_count": 19,
+  "contexts": [
+   {
+    "page": 1,
+    "count": 1,
+    "context": "the loves of Jane and Bingley",
+    "chunk_id": "ed6e524b-493d-4964-8935-770c4164fc7c",
+    "chapter_number": null
+   },
+   {
+    "page": 21,
+    "count": 1,
+    "context": "Bingley had never met with pleasanter people or prettier girls in his life; everybody had been most kind and attentive to him;",
+    "chunk_id": "7e69af3e-add0-4319-8314-6a75bd0f9e67",
+    "chapter_number": 5
+   },
+   {
+    "page": 37,
+    "count": 1,
+    "context": "Bingley met them with hopes that Mrs. Bennet had not found Miss Bennet worse than she expected. 'Indeed I have, sir,' was her answer. 'She is a great deal too ill to be moved. Mr. Jones says we must not think of moving her. We must trespass a little longer on your kindness.'",
+    "chunk_id": "7054714e-42f3-41e5-b8cc-8a4490e382ed",
+    "chapter_number": 9
+   },
+   {
+    "page": 92,
+    "count": 1,
+    "context": "Bingley's continued absence. Neither Jane nor Elizabeth were comfortable on this subject. Day after day passed away without bringing any other tidings of him than the report which shortly prevailed in Meryton of his coming no more to Netherfield the whole winter; a report which highly incensed Mrs. Bennet, and which she never failed to contradict as a most scandalous falsehood.",
+    "chunk_id": "48602eb8-63c6-4c25-8adb-b33dccc79962",
+    "chapter_number": 23
+   }
+  ]
+ },
+ {
+  "surface_form": "Miss Lucas",
+  "mention_count": 17,
+  "contexts": [
+   {
+    "page": 21,
+    "count": 1,
+    "context": "Miss Lucas, 'but I wish he had danced with Eliza.'",
+    "chunk_id": "5fea5c55-fa01-490d-926c-81263c28e7a9",
+    "chapter_number": 5
+   },
+   {
+    "page": 23,
+    "count": 1,
+    "context": "His pride,",
+    "chunk_id": "3b444188-7bd8-4ce8-98ac-b1fdc862d5de",
+    "chapter_number": 6
+   },
+   {
+    "page": 23,
+    "count": 1,
+    "context": "She mentioned this to her friend, Miss Lucas.",
+    "chunk_id": "7c6358d7-07d8-4981-9718-0f1fa1ee242e",
+    "chapter_number": 6
+   },
+   {
+    "page": 24,
+    "count": 2,
+    "context": "What does Mr. Darcy mean,",
+    "chunk_id": "2eaa5fa8-feca-4534-b207-0584b613f5aa",
+    "chapter_number": 6
+   }
+  ]
+ },
+ {
+  "surface_form": "Colonel Fitzwilliam",
+  "mention_count": 17,
+  "contexts": [
+   {
+    "page": 114,
+    "count": 1,
+    "context": "Mr. Darcy had brought with him a Colonel Fitzwilliam, the younger son of his uncle, Lord ----; and, to the great surprise of all the party, when Mr. Collins returned, the gentlemen accompanied him.",
+    "chunk_id": "35479e12-c91e-4385-a7ae-e7409b82908a",
+    "chapter_number": 30
+   },
+   {
+    "page": 116,
+    "count": 1,
+    "context": "Colonel Fitzwilliam's manners were very much admired at the Parsonage, and the ladies all felt that he must add considerably to the pleasure of their engagements at Rosings.",
+    "chunk_id": "419b907c-5f25-452c-90de-7615c1f352b0",
+    "chapter_number": 31
+   },
+   {
+    "page": 117,
+    "count": 1,
+    "context": "Colonel Fitzwilliam reminded Elizabeth of having promised to play to him; and she sat down directly to the instrument.",
+    "chunk_id": "d8ec9df5-af23-4b0a-a858-756d56fd7a12",
+    "chapter_number": 31
+   },
+   {
+    "page": 120,
+    "count": 3,
+    "context": "The _t\u00eate-\u00e0-t\u00eate_ surprised them. Mr. Darcy related the mistake which had occasioned his intruding on Miss Bennet, and, after sitting a few minutes longer, without saying much to anybody, went away.",
+    "chunk_id": "7a613e7d-3ae7-4d25-99a5-4576eba1bab8",
+    "chapter_number": 32
+   }
+  ]
+ },
+ {
+  "surface_form": "Lady Lucas",
+  "mention_count": 7,
+  "contexts": [
+   {
+    "page": 21,
+    "count": 1,
+    "context": "Lady Lucas was a very good kind of woman, not too clever to be a valuable sensible, intelligent young woman, about twenty-seven, was Elizabeth's intimate friend.",
+    "chunk_id": "5fea5c55-fa01-490d-926c-81263c28e7a9",
+    "chapter_number": 5
+   },
+   {
+    "page": 38,
+    "count": 1,
+    "context": "'I do not like to boast of my own child; but to be sure, Jane--one does not often see anybody better looking. It is what everybody says. I do not trust my own partiality. When she was only fifteen there was a gentleman at my brother Gardiner's in town so much in love with her, that my sister-in-law was sure he would make her an offer before we came away. But, however, he did not. Perhaps he thought her too young. However, he wrote some verses on her, and very pretty they were.'",
+    "chunk_id": "88c47523-2f0b-4678-90ae-bbd49e1a65f2",
+    "chapter_number": 9
+   },
+   {
+    "page": 87,
+    "count": 1,
+    "context": "Lady Lucas began directly to calculate, with more interest than the matter had ever excited before, how many years longer Mr. Bennet was likely to live",
+    "chunk_id": "b2f06503-8ab7-4280-95f4-fc8f931ea151",
+    "chapter_number": 22
+   },
+   {
+    "page": 90,
+    "count": 1,
+    "context": "Lady Lucas could not be insensible of triumph on being able to retort on Mrs. Bennet the comfort of having a daughter well married; and she called at Longbourn rather oftener than usual to say how happy she was, though Mrs. Bennet's sour looks and ill-natured remarks might have been enough to drive happiness away.",
+    "chunk_id": "02a9df99-18d8-4278-a0b4-e79061c0c993",
+    "chapter_number": 23
+   }
+  ]
+ },
+ {
+  "surface_form": "Lizzy",
+  "mention_count": 5,
+  "contexts": [
+   {
+    "page": 23,
+    "count": 1,
+    "context": "I believe, ma'am, I may safely promise you _never_ to dance with him.",
+    "chunk_id": "3b444188-7bd8-4ce8-98ac-b1fdc862d5de",
+    "chapter_number": 6
+   },
+   {
+    "page": 39,
+    "count": 1,
+    "context": "Mrs. Bennet was satisfied, and soon afterwards ordered her carriage. Upon this signal, the youngest of her daughters put herself forward. The two girls had been whispering to each other during the whole visit; and the result of it was, that the youngest should tax Mr. Bingley with having promised on his first coming into the country to give a ball at Netherfield.",
+    "chunk_id": "5dba184b-82de-4f11-8e0a-36aefc0a99b8",
+    "chapter_number": 9
+   },
+   {
+    "page": 81,
+    "count": 1,
+    "context": "no sooner had they entered the breakfast-room, where Mrs. Bennet was alone, than she likewise began on the subject, calling on Miss Lucas for her compassion, and entreating her to persuade her friend Lizzy to comply with the wishes of her family.",
+    "chunk_id": "667031c8-fcc5-4f51-b2d6-6a6716b29904",
+    "chapter_number": 20
+   },
+   {
+    "page": 209,
+    "count": 1,
+    "context": "I saw you look at me to-day, Lizzy,",
+    "chunk_id": "f0c9e035-c1cf-42db-8bfa-c479d8cf433c",
+    "chapter_number": 52
+   }
+  ]
+ },
+ {
+  "surface_form": "Sir William Lucas",
+  "mention_count": 5,
+  "contexts": [
+   {
+    "page": 21,
+    "count": 1,
+    "context": "Sir William Lucas had been formerly in trade in Meryton, where he had made a tolerable fortune, and risen to the honour of knighthood",
+    "chunk_id": "5fea5c55-fa01-490d-926c-81263c28e7a9",
+    "chapter_number": 5
+   },
+   {
+    "page": 26,
+    "count": 1,
+    "context": "Mr. Darcy stood near them in silent indignation at such a mode of passing the evening, to the exclusion of all conversation, and was too much engrossed by his own thoughts to perceive that Sir William Lucas was his neighbour",
+    "chunk_id": "ad3c2b58-af0c-4597-bfd3-44549733f294",
+    "chapter_number": 6
+   },
+   {
+    "page": 90,
+    "count": 1,
+    "context": "Sir William Lucas himself appeared, sent by his daughter to announce her engagement to the family. With many compliments to them, and much self-gratulation on the prospect of a connection between the houses, he unfolded the matter,--to an audience not merely wondering, but incredulous; for Mrs. Bennet, with more perseverance than politeness, protested he must be entirely mistaken; and Lydia, always unguarded and often uncivil, boisterously exclaimed,-- 'Good Lord! Sir William, how can you tell such a story? Do not you know that Mr. Collins wants to marry Lizzy?'",
+    "chunk_id": "02a9df99-18d8-4278-a0b4-e79061c0c993",
+    "chapter_number": 23
+   },
+   {
+    "page": 208,
+    "count": 1,
+    "context": "I defy even Sir William Lucas himself to produce a more valuable",
+    "chunk_id": "896bbbdb-f1b8-484d-8790-b69589f9d1e2",
+    "chapter_number": 52
+   }
+  ]
+ },
+ {
+  "surface_form": "Elizabeth Bennet",
+  "mention_count": 4,
+  "contexts": [
+   {
+    "page": 7,
+    "count": 1,
+    "context": "Their names are, in chronological order, Elizabeth Bennet, Diana Vernon, Argemone Lavington, Beatrix Esmond, and Barbara Grant",
+    "chunk_id": "1d84adf5-7d60-4c66-a367-7040b5e8e545",
+    "chapter_number": null
+   },
+   {
+    "page": 16,
+    "count": 1,
+    "context": "Elizabeth Bennet had been obliged, by the scarcity of gentlemen, to sit down for two dances;",
+    "chunk_id": "31fb73d0-fb9f-4341-ba0c-392aefcd0cb8",
+    "chapter_number": 2
+   },
+   {
+    "page": 16,
+    "count": 1,
+    "context": "Elizabeth Bennet had been obliged, by the scarcity of gentlemen, to sit down for two dances;",
+    "chunk_id": "92cd78a3-401b-4e8a-a09b-95f4aaac5997",
+    "chapter_number": 2
+   },
+   {
+    "page": 87,
+    "count": 1,
+    "context": "The least agreeable circumstance in the business was the surprise it must occasion to Elizabeth Bennet, whose and probably would blame her",
+    "chunk_id": "b2f06503-8ab7-4280-95f4-fc8f931ea151",
+    "chapter_number": 22
+   }
+  ]
+ },
+ {
+  "surface_form": "Charlotte Lucas",
+  "mention_count": 4,
+  "contexts": [
+   {
+    "page": 6,
+    "count": 1,
+    "context": "Charlotte Lucas (her egregious papa, though delightful, is just a little on the thither side of the line between comedy and farce) is a wonderfully clever study in drab of one kind",
+    "chunk_id": "7fe1983d-baed-4dd8-a894-f9125ff19c55",
+    "chapter_number": null
+   },
+   {
+    "page": 38,
+    "count": 1,
+    "context": "Elizabeth, for the sake of saying something that might turn her mother's thoughts, now asked her if Charlotte Lucas had been at Longbourn since _her_ coming away.",
+    "chunk_id": "88c47523-2f0b-4678-90ae-bbd49e1a65f2",
+    "chapter_number": 9
+   },
+   {
+    "page": 81,
+    "count": 1,
+    "context": "While the family were in this confusion, Charlotte Lucas came to spend the day with them. She was met in the vestibule by Lydia, who, flying to her, cried in a half whisper, 'I am glad you are come, for there is such fun here! What do you think has happened this morning? Mr. Collins has made an offer to Lizzy, and she will not have him.'",
+    "chunk_id": "667031c8-fcc5-4f51-b2d6-6a6716b29904",
+    "chapter_number": 20
+   },
+   {
+    "page": 90,
+    "count": 1,
+    "context": "Between Elizabeth and Charlotte there was a restraint which kept them mutually silent on the subject; and Elizabeth felt persuaded that no real confidence could ever subsist between them again.",
+    "chunk_id": "02a9df99-18d8-4278-a0b4-e79061c0c993",
+    "chapter_number": 23
+   }
+  ]
+ },
+ {
+  "surface_form": "Miss Elizabeth Bennet",
+  "mention_count": 3,
+  "contexts": [
+   {
+    "page": 27,
+    "count": 1,
+    "context": "I have been meditating on the very great pleasure which a pair of fine eyes in the face of a pretty woman can bestow.' Miss Bingley immediately fixed her eyes on his face, and desired he would tell her what lady had the credit of inspiring such reflections. Mr. Darcy replied, with great intrepidity,-- 'Miss Elizabeth Bennet.'",
+    "chunk_id": "d0a4141f-2266-477a-a629-889b7e5a019b",
+    "chapter_number": 6
+   },
+   {
+    "page": 223,
+    "count": 2,
+    "context": "that Miss Elizabeth Bennet would, in all likelihood, be soon afterwards united to my nephew--my own nephew, Mr. Darcy.",
+    "chunk_id": "20d9cd2f-e527-4024-b07d-acf67a9077e0",
+    "chapter_number": 56
+   }
+  ]
+ },
+ {
+  "surface_form": "Caroline Bingley",
+  "mention_count": 2,
+  "contexts": [
+   {
+    "page": 83,
+    "count": 1,
+    "context": "This is from Caroline Bingley: what it contains has surprised me a good deal. The whole party have left Netherfield by this time, and are on their way to town; and without any intention of coming back again. You shall hear what she says.'",
+    "chunk_id": "6aa89cd0-27a9-4f15-bd29-881e4a13e851",
+    "chapter_number": 21
+   },
+   {
+    "page": 83,
+    "count": 1,
+    "context": "I do not know whether I ever before mentioned to you my feelings on this subject, but I will not leave the country without confiding them, and I trust you will not esteem them unreasonable. My brother admires her greatly already; he will have frequent opportunity now of seeing her on the most intimate footing; her relations all wish the connection as much as his own; and a sister's partiality is not misleading me, I think, when I call Charles most capable of engaging any woman's heart.",
+    "chunk_id": "efc5ea3a-ea64-4484-a8cd-52fc0e76618d",
+    "chapter_number": 21
+   }
+  ]
+ },
+ {
+  "surface_form": "Mr. Fitzwilliam Darcy",
+  "mention_count": 1,
+  "contexts": [
+   {
+    "page": 98,
+    "count": 1,
+    "context": "On being made acquainted with the present Mr. Darcy's treatment of him, she tried to remember something of that gentleman's reputed disposition, when quite a lad, which might agree with it; and was confident, at last, that she recollected having heard Mr. Fitzwilliam Darcy formerly spoken of as a very proud, illnatured boy.",
+    "chunk_id": "fd058c8b-5a89-4e4f-984d-3e3f5a6cad9e",
+    "chapter_number": 25
+   }
+  ]
+ },
+ {
+  "surface_form": "Maria Lucas",
+  "mention_count": 1,
+  "contexts": [
+   {
+    "page": 109,
+    "count": 1,
+    "context": "Such formidable accounts of her Ladyship, and her manner of living, quite frightened Maria Lucas, who had been little used to company; and she looked forward to her introduction at Rosings with as much apprehension as her father had done to his presentation at St. James's.",
+    "chunk_id": "0ab85a21-79c2-4b11-a69a-30629178e750",
+    "chapter_number": 28
+   }
+  ]
+ },
+ {
+  "surface_form": "Miss Lydia Bennet",
+  "mention_count": 1,
+  "contexts": [
+   {
+    "page": 212,
+    "count": 1,
+    "context": "It was only said, 'Lately, George Wickham, Esq., to Miss Lydia Bennet,'",
+    "chunk_id": "1b1613e5-95dd-4d41-bf18-3e8900aafdba",
+    "chapter_number": 52
+   }
+  ]
+ }
+]
