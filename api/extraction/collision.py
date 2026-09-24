@@ -143,6 +143,8 @@ def check(
     name_b: str,
     contexts_a: list[dict],
     contexts_b: list[dict],
+    *,
+    ignore_kinship: bool = False,
 ) -> Collision | None:
     """Decide whether contextual evidence blocks merging ``name_a`` and ``name_b``.
 
@@ -173,7 +175,11 @@ def check(
     if reason:
         return Collision(reason)
 
-    reason = _kinship_conflict(name_a, name_b, contexts_a, contexts_b)
+    reason = (
+        None
+        if ignore_kinship
+        else _kinship_conflict(name_a, name_b, contexts_a, contexts_b)
+    )
     if reason:
         return Collision(reason)
 

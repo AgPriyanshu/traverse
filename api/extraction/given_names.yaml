@@ -1,0 +1,19 @@
+# Given names with an unambiguous conventional sex, for the veto that stops
+# "Mr. Bingley" folding into "Caroline Bingley". A name absent here carries no
+# evidence, so the veto never fires on it; extend per corpus like nicknames.yaml.
+
+male: [
+  Fitzwilliam, Charles, George, William, John, Edward, Henry, Robert, Richard,
+  Thomas, James, Frederick, Samuel, Michael, Nicholas, Anthony, Alexander,
+  Arthur, Edgar, Hindley, Hareton, Heathcliff, Lockwood, Joseph, Victor, Ernest,
+  Clerval, Walton, Jay, Tom, Nick, Meyer, Daniel, David, Peter, Paul, Andrew,
+  Benjamin, Philip, Francis, Harry, Jack, Stepan, Alexei, Konstantin, Sergei,
+  Nikolai, Ivan, Dmitri, Vasily, Fyodor, Pyotr, Mikhail, Levin, Vronsky, Oblonsky,
+]
+female: [
+  Elizabeth, Jane, Lydia, Kitty, Mary, Charlotte, Caroline, Georgiana, Maria,
+  Catherine, Katherine, Anne, Anna, Emma, Emily, Isabella, Nelly, Justine,
+  Margaret, Sarah, Susan, Harriet, Frances, Louisa, Eleanor, Elinor, Marianne,
+  Fanny, Lucy, Daisy, Myrtle, Jordan, Dolly, Darya, Natalia, Sophia, Sophie,
+  Agatha, Alice, Amelia, Charlotta, Eliza, Betsy, Lizzy, Cathy,
+]
