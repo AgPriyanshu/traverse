@@ -2,7 +2,7 @@
 
 **Dates:** 2026-09-22 → 2026-09-23
 **Goal:** upload *Pride and Prejudice*, get an accurate character roster, with the two Catherines in *Wuthering Heights* kept apart.
-**Outcome:** Partially met. All stories are built and merged. The real-book extraction run and the quality numbers are not yet verified.
+**Outcome:** Partially met. All stories are built and merged, and `extract_characters` completes on the full real book. The quality targets are not met: the roster is not yet accurate (see section 2).
 
 ## 1. Delivered
 
@@ -22,6 +22,12 @@
 - Tiering decision (PRD §12.5): both methods are implemented, but no measurement has been run.
 - One test, `TestSplitRetryOnLengthLimit::test_recursively_halves_a_batch_whose_real_reply_overflows_the_reserve`, failed in a run that used a stale image, so it is unconfirmed either way.
 
+## 2b. Real-book result (2026-09-24, full Pride and Prejudice, live vLLM)
+
+- `extract_characters` completes in about 27 minutes. It was blocked by one root cause: Qwen3-8B's reasoning mode. A one-sentence probe used 1,800 completion tokens with thinking on and 30 with it off. The fixes were `llm_enable_thinking=false`, a `max_tokens` cap, `LengthFinishReasonError` mapped to `LengthLimitError`, and concurrent batches.
+- `resolve_aliases` crashed after 30 minutes with a `StaleDataError` on `bookcharactercandidate`, possibly a race between duplicate runs. It is also far too slow.
+- The roster has 153 characters against a gold set of 25. Pronouns ("she", "he") rank as major characters, some canonical names are descriptors ("my brother Gardiner"), and Elizabeth does not collect her aliases. Precision, recall and B³ are therefore unmet. No `sprint-3` tag until they are measured and fixed.
+
 ## 3. What went wrong
 
 - Three bugs only appeared on the real 245-page book, not in unit tests or the 20-page fixture:
@@ -38,4 +44,5 @@
 - A-3.2: Give the `test` image a per-worktree tag.
 - A-3.3: Cross-agent adapters need one test against the real signature, not only the fallback path.
 - A-3.4: Sprint 4 pass 2 should catch `LengthLimitError` and split, as discovery does.
+- A-3.6: Batch-size, reserve and halving work treated symptoms; find the root cause from one probe of the real model before tuning constants.
 - A-3.5: Remaining SCRs: boto3 in pyproject/uv.lock, `MentionOut.span`, chunks `chapter_id` filter, `MetricsOut` cost fields.
