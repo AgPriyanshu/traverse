@@ -29,6 +29,7 @@ from eval.metrics import (
     match_rosters,
     rejection_precision,
     roster_precision_recall_f1,
+    roster_precision_recall_f1_for_tiers,
     tier_accuracy,
 )
 from pydantic import BaseModel, Field
@@ -71,6 +72,16 @@ class ExtractionQualityOut(BaseModel):
     roster_true_positives: int | None = None
     roster_false_positives: int | None = None
     roster_false_negatives: int | None = None
+
+    # Same matching, scored only over protagonist+major+minor characters (see
+    # eval.metrics.roster_precision_recall_f1_for_tiers). The overall fields
+    # above still count the whole roster, `mentioned` tail included.
+    roster_named_precision: float | None = None
+    roster_named_recall: float | None = None
+    roster_named_f1: float | None = None
+    roster_named_true_positives: int | None = None
+    roster_named_false_positives: int | None = None
+    roster_named_false_negatives: int | None = None
 
     b3_precision: float | None = None
     b3_recall: float | None = None
@@ -144,6 +155,9 @@ async def compute_extraction_quality(
 
     match = match_rosters(gold_clusters, predicted_clusters)
     roster_score = roster_precision_recall_f1(gold_clusters, predicted_clusters)
+    named_score = roster_precision_recall_f1_for_tiers(
+        gold_clusters, predicted_clusters
+    )
     tier_score = tier_accuracy(gold_clusters, predicted_clusters, match)
 
     # B3 at the alias/surface-form level: S3.13's gold data is a roster plus
@@ -205,6 +219,12 @@ async def compute_extraction_quality(
         roster_true_positives=roster_score.true_positives,
         roster_false_positives=roster_score.false_positives,
         roster_false_negatives=roster_score.false_negatives,
+        roster_named_precision=named_score.precision,
+        roster_named_recall=named_score.recall,
+        roster_named_f1=named_score.f1,
+        roster_named_true_positives=named_score.true_positives,
+        roster_named_false_positives=named_score.false_positives,
+        roster_named_false_negatives=named_score.false_negatives,
         b3_precision=b3_result.precision if b3_result else None,
         b3_recall=b3_result.recall if b3_result else None,
         b3_f1=b3_result.f1 if b3_result else None,

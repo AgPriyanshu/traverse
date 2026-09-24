@@ -58,3 +58,13 @@ def test_verify_checksum_false_skips_the_pin_check():
         load_gold_roster("pride-and-prejudice", verify_checksum=False)
     finally:
         manifest_path.write_text(original)
+
+
+def test_gold_rosters_cover_the_named_cast_and_have_unique_canonical_names():
+    for key in ("pride-and-prejudice", "wuthering-heights"):
+        roster = load_gold_roster(key)
+        names = [c["canonical_name"] for c in roster["characters"]]
+
+        assert len(names) == len(set(names)), key
+        assert len(names) >= 20, key
+        assert any(c["importance_tier"] == "mentioned" for c in roster["characters"])
