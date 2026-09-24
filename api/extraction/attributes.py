@@ -9,7 +9,7 @@ import logging
 from uuid import UUID
 
 from ..contracts.enums import LLMPurpose
-from ..llm import structured_call
+from ..llm import LengthLimitError, structured_call
 from .prompts import ATTRIBUTE_PROMPT
 from .schemas import AttributesOutput
 
@@ -43,13 +43,26 @@ async def extract_attributes(
     passages = "\n".join(f"(page {c['page']}) {c['context']}" for c in top)
     prompt = ATTRIBUTE_PROMPT.format(name=name, passages=passages)
 
-    result = await structured_call(
-        prompt,
-        AttributesOutput,
-        purpose=LLMPurpose.CHARACTER_EXTRACT,
-        book_id=str(book_id),
-        stage="resolve_aliases",
-    )
+    try:
+        result = await structured_call(
+            prompt,
+            AttributesOutput,
+            purpose=LLMPurpose.CHARACTER_EXTRACT,
+            book_id=str(book_id),
+            stage="resolve_aliases",
+        )
+    except LengthLimitError:
+        # Attributes are enrichment. A runaway reply for one character (a
+        # 634-token prompt once produced 6144 tokens on Wuthering Heights)
+        # must not fail the whole stage and lose the roster.
+        logger.warning(
+            "book %s: attribute extraction for %r overflowed the length limit; "
+            "storing no attributes for it",
+            book_id,
+            name,
+        )
+
+        return {}
 
     attributes: dict[str, dict] = {}
     for item in result.attributes:

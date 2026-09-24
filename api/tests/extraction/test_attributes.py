@@ -4,9 +4,26 @@ import pytest
 
 from api.extraction import attributes
 from api.extraction.schemas import AttributeItem, AttributesOutput
+from api.llm import LengthLimitError
 
 
 class TestExtractAttributes:
+    async def test_a_length_overflow_stores_no_attributes_instead_of_failing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        async def overflow(*a, **k):
+            raise LengthLimitError("cut off")
+
+        monkeypatch.setattr(attributes, "structured_call", overflow)
+
+        result = await attributes.extract_attributes(
+            "Nelly Dean",
+            [{"page": 3, "context": "Nelly told it."}],
+            book_id=uuid.uuid4(),
+        )
+
+        assert result == {}
+
     async def test_keeps_an_attribute_cited_to_a_real_context_page(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
