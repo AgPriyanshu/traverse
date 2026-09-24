@@ -28,6 +28,19 @@
 - `resolve_aliases` crashed after 30 minutes with a `StaleDataError` on `bookcharactercandidate`, possibly a race between duplicate runs. It is also far too slow.
 - The roster has 153 characters against a gold set of 25. Pronouns ("she", "he") rank as major characters, some canonical names are descriptors ("my brother Gardiner"), and Elizabeth does not collect her aliases. Precision, recall and B³ are therefore unmet. No `sprint-3` tag until they are measured and fixed.
 
+## 2c. Measured on the real corpus (live stack, do1's completed gold rosters)
+
+| | Pride and Prejudice | Wuthering Heights | Target |
+|---|---|---|---|
+| Roster precision, protagonist to minor tiers | 0.929 | 0.609 | 0.90 |
+| Roster recall, protagonist to minor tiers | 0.963 | 0.933 | 0.95 |
+| B³ F1 (alias clustering) | 0.872 | 0.804 | 0.85 |
+| Tier accuracy | 0.778 | 0.600 | not set |
+
+- **P&P:** meets the targets after be1's roster fixes. Merges (Mr. Bingley into Caroline, Darcy into Miss Darcy) were fixed by veto rules and pinned by a regression test built from real candidates.
+- **Wuthering Heights (headline):** Catherine Earnshaw and Catherine Linton are two rows, but the split is wrong. The elder row holds 2 mentions, the "Cathy" and "Catherine" mentions of the elder Catherine are folded into "Catherine Linton" (184), and the younger Cathy is a separate "Miss Cathy" row. Nelly, Ellen Dean and Mrs. Dean are three rows for one person, and the Linton family is fragmented. **The headline result is not met, so `sprint-3` is not tagged.**
+- A failure on this book also showed that a single runaway attribute-extraction call could fail the whole stage and lose the roster. Attribute extraction now fails soft.
+
 ## 3. What went wrong
 
 - Three bugs only appeared on the real 245-page book, not in unit tests or the 20-page fixture:
