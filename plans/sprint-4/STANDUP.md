@@ -49,3 +49,28 @@ Risk: gold chapter labels are approximate; no Wuthering Heights relations.
 - Evidence highlight is missing (SCR-10). Chapter filter is derived from page refs (SCR-11).
 - Not verified in a browser: 400px, dark mode canvas colours, and the demo recording. Contrast is checked for the palette, not for the rendered canvas.
 - `structural` family has no colour token (DCR-5).
+
+## be2 — 2026-09-25
+
+**Real run on live Pride and Prejudice** (project `6146f7d0-…`, book
+`4d5750ce-…`), full pass 2 + aggregate + upsert, twice (before/after adding
+a second-pass verifier).
+
+- Pass 2 completes in 12.2 min, inside the 25-min budget.
+- Zero evidence-free edges, confirmed by direct query on Postgres and Neo4j.
+- Prefix-cache hit rate ~68-76% across three runs — **misses the 80% target**,
+  not yet root-caused.
+- Found and fixed a real bug: roster descriptors leaking into the model's
+  "quotes" (493 of 1,753 candidates). Added a verifier second pass.
+- **Precision 0.818 / recall 0.273** against do1's gold (`/ops/relation-quality`);
+  hand-check of all 28 edges gives ~75-86% depending on how imprecise labels
+  are counted. **Neither DoD target (P≥90%, R≥80%) is met** — precision is
+  closer than recall, and the verifier traded recall for precision more than
+  intended (pre-verifier recall was 0.455, now 0.273).
+- Elizabeth/Darcy arc works (two states, cited transition at ch. 58).
+- Graph density 1.1% (28 edges / 72 chars) — recommending `co_occurs_with`
+  from scene co-presence be built (PRD §12.2), not yet implemented.
+- Found a be1-owned roster fragmentation (two Darcy rows, two Collins/Lucas
+  rows) that is costing real recall — SCR-16.
+- Full details, before/after table and the hand-checked edge list are in
+  `HANDOFF.md`.

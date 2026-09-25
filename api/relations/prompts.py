@@ -15,9 +15,11 @@ CHARACTER ROSTER (the only characters that may appear as subject or object):
 RULES
 - Write subject and object using a roster name or alias exactly as listed. Never name anyone who is not on the roster.
 - Extract only a relationship the passage states or clearly implies. Two characters talking, meeting or standing in the same room is NOT a relationship.
+- Never join two characters with an ellipsis or list every pair of characters who appear together; a quote is one unbroken stretch of the passage.
+- Do not extract a relationship from a character's name, title or description alone. Kinship and marriage predicates need the passage to say so (mother, sister, wife, married, and so on).
 - Prefer the most specific predicate. Use acquaintance_of only when the passage says they are acquainted.
 - Direction matters: parent_of means the subject is the parent of the object.
-- "quote" must be copied verbatim from the passage, at most 300 characters, and must be the words that establish the relationship.
+- "quote" must name at least one of the two characters (by name or alias) and be copied verbatim from the passage, at most 300 characters, and must be the words that establish the relationship.
 - assertion_type is "narrated" when the narrator states it, "dialogue" when a character says it inside quotation marks, "inferred" when it is only implied.
 - For dialogue, put the speaker's roster name in asserted_by; otherwise leave it null.
 - confidence is your certainty from 0 to 1.
