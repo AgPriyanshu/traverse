@@ -171,7 +171,11 @@ async def test_length_limit_splits_the_chunk_and_quotes_check_against_full_chunk
             raise LengthLimitError("cut off")
         return RelationSweepOutput(relations=[raw()])
 
+    async def verified(*a, **k):
+        return [True, True]
+
     monkeypatch.setattr(extract, "structured_call", fake)
+    monkeypatch.setattr(extract.verify, "verify_many", verified)
     result = await extract.extract_book([(chunk, 1)], roster(), book_id=BOOK)
 
     assert result.length_splits == 1 and result.calls == 3
