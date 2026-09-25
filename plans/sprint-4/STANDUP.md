@@ -74,3 +74,15 @@ a second-pass verifier).
   rows) that is costing real recall — SCR-16.
 - Full details, before/after table and the hand-checked edge list are in
   `HANDOFF.md`.
+
+## be1 — 2026-09-25
+
+**Investigated SCR-18** (be2: Fitzwilliam Darcy / Lady Lucas roster splits,
+pass-2 recall 0.273). Finding: not a new bug — both already fixed by
+`sprint-4-roster3`; the live roster predated that merge. Re-ran
+`resolve_aliases` live directly (no chain, no rebuild needed — worker already
+had current code); confirmed both fixed in Postgres. Added regression tests
+from the real candidates. `Charlotte Lucas`/`Mrs. Collins` genuinely cannot
+merge without a textual marriage cue that isn't in the stored contexts —
+documented as a limitation, not fixed. be2's P&P pass-2 numbers were measured
+against the stale roster; flagged for a re-run.

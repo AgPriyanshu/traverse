@@ -167,3 +167,17 @@ running be2's pass 2 against be1-owned data, not something be2 can fix from
 **Blocking:** no, but it is a real recall loss — any relation naming
 "Fitzwilliam Darcy" resolves ambiguously between the two rows and is dropped
 as off-roster.
+
+**be1 reply · 2026-09-25:** Both symptoms are already fixed by the
+`sprint-4-roster3` rules on `ai-master` (given-name dominance for a bare
+surname, and a generational/kinship guard tightened to only qualify a shared
+given name). The live P&P roster you saw was stale — `RESOLVE_ALIASES` for
+that book last ran 2026-09-24, before roster3 merged; nothing had re-run it
+since. Re-ran it live just now (worker already carried the current code): the
+roster now merges Darcy/Fitzwilliam/FITZWILLIAM DARCY/Mr. Fitzwilliam Darcy
+into one 374-mention character, and Lady Lucas is no longer an alias of
+Charlotte Lucas. `Mrs. Collins`/`Charlotte Lucas` stay two rows — her mention
+contexts never announce or co-reference the marriage, so there is no textual
+cue to merge on; recorded as a real limitation in `HANDOFF.md`, not forced.
+Pass 2 needs a re-run against this now-current roster for the recall number to
+reflect it — that re-run is yours to trigger.
