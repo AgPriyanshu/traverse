@@ -9,7 +9,7 @@ from api.llm import LengthLimitError, structured_call
 
 from ..contracts.enums import LLMPurpose
 from ..db.models import DocumentChunk
-from . import prompts
+from . import prompts, verify
 from .roster import Roster
 from .schemas import RelationSweepOutput
 from .validator import RejectionStats, ValidRelation, validate
@@ -45,6 +45,7 @@ class ExtractionResult:
     calls: int = 0
     length_splits: int = 0
     unsplittable_chunks: int = 0
+    verifier_rejected: int = 0
 
     def summary(self) -> dict:
         payload = {
@@ -55,6 +56,7 @@ class ExtractionResult:
             "calls": self.calls,
             "length_splits": self.length_splits,
             "unsplittable_chunks": self.unsplittable_chunks,
+            "verifier_rejected": self.verifier_rejected,
             "facts": len(self.facts),
             **self.stats.as_dict(),
         }
@@ -223,7 +225,27 @@ async def extract_book(
             await run(pair)
 
     await asyncio.gather(*(bounded(pair) for pair in selected[1:]))
+    await _verify_facts(result, roster, book_id)
     # Completion order is nondeterministic; sort so aggregation is repeatable.
     result.facts.sort(key=lambda f: (f.page_start, str(f.chunk_id), f.quote))
 
     return result
+
+
+async def _verify_facts(
+    result: ExtractionResult, roster: Roster, book_id: UUID
+) -> None:
+    names = {entry.id: entry.canonical_name for entry in roster.entries}
+    claims = [
+        (
+            names.get(f.subject_id, str(f.subject_id)),
+            f.predicate,
+            names.get(f.object_id, str(f.object_id)),
+            f.quote,
+        )
+        for f in result.facts
+    ]
+    verdicts = await verify.verify_many(claims, book_id=book_id)
+    kept = [f for f, ok in zip(result.facts, verdicts, strict=True) if ok]
+    result.verifier_rejected = len(result.facts) - len(kept)
+    result.facts = kept

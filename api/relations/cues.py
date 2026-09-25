@@ -35,6 +35,8 @@ _CUES: dict[str, str] = {
     "betrayed_by": r"betray|deceiv|treacher|false|desert",
     "deceives": r"deceiv|lie\b|lied|false|trick|impos|cheat",
     "deceived_by": r"deceiv|lie\b|lied|false|trick|impos|cheat",
+    "customer_of": r"customer|shop|buy|bought|purchas|trade|custom\b|patron",
+    "serves": r"serve|servant|attend|waited on|butler|maid|footman",
     "employer_of": r"employ|hire|servant|steward|master|mistress|patron|living",
     "employee_of": r"employ|hire|servant|steward|master|mistress|patron|living",
     "mentor_of": r"teach|tutor|mentor|master|instruct|govern|educat",
