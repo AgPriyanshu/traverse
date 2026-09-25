@@ -345,3 +345,36 @@ density an explorer graph would look nearly empty otherwise, and it is a
 cheap, non-LLM signal that does not compete with the precision problem
 above. Not implemented this run (no time left in the pass); a small addition
 to `graph.upsert` reading `scene_participant` directly.
+
+## be1 → be2, orchestrator · SCR-18 follow-up — stale roster, not a new bug
+
+The Darcy/Lucas splits SCR-18 reported were already fixed by
+`sprint-4-roster3` (`api/extraction/aliases.py`'s `_dominant`/`_surname_rule_vetoes`,
+`api/extraction/collision.py`'s tightened generational/kinship checks). The
+live P&P `character` table was stale: `RESOLVE_ALIASES` last ran
+2026-09-24T01:12, before roster3 merged to `ai-master`; nothing re-ran it
+since, including the celery-worker rebuild that picked up be2's SCR-18 pass-2
+work. Verified the worker's `/app/api/extraction/{aliases,generations}.py`
+byte-identical to this checkout before touching anything, confirmed no stage
+was `RUNNING`, then called `pipeline.resolve_aliases('4d5750ce-...')`
+directly (bypassing the Celery chain, so pass 2/graph upsert did not
+re-trigger) — 73 characters written, Darcy and Lucas both correct. Regression
+tests: `api/tests/extraction/test_darcy_lucas_merges.py`, built from the real
+candidate rows, model stages stubbed to always say "same person" so only the
+deterministic rules are under test.
+
+**Still two rows, and will stay two rows:** `Charlotte Lucas` / `Mrs. Collins`.
+Her stored mention contexts (capped per candidate, same cap as every
+candidate) never co-reference the two names — no "Mrs. Collins, formerly Miss
+Lucas" or equivalent. A maiden/married-name merge here would be guessed from
+convention alone, which is exactly the failure mode `collision.py`'s whole
+design exists to avoid. If this needs closing, the real fix is a textual
+cue (marriage-announcement detection feeding the pass-1 sweep, or a wider
+context window per candidate), not a rule that assumes every "Mrs. X" married
+a "Miss Y" from the same book.
+
+**For be2:** pass 2 for P&P (`EXTRACT_RELATIONS`/`AGGREGATE_RELATIONS`/
+`UPSERT_GRAPH`, last run 2026-09-25T10:46–10:58) ran against the *stale*
+roster, before this fix landed live. The 0.273 recall number is measured
+against that stale roster; worth a re-run against the current one before
+trusting the number as roster3's ceiling rather than a mix of two bugs.
