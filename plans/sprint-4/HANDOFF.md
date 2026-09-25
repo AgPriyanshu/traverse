@@ -186,3 +186,162 @@ Anyone mid-run around that time may have seen a dropped connection.
   `eval.metrics.roster_precision_recall_f1_for_tiers`.
 - Known gaps: the Harringtons, the Webbs, old Mr. Darcy and Wickham's father are
   not labelled (plural or alias collision).
+
+## be2 → all · real run on Pride and Prejudice, post-verifier (2026-09-25)
+
+Ran `relations.extract` → `aggregate` → `upsert` on the live stack (book
+`4d5750ce-…`, 72-character roster, thinking disabled, output capped at 6144
+tokens). Two runs: before and after adding `api/relations/verify.py` (a
+second LLM pass that grades each accepted quote against its claim alone,
+fails closed).
+
+**Numbers**
+
+| | before verifier | after verifier |
+|---|---|---|
+| pass-2 wall clock | 675s (11.2 min) | 731s (12.2 min) |
+| chunks read (of 719, be1 prefilter) | 231 | 231 |
+| calls / length-limit splits | 257 / 13 | 257 / 13 |
+| validator-accepted facts | 156 | 90 |
+| verifier-rejected | n/a | 46 |
+| facts persisted | 156 | 44 |
+| edges after aggregation | 74 | 28 |
+| evidence-free edges (Postgres + Neo4j) | 0 / 0 | 0 / 0 |
+| prefix-cache hit rate (`/metrics` delta) | 0.69 | 0.68 |
+| `GET /ops/relation-quality` precision / recall / F1 | 0.577 / 0.455 / 0.508 | 0.818 / 0.273 / 0.409 |
+
+Pass 2 completes well inside the 25-minute ingestion budget (12.2 min).
+**Zero evidence-free edges confirmed by direct query on both stores** —
+`MATCH ()-[r:RELATED]->() WHERE r.evidence_count=0 RETURN count(r)` → 0,
+`SELECT count(*) FROM relation r WHERE NOT EXISTS (SELECT 1 FROM
+relation_evidence e WHERE e.relation_id=r.id)` → 0. The upsert guard has never
+been exercised by a real zero-evidence edge in this run, but it is the same
+code path S4.6's unit test forces.
+
+**Prefix-cache hit rate misses the 80% target** (~68–76% across three runs
+today, all measured on the shared integration host, not a worktree). Not
+investigated further — plausibly the concurrent-chunk fan-out (16-wide)
+interleaves requests from other purposes' calls on the same vLLM instance in
+a way that evicts the block cache before a same-book request returns to it;
+worth a dedicated look before the writeup leans on a number.
+
+**Cost.** `GET /ops/extraction-cost` does not yet have `relations.extract`,
+`relations.aggregate` or `graph.upsert` line items (only pipeline stages
+appear) — do1-owned, filing as a finding rather than fixing directly. Raw
+vLLM counters for the after-verifier run: 524,237 prompt tokens, 252,409
+generation tokens for the whole pass (extraction + verification calls
+together, not separated).
+
+**Rejection breakdown, after-verifier run** (`accepted`+`rejected` totals the
+attempted extractions, before the verifier's second pass):
+```
+endpoint_not_in_chunk: 495   predicate_cue_missing: 476
+quote_names_neither_endpoint: 334   quote_not_in_chunk: 283
+quote_names_other_characters: 118   off_roster_object: 46
+self_relation: 17   off_roster_subject: 5
+off_roster_rate: 2.7%
+```
+`predicate_cue_missing` and `endpoint_not_in_chunk` are new checks added this
+run (see S4.2 fix below) and account for most of the reduction from the
+earlier 156-fact run.
+
+**Bug found and fixed before this run (`c0917f8`):** the roster block sent to
+the model included pass-1 descriptors ("Mr. Darcy - landowner; brother to
+Miss Bingley"). The model copied descriptor text back as a "quote" and
+treated its own paraphrase ("brother to Miss Bingley") as narrative evidence
+— 493 of the run's 1,753 candidates were this. Fixed by stripping descriptors
+from the prompt roster (names and aliases only) and adding two new
+validator checks: the cited quote must actually name both endpoints in the
+full chunk text (`endpoint_not_in_chunk`), and it must contain a cue word for
+the specific predicate claimed (`api/relations/cues.py`,
+`predicate_cue_missing`) — `married_to` needs "wife/husband/married", not
+just two names in the same sentence.
+
+**Verifier trade-off, honestly:** it raised precision from 0.577 to 0.818
+(still short of the 0.90 target) but cut recall from 0.455 to 0.273 (badly
+short of the 0.80 target) — it is not calibrated, and being the same local
+Qwen3-8B model rather than a frontier judge, it is a self-consistency filter,
+not an independent check, and it still let a wrong edge through (below). The
+Elizabeth/Darcy arc that had three states (antagonistic → engaged → married)
+in the pre-verifier run is two states now (acquaintance → married,
+chapter 44 → 58, cited) — a real relation was cut along with the noise.
+**Recall is the more useful axis to invest in before Sprint 8's calibration
+work**, not further precision tightening.
+
+**Hand-checked sample — all 28 aggregated edges** (fewer than the ~40 asked
+for; the whole graph only has 28 after the verifier). Verdict is mine, reading
+the full chunk, not just the cited quote:
+
+| subject → predicate → object | page | verdict |
+|---|---|---|
+| Jane sibling_of Elizabeth Bennet | 219 | correct |
+| Mr. Bennet parent_of Miss Lydia Bennet | 195 | correct |
+| Lady Catherine de Bourgh employer_of Mr. Collins | 50 | correct (patron of his living) |
+| Elizabeth Bennet friend_of Charlotte Lucas | 21 | correct |
+| Mr. Darcy acquaintance_of George Wickham | 58 | correct |
+| Mrs. Bennet parent_of Miss Lydia Bennet | 144 | correct |
+| Mr. Bennet parent_of Jane | 243 | correct |
+| Elizabeth Bennet sibling_of Miss Lydia Bennet | 198 | correct |
+| Colonel Fitzwilliam guardian_of Darcy | 123 | correct — "Darcy" here is Georgiana (alias "Miss Darcy"), not the protagonist |
+| Elizabeth Bennet married_to Mr. Darcy | 241 | correct |
+| Elizabeth Bennet acquaintance_of Mr. Darcy (superseded) | 165 | correct |
+| Elizabeth Bennet friend_of Mrs. Gardiner | 160 | **weak** — quote is Darcy asking to meet "her friends" (the Gardiners), doesn't itself establish Elizabeth/Mrs. Gardiner as friends (they're aunt/niece) |
+| Mr. Bennet parent_of Mary | 243 | correct |
+| Mr. Bennet parent_of Elizabeth Bennet | 243 | correct |
+| Jane friend_of Mr. Bingley | 24 | **wrong predicate** — passage describes Bingley's romantic attention to Jane, not friendship |
+| Miss de Bourgh engaged_to Mr. Darcy | 224 | **wrong** — this is Lady Catherine's disputed claim in dialogue (mislabeled `narrated`), and Darcy denies it later in the book |
+| Mr. Denny colleague_of George Wickham | 57 | correct |
+| Mrs. Gardiner parent_of Elizabeth Bennet | 154 | **wrong** — Mrs. Gardiner is Elizabeth's aunt; quote only mentions the Gardiners' own children |
+| Mrs. Collins married_to Mr. Collins | 119 | correct fact, but "Mrs. Collins" and "Charlotte Lucas" are two separate `Character` rows for one person — a be1 alias-resolution gap, not a relation bug |
+| Caroline Bingley sibling_of Mr. Bingley | 35 | correct |
+| Mrs. Gardiner acquaintance_of Mr. Darcy | 98 | **wrong** — the quote says "the **late** Mr. Darcy" (the protagonist's deceased father); resolved to the living Mr. Darcy, a name-collision the roster has no separate entry for |
+| Mr. Bingley friend_of Mr. Darcy | 20 | correct |
+| Mr. Gardiner acquaintance_of Mr. Darcy | 165 | correct |
+| Darcy sibling_of Mr. Darcy | 241 | correct (Georgiana / Fitzwilliam) |
+| Mr. Collins married_to Charlotte Lucas | 88 | correct |
+| Elizabeth Bennet acquaintance_of George Wickham | 62 | correct |
+| Mr. Gardiner parent_of Mrs. Gardiner | 154 | **wrong** — spouses, not parent/child; quote only names their (unlisted) children |
+| Mrs. Gardiner parent_of Mr. Gardiner | 154 | **wrong**, same bug reversed |
+
+21 clearly correct, 3 imprecise/disputed, 4 clearly wrong (fabricated or
+misattributed) → **hand-checked precision ≈ 75%** counting imprecise as
+wrong, **≈ 86%** counting only the clear fabrications — either way **short
+of the 90% target**, roughly matching the gold-set number (81.8%).
+
+**A specific gap the verifier did not catch:** both Gardiner-Gardiner edges
+come from one quote, "Mr. and Mrs. Gardiner, with their four children," which
+correctly names both endpoints (satisfying `endpoint_not_in_chunk`) and
+contains the cue word "children" (satisfying `predicate_cue_missing`) without
+the predicate holding *between the two named people at all*. The verifier
+(same local model, `purpose=adjudicate` has no frontier route today) missed
+it too. **The cue and endpoint checks are necessary but not sufficient**:
+neither confirms the predicate holds specifically between subject and
+object, only that suitable words are present somewhere in the quote. A
+proper fix needs either a frontier judge for `adjudicate`, or a check that
+the cue word sits nearer one candidate pairing than the alternative — not
+attempted here; flagging for Sprint 8's calibration pass.
+
+**Roster fragmentation found, be1-owned:** `Character` has both `"Mr. Darcy"`
+and `"Mr. Fitzwilliam Darcy"` as separate rows for the same person (plus
+`"Darcy"` = Georgiana, correctly separate). Any fact naming "Fitzwilliam
+Darcy" resolves ambiguously between the two Darcy rows and is dropped as
+off-roster rather than attributed — a real recall loss, and distinct from
+the collision-review path (S3.4), which never flagged these as the same
+person. Also `"Mrs. Collins"` / `"Charlotte Lucas"` did not merge. Filed as
+SCR-16 below rather than touched directly (`api/extraction/**` is be1's).
+
+**Temporal arc:** `GET /relations/arc?a=<Elizabeth>&b=<Darcy>` returns two
+states — `acquaintance_of` (ch. 44, superseded) → `married_to` (ch. 58,
+active), each with its citation page. Works as designed, though thinner than
+the pre-verifier three-state arc (see trade-off above).
+
+**Graph density / PRD §12.2:** 28 edges over 72 characters = 2,016 possible
+directed pairs (72×71/2 unordered), density ≈ **1.1%**. This is sparse enough
+that most character pairs who plainly share the book's scenes (per be1's
+`scene_participant`) have **no** explicit edge at all. **Recommendation:
+build `co_occurs_with` from scene co-presence** (already modelled in
+`ontology.yaml` as `extracted: false`, so no schema change needed) — at this
+density an explorer graph would look nearly empty otherwise, and it is a
+cheap, non-LLM signal that does not compete with the precision problem
+above. Not implemented this run (no time left in the pass); a small addition
+to `graph.upsert` reading `scene_participant` directly.

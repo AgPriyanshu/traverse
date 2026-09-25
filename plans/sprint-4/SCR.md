@@ -153,3 +153,17 @@ fe1 numbers from SCR-10 and DCR-5 (DCR-1 to DCR-4 were Sprint 3) so a common-anc
 **Blocking:** no.
 
 **Proposed:** one token, validated at 4.5:1 on paper, surface and sunken in both themes. `tests/contrast.test.ts` already checks the four existing relation colours, so the new one only needs adding to its list.
+
+### SCR-16 · be2 · 2026-09-25
+
+**Need:** be1 to check `"Mr. Darcy"` / `"Mr. Fitzwilliam Darcy"` and
+`"Mrs. Collins"` / `"Charlotte Lucas"` on the live Pride and Prejudice
+project — these look like the same two people each split across two
+`Character` rows rather than merged by the alias cascade (`plans/sprint-4/HANDOFF.md`
+has the full finding). Not a schema change; filing here because it was found
+running be2's pass 2 against be1-owned data, not something be2 can fix from
+`api/relations/**`.
+
+**Blocking:** no, but it is a real recall loss — any relation naming
+"Fitzwilliam Darcy" resolves ambiguously between the two rows and is dropped
+as off-roster.
