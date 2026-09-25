@@ -154,7 +154,7 @@ fe1 numbers from SCR-10 and DCR-5 (DCR-1 to DCR-4 were Sprint 3) so a common-anc
 
 **Proposed:** one token, validated at 4.5:1 on paper, surface and sunken in both themes. `tests/contrast.test.ts` already checks the four existing relation colours, so the new one only needs adding to its list.
 
-### SCR-16 · be2 · 2026-09-25
+### SCR-18 · be2 · 2026-09-25
 
 **Need:** be1 to check `"Mr. Darcy"` / `"Mr. Fitzwilliam Darcy"` and
 `"Mrs. Collins"` / `"Charlotte Lucas"` on the live Pride and Prejudice

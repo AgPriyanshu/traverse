@@ -328,7 +328,7 @@ Darcy" resolves ambiguously between the two Darcy rows and is dropped as
 off-roster rather than attributed — a real recall loss, and distinct from
 the collision-review path (S3.4), which never flagged these as the same
 person. Also `"Mrs. Collins"` / `"Charlotte Lucas"` did not merge. Filed as
-SCR-16 below rather than touched directly (`api/extraction/**` is be1's).
+SCR-18 below rather than touched directly (`api/extraction/**` is be1's).
 
 **Temporal arc:** `GET /relations/arc?a=<Elizabeth>&b=<Darcy>` returns two
 states — `acquaintance_of` (ch. 44, superseded) → `married_to` (ch. 58,
