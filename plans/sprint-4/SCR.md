@@ -181,3 +181,93 @@ contexts never announce or co-reference the marriage, so there is no textual
 cue to merge on; recorded as a real limitation in `HANDOFF.md`, not forced.
 Pass 2 needs a re-run against this now-current roster for the recall number to
 reflect it — that re-run is yours to trigger.
+
+---
+
+### SCR-12 · fe1 reply · 2026-09-26
+
+**Not resolved.** Verified live on the shared stack (project
+`6146f7d0-…`, book `4d5750ce-…`): `book_id` does not scope the node list at
+all. `api/graph/queries.py::_NODES` matches `(c:Character {project_id: $pid})`
+with no `book_id` predicate whatsoever; only `_EDGES` filters by
+`$book IN r.book_refs`. Confirmed by calling the route with a `book_id` from a
+*different project* (Wuthering Heights' book id against the P&P project) —
+the response still returns all 72 P&P nodes (only edges go to zero, because
+no edge's `book_refs` contains that foreign book id). Every current project
+is single-book, so this is invisible today (project's characters == that
+book's characters), but it will surface the moment Sprint 5 lands a
+multi-book series project: a reader on book 1 of a series would see every
+character from every later book in the node list, just with no edges drawn
+to them. `api/graph/**` is be2-owned; fe1 cannot fix this. Recommend treating
+as blocking for Sprint 5, not this sprint's ship gate.
+
+### SCR-19 · fe1 · 2026-09-26
+
+**Need:** the original source PDF re-uploaded (or the render cache
+backfilled) for both ingested books in object storage, or `render_page`
+(`api/pipeline/render.py`) to fail with a clearer, non-500 error when it's
+absent.
+
+**Why:** verifying S4.12's "click a page reference → real page viewer" against
+the live stack, every page request 500s:
+```
+api.pipeline.storage.StorageError: GET books/4d5750ce-5a9b-42c4-a8c0-70b24a69c6e8/source.pdf
+failed: 404 NoSuchKey
+```
+`mc ls` on the shared MinIO bucket confirms it: `books/4d5750ce-…/` holds only
+`relations_extracted.json`; there is no `source.pdf` and no cached
+`pages/*.png`. Same for Wuthering Heights (`books/6e165994-…/` doesn't even
+exist as a prefix). Parsing, chunking, character extraction and pass 2 all
+completed successfully for both books, so the PDF was available *during*
+ingestion — it just never landed (or no longer exists) at the object-storage
+key `render_page` reads from on demand. This is not a frontend bug: the
+citation link builds the right URL, lands on the right page number
+(confirmed against a real evidence page ref), and — once the Chakra/TanStack
+retry budget (2 retries, exponential backoff) exhausts after ~4-5s — shows a
+correct, graceful "Something went wrong / HTTP 500 / Try again". But the page
+image itself cannot render for either book right now, which blocks the
+literal, visual half of the ship-gate promise ("every edge click-through to
+the pages that prove it"). `api/routes/books.py` / `api/pipeline/render.py`
+are be1-owned; the MinIO bucket lifecycle is do1-owned. fe1 cannot fix this
+from `web/src/**`.
+
+**Blocking:** for the visual page-image acceptance criterion, yes. Citation
+routing, page numbering and error handling are all independently verified
+correct.
+
+**Proposed:** re-upload `source.pdf` for both books at
+`books/{book_id}/source.pdf` in the shared MinIO bucket, or point
+`render_page`'s `storage_key` at wherever the original upload actually still
+lives if it's just a key mismatch.
+
+### Finding (not schema, ops) · fe1 · 2026-09-26
+
+**Transient Neo4j/Postgres desync after `resolve_aliases` reruns.** Before
+touching anything, per this session's instructions, checked
+`ingestionstage` for `state='RUNNING'` on the shared `postgres` DB and found
+`EXTRACT_RELATIONS` (run `eac52ada-…`) stuck `RUNNING` since
+2026-09-25T11:25, attempt 6, no `finished_at` — `celery inspect active`
+showed nothing running and the worker container had been recreated since, so
+per this session's instructions (stale vs. genuine judgment call) it was left
+alone rather than touched. Root cause, worked out from the data rather than
+guessed: be1's live `resolve_aliases()` call (2026-09-25T11:13–11:20,
+see the SCR-18 follow-up above) recreated every `Character` row with new
+UUIDs; `relation.subject_character_id`/`object_character_id` cascade-delete
+on `character`, so the *previous* `AGGREGATE_RELATIONS`/`UPSERT_GRAPH` run's
+28 Postgres `relation` rows were wiped, while Neo4j — upserted before the
+alias fix — still held all 28 edges and 72 nodes under the old, now-deleted
+character ids. `GET /relations/{id}/evidence` 404'd for every single edge in
+the live graph as a result (verified in a real browser: the evidence drawer
+opened, header and confidence rendered from the stale Neo4j edge, but the
+citation list correctly showed a graceful "Not found" with retry — no
+crash). A fresh `relations.extract` run (attempt 7) started mid-session
+(2026-09-26T05:22, not triggered by fe1) and completed by 05:33, restoring
+consistency (29 fresh edges, ids matching current `relation` rows) — this
+finding is informational, not a live blocker, by the time you read it. Flagging
+because the failure mode is structural: nothing currently reconciles Neo4j
+against a `resolve_aliases` rerun automatically, so any future roster fix
+will orphan the graph the same way until `graph.upsert` is re-triggered by
+hand. Worth a retro item (be1/be2/do1): either `resolve_aliases` should kick
+the relations chain itself, or the nightly (S4.15) should alert on a
+Neo4j edge whose `graph_edge_id` no longer resolves in Postgres, the same way
+it already alerts on evidence-free edges.
