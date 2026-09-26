@@ -16,18 +16,29 @@ from ..contracts.enums import LLMPurpose
 from .routing import route_for
 
 _semaphore: asyncio.Semaphore | None = None
+_semaphore_loop: asyncio.AbstractEventLoop | None = None
 
 
 def semaphore() -> asyncio.Semaphore:
-    """Return the process-wide concurrency limiter, sized from settings.
+    """Return the concurrency limiter for the running event loop, sized from settings.
 
     vLLM runs ``--max-num-seqs 16``; an unbounded fan-out from a Celery worker
     just queues and times out rather than failing fast.
-    """
-    global _semaphore
 
-    if _semaphore is None:
+    Rebuilt whenever the running loop differs from the one it was created on,
+    rather than kept as a single process-wide singleton: a Celery task is a
+    sync entry point wrapping ``asyncio.run(...)`` (``api/AGENTS.md``), so a
+    worker child process runs a fresh event loop per task while staying the
+    same process. Reusing one ``asyncio.Semaphore`` across those loops raises
+    ``RuntimeError`` on its second task, since ``Semaphore.acquire`` binds to
+    whichever loop first awaited it (Python 3.10+).
+    """
+    global _semaphore, _semaphore_loop
+
+    loop = asyncio.get_running_loop()
+    if _semaphore is None or _semaphore_loop is not loop:
         _semaphore = asyncio.Semaphore(settings.llm_max_concurrency)
+        _semaphore_loop = loop
 
     return _semaphore
 
