@@ -26,7 +26,6 @@ class RejectReason(StrEnum):
     EMPTY_QUOTE = "empty_quote"
     QUOTE_NOT_IN_CHUNK = "quote_not_in_chunk"
     QUOTE_NAMES_OTHERS = "quote_names_other_characters"
-    QUOTE_NAMES_NEITHER = "quote_names_neither_endpoint"
     ENDPOINT_NOT_IN_CHUNK = "endpoint_not_in_chunk"
     PREDICATE_CUE_MISSING = "predicate_cue_missing"
 
@@ -98,9 +97,22 @@ def validate(
 
     Checks: predicate in the ontology and extractable, subject and object both
     resolve to roster characters, not a self-relation, the quote appears in the
-    chunk, and a quote naming other roster characters names at least one of the
-    two endpoints. The last catches Sprint 3's spike finding: a real quote
-    attached to the wrong pair passes the substring check.
+    chunk, both endpoints are named somewhere in the chunk (not necessarily the
+    quote), a quote naming other roster characters doesn't name only them, and
+    a cue word for the specific predicate is present.
+
+    A quote naming *neither* endpoint (pure pronouns -- "she refused him") is
+    no longer rejected on its own: Sprint 4's recall audit measured that this
+    check absorbed most of the gain from widening the grounding text (chunk to
+    scene) into a different rejection reason instead of an accept, with the
+    same real relations still missing. `QUOTE_NAMES_OTHERS` above already
+    guards the actual risk Sprint 3's spike found (a real quote attached to
+    the wrong pair) -- that only fires when the quote names roster characters
+    who are *not* this pair. A pronoun-only quote makes no such wrong-pair
+    claim, and whether the pronoun genuinely resolves to this endpoint is a
+    coreference judgement the second-pass verifier (`verify.py`) already makes
+    by reading the quote against the claim; a substring check can't make it at
+    all, so it was rejecting some pronoun quotes the verifier would have kept.
 
     Args:
         raw: The model's relation.
@@ -167,8 +179,6 @@ def _reject_reason(
         named = roster.mentioned_in(raw.quote)
         if named and subject_id not in named and object_id not in named:
             reason = RejectReason.QUOTE_NAMES_OTHERS
-        elif not named & {subject_id, object_id}:
-            reason = RejectReason.QUOTE_NAMES_NEITHER
         elif not has_cue(predicate, raw.quote):
             reason = RejectReason.PREDICATE_CUE_MISSING
 
