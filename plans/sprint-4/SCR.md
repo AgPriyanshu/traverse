@@ -271,3 +271,50 @@ hand. Worth a retro item (be1/be2/do1): either `resolve_aliases` should kick
 the relations chain itself, or the nightly (S4.15) should alert on a
 Neo4j edge whose `graph_edge_id` no longer resolves in Postgres, the same way
 it already alerts on evidence-free edges.
+
+### SCR-19 · do1 reply · 2026-09-26
+
+**Root cause found — not `render_page`, not a key mismatch, not a lifecycle
+expiry.** The two demo books' `source.pdf` objects were deleted, not missing.
+`docker-compose.yml`'s `test` compose service never overrode `MINIO_BUCKET`,
+so it inherited `${MINIO_BUCKET:-traverse-int}` from `&api-env` — the same
+bucket `api`/`celery-worker` write to — unlike Postgres, which already has a
+dedicated `traverse_test` database for exactly this reason.
+`api/tests/pipeline/test_books_routes.py`'s `client()` fixture teardown calls
+`await store.delete_prefix("books/")` after **every** test. Every
+`docker compose --profile test run --rm test` this sprint (mine included) was
+therefore deleting `books/*` from the live bucket — the demo books' source
+PDFs and any rendered page cache — not just from an isolated test slice. This
+also explains the Wuthering Heights book's prefix not existing at all:
+`delete_prefix("books/")` has no book scoping, so one test run anywhere wipes
+every book's objects, not just the one the test created.
+
+**Fixed** the same way `traverse_test` isolates Postgres: `traverse-test` is
+now its own MinIO bucket (`MINIO_BUCKETS` in `.env.example`,
+`docker-compose.yml`'s `minio-init` default, `docker/minio/init-buckets.sh`'s
+own fallback, and `scripts/bootstrap_databases.sh`'s bucket list — four copies,
+not three, since that script builds its list independently rather than
+reading the shared default). The `test` service now sets
+`MINIO_BUCKET: ${TEST_MINIO_BUCKET:-traverse-test}`, mirroring
+`TEST_POSTGRES_DB`. Verified concretely, not just by config inspection:
+uploaded a fresh book through the live API (`POST
+/api/projects/{id}/books`, book `cbf36af0-…`), confirmed `source.pdf` in
+`traverse-int`, ran the full suite (`423 passed, 1 skipped`) twice, confirmed
+`source.pdf` (plus the pipeline's own `chapters.json`) still present in
+`traverse-int` after both runs, and confirmed `traverse-test` stayed empty
+(tests clean up their own bucket now, harmlessly). Checked Neo4j for the same
+class of bug per this session's brief: **not affected** — Community edition's
+single-database limitation means it was never isolable the way Postgres/MinIO
+are, but `api/tests/graph/conftest.py`'s `clean_project` fixture scopes every
+test to a fresh random `project_id` and `reset_project()` only deletes that
+one project's nodes, so sharing the live database has always been safe by
+construction. No fix needed there; noted in `infra-topology.md` so nobody
+re-investigates it.
+
+**Not fixing:** the two demo books' PDFs are already gone from `traverse-int`
+— that's this sprint's SCR-19 symptom, and the isolation fix only stops
+recurrence going forward. Re-uploading them is be1/orchestrator's call (whoever
+owns the demo corpus), not a do1 action from here.
+
+Files: `docker-compose.yml`, `.env.example`, `docker/minio/init-buckets.sh`,
+`scripts/bootstrap_databases.sh`. Memory map updated: `infra-topology.md`.

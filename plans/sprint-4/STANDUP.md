@@ -146,3 +146,21 @@ flagging): the deployed `api`/`celery-worker` image is running be2's
 pre-verifier `extract.py`, not current `ai-master`. Full writeup and numbers
 in `HANDOFF.md`. Blocked on nothing; next up: full test suite, lint, commit,
 push (this session).
+
+## do1 — 2026-09-26 (second entry)
+
+**Root-caused SCR-19** (fe1's page-image 500s): the `test` compose service
+never overrode `MINIO_BUCKET`, so `docker compose --profile test run` was
+running `test_books_routes.py`'s `store.delete_prefix("books/")` teardown
+against the **live** `traverse-int` bucket every time — including runs earlier
+this sprint. Postgres already had `traverse_test` for this; MinIO didn't.
+Fixed: `traverse-test` is now its own bucket (4 files touched — `.env.example`,
+`docker-compose.yml`, `docker/minio/init-buckets.sh`,
+`scripts/bootstrap_databases.sh`). Verified by uploading a real book through
+the live API and confirming its object survives two full test-suite runs.
+Checked Neo4j for the same bug class — not affected, already isolated by
+per-test random `project_id` + scoped `reset_project()`, no fix needed. Full
+writeup: `HANDOFF.md`, SCR-19 reply in `SCR.md`. Not restoring the two demo
+books' already-deleted objects — that's a separate call for whoever owns the
+demo corpus. Full suite green (423 passed, 1 skipped), lint/format clean.
+Committing and pushing this session.
