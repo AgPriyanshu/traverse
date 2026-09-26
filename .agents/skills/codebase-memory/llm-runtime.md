@@ -76,6 +76,13 @@ headroom, not the real concurrency ceiling.
   of that ceiling but cannot cross it — the real lever is the roster-prefix
   to chunk-size ratio (a bigger roster, or smaller/scene-batched chunks, not
   concurrency or memory).
+- **Scene-batched reading was tried (S4.16, see character-graph.md's recall
+  audit)** — it grows the variable section per call (one call per scene
+  instead of per chunk), which *lowers* this metric further even though it
+  lowers real per-book cost (fewer prefix payments) and was the fix for a
+  real recall bug. The cache-hit-rate metric and the cost/recall goals are
+  not the same axis; don't read a lower hit rate after a batching change as a
+  regression without checking total token cost too.
 - **The reported number was also silently the wrong window.** `hit_rate_between`/
   `fetch_vllm_cache_counters` (`api/ops/vllm_metrics.py`) exist to delta two
   counter snapshots around one run, but nothing called them — every consumer

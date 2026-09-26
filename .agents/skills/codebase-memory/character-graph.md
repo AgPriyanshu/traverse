@@ -26,6 +26,7 @@ Symbols over line numbers.
 | Off-roster validator, quote-substring check | `api/relations/` | **Built** (S4; `extract.py`, `validator.py`, `aggregate.py`, `graph/upsert.py`, reads in `graph/queries.py`) |
 | `relations.aggregate` | `api/relations/` | **Built** (S4; `extract.py`, `validator.py`, `aggregate.py`, `graph/upsert.py`, reads in `graph/queries.py`) |
 | `graph.upsert` | `api/graph/` | **Built** (S4; `extract.py`, `validator.py`, `aggregate.py`, `graph/upsert.py`, reads in `graph/queries.py`) |
+| `build_reading_chunks`, `candidate_reading_chunks` — scene-level pass-2 reading units | `api/relations/scenes.py`, `api/relations/inputs.py` | **Built** (S4.16) — see "Recall audit" below |
 
 ## Alias resolution cascade (S3)
 
@@ -145,6 +146,57 @@ filter differs.
   confidence tiebreak.
 - Confidence is computed from evidence count, agreement, and per-item
   confidence — **never a model self-report**.
+
+## Recall audit (S4.16) — chunk granularity was the biggest lever
+
+Sprint 4's real-run DoD check found precision near target (~93-100% hand
+checked) but recall stuck at 0.33, unexplained by the roster bugs already
+fixed. Funnel instrumentation on the live Pride and Prejudice book (719
+chunks) found the root cause: median `documentchunk` length is **60
+characters** (487 of 719 chunks are under 100 chars) — most "chunks" are one
+clause, not a passage. Two consequences, both now addressed:
+
+- **Prefilter under-read.** be1's S4.10 rule keeps a 1-mention chunk when its
+  scene has 2+ participants, but only when the chunk's *own* mention count is
+  >= 1 — a 0-mention pronoun clause ("he had the means of exercising it") is
+  dropped even inside an otherwise-qualifying scene. Measured: 48 such chunks
+  on this book. `build_reading_chunks` (`api/relations/scenes.py`) merges each
+  scene's member chunks into one reading unit before candidate selection,
+  recovering them; falls back to the old per-chunk rule when scene tables
+  aren't migrated in. Raised chunks read 231 -> 279 (+21%) on the live book.
+- **Validator over-rejected the quote, not the chunk.** `ENDPOINT_NOT_IN_CHUNK`
+  checks the whole grounding text (chunk or, now, scene) for both names, but a
+  separate check required the cited *quote itself* to name at least one
+  endpoint — rejecting a real relation stated as "she refused him" even when
+  both names are established two sentences earlier in the same reading unit.
+  Removed (`QUOTE_NAMES_NEITHER` in `api/relations/validator.py`); the
+  companion check (`QUOTE_NAMES_OTHERS`, a quote naming only *other* roster
+  characters) is unchanged and still catches Sprint 3's wrong-pair-quote
+  finding. The second-pass verifier (`verify.py`) already re-grades every
+  accepted quote against its claim alone and fails closed, so it is the
+  backstop for "does this pronoun resolve to this pair", not a mechanical
+  substring check.
+
+Same-session controlled A/B on the live book (73-character roster, same
+vLLM instance, `/ops/relation-quality`):
+
+| | before (chunk-level, old validator) | scene-merge only | scene-merge + validator fix |
+|---|---|---|---|
+| precision | 1.0 | 0.8 | 0.71 |
+| recall | 0.242 | 0.242 | 0.303 |
+| f1 | 0.390 | 0.373 | 0.426 |
+
+Recall moved but is nowhere near the 0.80 DoD target even after both fixes —
+predicates requiring an indirect/ironic cue (`enemy_of`, `rival_of`,
+`unrequited_love_for`, `deceives`) or a transitive inference the text never
+states in one place (`in_law_of` derived from two marriages) stayed at zero
+true positives in every run. Full numbers, the funnel breakdown by rejection
+reason, and the trade-off discussion are in `plans/sprint-4/HANDOFF.md`.
+**Run-to-run LLM sampling variance is real and roughly the same size as these
+deltas** (a from-scratch re-run of the unmodified code, same book, measured
+0.333 in one session and 0.242 in this one) — treat any single number here as
+directional, not exact, until Sprint 8's calibration work adds repeated-run
+averaging.
 
 ## Neo4j shape
 
