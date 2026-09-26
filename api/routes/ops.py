@@ -16,6 +16,11 @@ from ..db.engine import get_session
 from ..ops import gather_health, pipeline_status
 from ..ops.extraction_cost import ExtractionCostOut, compute_extraction_cost
 from ..ops.extraction_quality import ExtractionQualityOut, compute_extraction_quality
+from ..ops.reconciliation_quality import (
+    ReconciliationQualityOut,
+    compare_graph_checksums,
+    compute_reconciliation_quality,
+)
 from ..ops.relation_cost import RelationCostOut, compute_relation_cost
 from ..ops.relation_quality import RelationQualityOut, compute_relation_quality
 from ._stub import not_implemented
@@ -97,6 +102,44 @@ async def relation_cost(
     ``prefix_cache_alert`` is set when a measured hit rate is below 80%.
     """
     return await compute_relation_cost(session, book_id)
+
+
+@router.get("/ops/reconciliation-quality", response_model=ReconciliationQualityOut)
+async def reconciliation_quality(
+    project_id: UUID = Query(...),
+    session: SQLModelAsyncSession = Depends(get_session),
+) -> ReconciliationQualityOut:
+    """Cross-book link P/R, false-merge rate and duplicate rate (S5.14).
+
+    Also reports a deterministic ``graph_checksum`` of the project's
+    character/relation set, independent of the gold set's availability --
+    the order-independence check (`eval/runners/reconciliation.py
+    --compare-project-id`) only needs two projects' checksums to compare.
+    ``gold_available=False`` for a project whose books don't match a known
+    series, or a series without a labelled gold set yet.
+    """
+    return await compute_reconciliation_quality(session, project_id)
+
+
+@router.get("/ops/reconciliation-order-check")
+async def reconciliation_order_check(
+    project_id: UUID = Query(...),
+    compare_project_id: UUID = Query(...),
+    session: SQLModelAsyncSession = Depends(get_session),
+) -> dict:
+    """Hard pass/fail: do two projects' graphs hash identically (S5.14)?
+
+    Intended for a forward-order project and a reverse-order project ingesting
+    the same series -- the Sprint 5 DoD's "reverse-order upload produces a
+    checksum-identical graph" claim, made checkable rather than eyeballed.
+    """
+    identical = await compare_graph_checksums(session, project_id, compare_project_id)
+
+    return {
+        "project_id": str(project_id),
+        "compare_project_id": str(compare_project_id),
+        "checksums_identical": identical,
+    }
 
 
 @router.get("/ops/pipeline/runs", response_model=list[IngestionRunOut])

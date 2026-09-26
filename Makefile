@@ -154,6 +154,16 @@ judge-citations: ## Human-judge 50 sampled citations (make judge-citations BOOK=
 	python3 scripts/judge_citations.py --book-key "$(BOOK)" \
 		--api-base-url http://localhost:$${API_PORT:-8000}
 
+eval-reconciliation: ## Reconciliation link P/R + false-merge rate for a project (make eval-reconciliation PROJECT=anne-of-green-gables)
+	@test -n "$(PROJECT)" || { echo "usage: make eval-reconciliation PROJECT=<project slug>"; exit 2; }
+	python3 -m eval.runners.reconciliation --project-slug "$(PROJECT)" \
+		--api-base-url http://localhost:$${API_PORT:-8000}
+
+ingest-series: ## Queue a whole series through the pipeline in order, with per-book cost/time reporting (make ingest-series PROJECT=anne-of-green-gables)
+	@test -n "$(PROJECT)" || { echo "usage: make ingest-series PROJECT=<series key>"; exit 2; }
+	python3 scripts/ingest_series.py "$(PROJECT)" \
+		--api-base-url http://localhost:$${API_PORT:-8000}
+
 # ── Shells ────────────────────────────────────────────────────────────────────
 
 shell-api: ## Shell in the api container

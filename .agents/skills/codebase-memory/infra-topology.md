@@ -107,6 +107,18 @@ like `scripts/ingest_book.py` — `POST /projects` is still S5.9) and uploads
 each series' books through the real API in `series_order`, sequentially and
 idempotently.
 
+**Built (S5, do1):** `eval/identity_metrics.py` (cross-book link P/R,
+false-merge rate, duplicate rate, block precision, `canonical_graph_checksum`
+for order independence — all pure, unit-tested against hand-worked toy
+examples), `eval/schema/identity.schema.json` +
+`eval/gold/anne_of_green_gables/identity.yaml` (13 characters, books 1-3,
+per-book checksum pins), `api/ops/reconciliation_quality.py` behind
+`GET /ops/reconciliation-quality` and `GET /ops/reconciliation-order-check`,
+`eval/runners/reconciliation.py` + `make eval-reconciliation PROJECT=<slug>`,
+`.github/workflows/reconciliation-quality.yml`. **Unverified against real
+reconcile output** — `pipeline.reconcile_characters` (be1, S5.1/S5.2) is
+still a stub in this branch's history; see plans/sprint-5/HANDOFF.md.
+
 **Not built:** anything else in Sprint 5+.
 
 ## Services

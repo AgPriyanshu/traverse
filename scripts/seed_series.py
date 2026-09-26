@@ -96,10 +96,12 @@ def upload_series_book(project_id: str, book: CorpusBook) -> str:
     return book_id
 
 
-def seed_one_series(series_key: str) -> None:
+def seed_one_series(series_key: str, *, limit_books: int | None = None) -> None:
     books = series_books(series_key)
     if not books:
         raise SystemExit(f"no series books registered for {series_key!r}")
+    if limit_books is not None:
+        books = books[:limit_books]
 
     print(f"==> {books[0].project_name} ({series_key})")
     for book in books:
@@ -114,6 +116,11 @@ def seed_one_series(series_key: str) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--only", help="Comma-separated series keys (default: both).")
+    parser.add_argument(
+        "--limit-books",
+        type=int,
+        help="Upload only the first N books of each series (CI's reduced scope).",
+    )
     args = parser.parse_args()
 
     wanted = set(args.only.split(",")) if args.only else set(SERIES_KEYS)
@@ -123,7 +130,7 @@ def main() -> int:
 
     for series_key in SERIES_KEYS:
         if series_key in wanted:
-            seed_one_series(series_key)
+            seed_one_series(series_key, limit_books=args.limit_books)
 
     write_licenses_md(load_manifest())
     print("\nmake seed-series done.")
