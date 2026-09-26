@@ -146,3 +146,55 @@ flagging): the deployed `api`/`celery-worker` image is running be2's
 pre-verifier `extract.py`, not current `ai-master`. Full writeup and numbers
 in `HANDOFF.md`. Blocked on nothing; next up: full test suite, lint, commit,
 push (this session).
+
+## be2 — 2026-09-26 (`ai/be2/sprint-4-recall`)
+
+**Funnel-diagnosed the recall shortfall instead of guessing again.**
+Instrumented the exact drop-off (`raw_proposed`/`avg_raw_per_chunk_read` added
+to `ExtractionResult.summary()`) and ran it for real (one-off containers on
+`traverse_default`, never touching the shared `celery-worker` — checked
+`ingestionstage` for `RUNNING` first, found none, but did find live unrelated
+traffic on the shared worker from another agent's book and stayed off it
+entirely).
+
+**Root cause: chunking granularity, not the roster.** Median `documentchunk`
+length on the live P&P book is 60 characters — most "chunks" are one clause.
+Two consequences, both fixed:
+- be1's S4.10 prefilter drops a chunk with **zero** own roster mentions even
+  when its scene has 2+ participants (only the 1-mention case gets the scene
+  fallback). 48 such chunks, measured. Fixed by reading at scene granularity
+  (`api/relations/scenes.py`) — recovers the Wickham/Lydia elopement marriage,
+  entirely absent from every prior run.
+- The validator additionally required the *cited quote itself* to name an
+  endpoint, on top of the (correct) whole-chunk check — rejecting "she
+  refused him" even when both names are established two sentences earlier.
+  Removed; the second-pass verifier is the right backstop for whether a
+  pronoun resolves to this pair, not a substring check.
+
+**Honest trade-off, measured same-session/same-book, not picked:**
+
+| | before | +scene reading | +validator fix |
+|---|---|---|---|
+| precision | 1.0 | 0.80 | 0.71 |
+| recall | 0.242 | 0.242 | **0.303** |
+| f1 | 0.390 | 0.373 | **0.426** |
+
+Recall +6pp / F1 improved, but **neither DoD target is met** (P 0.71 < 0.90,
+R 0.30 << 0.80) and this isn't a case of "tune it more" — every run scored
+zero true positives on `enemy_of`, `rival_of`, `unrequited_love_for`,
+`deceives` (indirect/ironic predicates the extractor never proposes, not a
+validator problem) and on `in_law_of` (transitively derived from two separate
+marriages Austen never states in one place — needs a derivation pass in
+`aggregate.py`, not an extraction fix; recommending for Sprint 8, not
+attempted here). Also confirmed real, sizeable **run-to-run LLM sampling
+variance** (unmodified code measured 0.333 recall in an earlier session,
+0.242 in this one) — every number here is one sample, not an average.
+
+Left the live shared graph on the better-F1 (scene+validator-fix) result:
+29 relations / 57 edges, zero evidence-free edges confirmed on both stores.
+Full funnel tables, hypothesis-by-hypothesis findings and the Sprint 8
+recommendation are in `HANDOFF.md`. Memory maps updated (`character-graph.md`
+recall-audit section, `data-model.md`/`ingestion-pipeline.md` S4→Built flips,
+`llm-runtime.md` note on scene-batching vs. the cache-hit-rate metric).
+Full suite: 430 passed, 1 skipped (pre-existing). Lint clean. Two commits on
+`ai/be2/sprint-4-recall`, pushed.
