@@ -146,3 +146,33 @@ flagging): the deployed `api`/`celery-worker` image is running be2's
 pre-verifier `extract.py`, not current `ai-master`. Full writeup and numbers
 in `HANDOFF.md`. Blocked on nothing; next up: full test suite, lint, commit,
 push (this session).
+
+## be1 — 2026-09-26
+
+**Jane/Miss Bennet checked live: real gap, not safely fixable by rule, left
+split.** Not stale data (roster3's rules already merged after the last
+`RESOLVE_ALIASES` run) — the actual cause is `_blocking_pairs` never
+proposing a bare given name against a bare "Miss <Surname>" as a candidate
+pair, so `collision.py`'s own sibling veto never gets to run on it. Checked
+whether the eldest-daughter convention could safely merge them: no — ch. 56
+has Lady Catherine address Elizabeth, not Jane, as "Miss Bennet", so a
+blanket merge would misattribute a real scene. Regression test pins the
+current (correct) split behaviour. Full reasoning and a related unfixed
+case ("Miss Lucas"/"Charlotte Lucas", same gap, looks safely mergeable but
+out of scope this story) in `HANDOFF.md`.
+
+**Found and fixed a real data-integrity bug: `resolve_aliases` regenerated
+every `Character`'s UUID on every rerun**, even with zero roster change —
+confirms and fixes the root cause of fe1's transient Neo4j/Postgres desync
+(`plans/sprint-4/SCR.md`). `persist_characters` now upserts by
+`(project_id, canonical_name)` instead of always inserting; character
+deletion moved to a new `sweep_orphaned_characters`, which runs only after
+the new roster is persisted so a survivor is never mid-flight orphaned.
+Regression tests confirmed to fail on the pre-fix code (reverted and
+re-ran): same-roster rerun keeps the same id; a real `relation` row between
+two characters survives a rerun untouched; a dropped name is still swept.
+Not exercised against the live shared stack (celery-worker there runs
+unmerged/stale code per do1's note above) — verified via a real Postgres
+through the actual task body instead. Full suite 428 passed / 1 skipped,
+lint clean. Blocked on nothing; next up: push, hand back to the merge
+train.

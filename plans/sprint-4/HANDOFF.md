@@ -626,3 +626,115 @@ Files: `docker-compose.yml` (vllm command), `api/ops/relation_cost.py`,
 `scripts/ingest_book.py`, `scripts/nightly_corpus_ingestion.py`,
 `eval/runners/relations.py` (relabelled line). Memory maps updated:
 `llm-runtime.md`, `infra-topology.md`.
+
+---
+
+## be1 → all · roster5: Jane/Miss Bennet checked (not a bug), resolve_aliases UUID stability fixed (2026-09-26)
+
+Branch `ai/be1/sprint-4-roster5`. Checked `ingestionstage` for `state='RUNNING'`
+before touching anything — 0 rows; safe to proceed.
+
+**1. "Jane" / "Miss Bennet" — checked live, real gap in blocking reach, not
+safely mergeable, left split on purpose.** Live roster (project
+`6146f7d0-…`) confirmed: two rows, 63 and 23 mentions. Not stale data like
+SCR-18 — `RESOLVE_ALIASES` last ran 2026-09-25T11:13, after roster3's fix
+(2026-09-24T02:23) landed on `ai-master`, and no alias/collision code has
+changed since. Root cause: `_blocking_pairs` keys clusters by their
+honorific-stripped first/last token; "Jane" (token `Jane`) and "Miss Bennet"
+(token `Bennet`) share none, so they are never even proposed as a pair —
+`collision.py`'s sibling-ambiguity veto (the one that already blocks "Miss
+Bennet" from guessing between Elizabeth/Lydia) never gets a chance to run on
+this pair either. This is a gap in reach, not a wrong merge decision.
+
+Checked whether the obvious general fix — treat a bare "Miss <Surname>" as
+the Regency eldest-unmarried-daughter convention and connect it to "Jane" —
+is safe. It is not: of "Miss Bennet"'s 23 real stored contexts, 22 are Jane,
+but ch. 56 has Lady Catherine directly address **Elizabeth** as "Miss
+Bennet" (`corpus/downloads/pride-and-prejudice.txt`, "You can be at no loss,
+Miss Bennet, to understand the reason of my journey hither" — confirmed
+against the surrounding text, "Elizabeth obeyed..."). A blanket merge into
+"Jane" would misattribute that scene, and any pass-2 relation evidence drawn
+from it, to the wrong character — a real, in-text collision, same class of
+risk `collision.py`'s own veto exists to catch, just not one the current
+architecture (character-level, not per-mention, resolution) can safely
+disambiguate. Left split. Regression test pinned to the real candidate
+contexts (`api/tests/extraction/test_jane_miss_bennet_split.py` +
+`fixtures/pride_and_prejudice_jane_bennet_candidates.json`) — same honesty
+bar as the Charlotte Lucas / Mrs. Collins case, but for a different reason
+(conflicting textual evidence, not absent evidence). Noted for whoever picks
+this up next: "Miss Lucas" (17 mentions) is *also* split from "Charlotte
+Lucas" (29 mentions) by the same blocking gap, and unlike "Miss Bennet" its
+11 real contexts show **no** counter-example — a general fix to blocking
+reach would likely merge that pair safely while `collision.py`'s existing
+veto correctly keeps "Miss Bennet" split. Did not implement it — inventing
+"which bare surname belongs to which family" as a new signal is bigger than
+this story's scope and risks false positives in other books; flagging as a
+follow-up, not an SCR (no schema change, be1-owned files only).
+
+**2. Character UUID churn on a `resolve_aliases` rerun — real bug, fixed.**
+Confirmed fe1's finding (`plans/sprint-4/SCR.md`) at the code level:
+`api/extraction/repository.py::delete_book_characters` deleted every
+unverified `Character` with no remaining `CharacterAppearance` *before* the
+new roster was written, and `persist_characters` always did
+`Character(...)` — a fresh `uuid4()` — never reusing an id. Since
+`delete_book_characters` had just wiped this book's own
+`CharacterAppearance` rows, in a standalone-book project (today, every
+project) that meant **every** character got deleted and recreated with a
+new id, every single rerun, even with zero roster change.
+`relation.subject_character_id`/`object_character_id` are `ON DELETE
+CASCADE` (`api/db/models`, frozen, not touched) — Postgres wiped every
+`relation` row naming the old ids, while Neo4j, upserted from an earlier
+run, still held the old ids under an intact-looking graph. Exactly fe1's
+symptom: every evidence lookup 404s until a full pass-2 + `graph.upsert`
+rebuilds it.
+
+Fixed in `api/extraction/repository.py` (be1-owned, no schema change,
+`Character`'s shape untouched):
+
+- `persist_characters` now upserts by `(project_id, canonical_name)` — the
+  table's own unique-identity key — reusing the existing row's id and
+  updating its fields, instead of always inserting. A `human_verified` row's
+  fields are left untouched (only its appearance/mentions refresh), matching
+  the existing invariant. Only a canonical name genuinely new to the project
+  gets a fresh id.
+- `delete_book_characters` no longer deletes any `Character` row — only this
+  book's `CharacterMention`/`CharacterAppearance`. Deleting a row that the
+  same rerun is about to recreate was the bug; there is never a good reason
+  to do it before the new roster is known.
+- New `sweep_orphaned_characters(session, project_id)` carries the old
+  orphan-cleanup logic (unverified + no remaining appearance anywhere), but
+  runs **after** `persist_characters` commits the new roster, so a character
+  the rerun still resolves is never mid-flight orphaned. `tasks._resolve_aliases`
+  calls it right after `persist_characters`.
+
+Regression tests (fail on the pre-fix code, checked by reverting and
+re-running): `api/tests/extraction/test_repository.py` — a same-roster
+rerun keeps the same `Character.id`; a real `Relation` row between two
+characters survives a rerun that reproduces both endpoints untouched; a
+name genuinely dropped from the roster is still swept. Strengthened the
+existing `api/tests/pipeline/test_extraction_tasks.py::TestResolveAliasesTask::test_rerun_is_idempotent`
+(previously only asserted row *count* stayed at 2, which the old bug would
+have passed) to also assert per-name ids are identical across the rerun.
+
+Not exercised against the live shared stack: the running `celery-worker`
+builds from whatever image do1 last built (do1's own S4.15 entry above found
+it's currently running stale pre-verifier code, not current `ai-master`),
+and rebuilding it with this branch's unmerged code would put WIP on shared
+infra other agents depend on. Verified instead with a real Postgres via the
+test container, at both the repository level and through
+`tasks._resolve_aliases` itself (the actual task body, not a mock) — same
+bar HANDOFF's other entries use for a "verified" claim, short of the live
+stack.
+
+Memory map updated: `character-graph.md` (roster row + new cascade-reach
+note).
+
+Full suite: `docker compose --profile test run --rm --no-deps test pytest
+api/tests -q` → 428 passed, 1 skipped. `ruff check api/` clean.
+
+Files: `api/extraction/repository.py`, `api/pipeline/tasks.py`,
+`api/tests/extraction/test_repository.py`,
+`api/tests/extraction/test_jane_miss_bennet_split.py` (new),
+`api/tests/extraction/fixtures/pride_and_prejudice_jane_bennet_candidates.json`
+(new), `api/tests/pipeline/test_extraction_tasks.py`,
+`.claude/skills/codebase-memory/character-graph.md`.
