@@ -1,0 +1,1343 @@
+[
+  {
+    "surface_form": "Bennet",
+    "mention_count": 3,
+    "contexts": [
+      {
+        "page": 208,
+        "count": 1,
+        "context": "Bennet, as soon as they were out of the house,",
+        "chunk_id": "c05c7506-2c94-46c8-8432-4298fdb90cc8",
+        "chapter_number": 52
+      },
+      {
+        "page": 213,
+        "count": 1,
+        "context": "Bennet was mindful of her intended civility,",
+        "chunk_id": "c8a8eb35-9289-4c4b-ab5f-08204d5f3087",
+        "chapter_number": 54
+      },
+      {
+        "page": 213,
+        "count": 1,
+        "context": "Bennet had been strongly inclined to ask them to stay and dine there",
+        "chunk_id": "e3a97e82-e03d-4252-a2fa-57b422b21083",
+        "chapter_number": 54
+      }
+    ]
+  },
+  {
+    "surface_form": "Eliza Bennet",
+    "mention_count": 1,
+    "contexts": [
+      {
+        "page": 35,
+        "count": 1,
+        "context": "'Eliza Bennet,' said Miss Bingley, when the door was closed on her, 'is one of those young ladies who seek to recommend themselves to the other sex by undervaluing their own;",
+        "chunk_id": "57abcf2b-0043-4883-9cd7-310a38c878a5",
+        "chapter_number": 8
+      }
+    ]
+  },
+  {
+    "surface_form": "Elizabeth Bennet",
+    "mention_count": 4,
+    "contexts": [
+      {
+        "page": 7,
+        "count": 1,
+        "context": "Their names are, in chronological order, Elizabeth Bennet, Diana Vernon, Argemone Lavington, Beatrix Esmond, and Barbara Grant",
+        "chunk_id": "1d84adf5-7d60-4c66-a367-7040b5e8e545",
+        "chapter_number": null
+      },
+      {
+        "page": 16,
+        "count": 1,
+        "context": "Elizabeth Bennet had been obliged, by the scarcity of gentlemen, to sit down for two dances;",
+        "chunk_id": "31fb73d0-fb9f-4341-ba0c-392aefcd0cb8",
+        "chapter_number": 2
+      },
+      {
+        "page": 16,
+        "count": 1,
+        "context": "Elizabeth Bennet had been obliged, by the scarcity of gentlemen, to sit down for two dances;",
+        "chunk_id": "92cd78a3-401b-4e8a-a09b-95f4aaac5997",
+        "chapter_number": 2
+      },
+      {
+        "page": 87,
+        "count": 1,
+        "context": "The least agreeable circumstance in the business was the surprise it must occasion to Elizabeth Bennet, whose and probably would blame her",
+        "chunk_id": "b2f06503-8ab7-4280-95f4-fc8f931ea151",
+        "chapter_number": 22
+      }
+    ]
+  },
+  {
+    "surface_form": "Jane",
+    "mention_count": 63,
+    "contexts": [
+      {
+        "page": 1,
+        "count": 1,
+        "context": "the loves of Jane and Bingley",
+        "chunk_id": "ed6e524b-493d-4964-8935-770c4164fc7c",
+        "chapter_number": null
+      },
+      {
+        "page": 6,
+        "count": 1,
+        "context": "The Bingleys and the Gardiners and the Lucases, Miss Darcy and Miss de Bourgh, Jane, Wickham, and the rest",
+        "chunk_id": "7fe1983d-baed-4dd8-a894-f9125ff19c55",
+        "chapter_number": null
+      },
+      {
+        "page": 7,
+        "count": 1,
+        "context": "And she lets the injury done to Jane and the contempt shown to the rest of her family aggravate this",
+        "chunk_id": "02f36465-12c4-4155-9f30-61921c3a6cee",
+        "chapter_number": null
+      },
+      {
+        "page": 19,
+        "count": 1,
+        "context": "Jane and Elizabeth were alone, the former, who had been cautious in her praise of Mr. Bingley before, expressed to her sister how very much she admired him.",
+        "chunk_id": "042a20ad-9fae-46e1-bc99-820885452a34",
+        "chapter_number": 4
+      },
+      {
+        "page": 21,
+        "count": 1,
+        "context": "Jane. 'I certainly saw Mr. Darcy speaking to her.'",
+        "chunk_id": "5fea5c55-fa01-490d-926c-81263c28e7a9",
+        "chapter_number": 5
+      },
+      {
+        "page": 23,
+        "count": 1,
+        "context": "By Jane this attention was received with the greatest pleasure",
+        "chunk_id": "7c6358d7-07d8-4981-9718-0f1fa1ee242e",
+        "chapter_number": 6
+      },
+      {
+        "page": 29,
+        "count": 1,
+        "context": "'Well, Jane, who is it from? What is it about? What does he say? Well, Jane, make haste and tell us; make haste, my love.'",
+        "chunk_id": "b2a09eb0-3a25-444a-b57c-80d8bed11ebb",
+        "chapter_number": 7
+      },
+      {
+        "page": 31,
+        "count": 1,
+        "context": "Elizabeth was glad to be taken to her immediately; and Jane, who had only been withheld by the fear of giving alarm or inconvenience, from expressing in her note how much she longed for such a visit, was delighted at her entrance.",
+        "chunk_id": "91d4f299-5fc3-4d0a-a222-588638275a85",
+        "chapter_number": 7
+      },
+      {
+        "page": 39,
+        "count": 1,
+        "context": "Elizabeth returned instantly to Jane, leaving her own and her relations' behaviour to the remarks of the two ladies and Mr. Darcy; the latter of whom, however, could not be prevailed on to join in their censure of _her_, in spite of all Miss Bingley's witticisms on _fine eyes_.",
+        "chunk_id": "5dba184b-82de-4f11-8e0a-36aefc0a99b8",
+        "chapter_number": 9
+      },
+      {
+        "page": 83,
+        "count": 1,
+        "context": "She highly approved his forbearance; and they had leisure for a full discussion of it, and for all the commendations which they civilly bestowed on each other, as Wickham and another officer walked back with them to Longbourn, and during the walk he particularly attended to her. His accompanying them was a double advantage: she felt all the compliment it offered to herself; and it was most acceptable as an occasion of introducing him to her father and mother.",
+        "chunk_id": "6aa89cd0-27a9-4f15-bd29-881e4a13e851",
+        "chapter_number": 21
+      },
+      {
+        "page": 83,
+        "count": 1,
+        "context": "What think you of _this_ sentence, my dear Lizzy?' said Jane, as she finished it. 'Is it not clear enough? Does it not expressly declare that Caroline neither expects nor wishes me to be her sister; that she is perfectly convinced of her brother's indifference; and that if she suspects the nature of my feelings for him she means (most kindly!) to put me on my guard.",
+        "chunk_id": "efc5ea3a-ea64-4484-a8cd-52fc0e76618d",
+        "chapter_number": 21
+      },
+      {
+        "page": 83,
+        "count": 1,
+        "context": "But the case is this:--we are not rich enough or grand enough for them; and she is the more anxious to get Miss Darcy for her brother, from the notion that when there has been _one_ intermarriage, she may have less trouble in achieving a second; in which there is certainly some ingenuity, and I dare say it would succeed if Miss de Bourgh were out of the way. But, my dearest Jane, you cannot seriously imagine that, because Miss Bingley tells you her brother greatly admires Miss Darcy, he is in the smallest degree less sensible of _your_ merit than when he took leave of you on Tuesday; or that it will be in her power to persuade him that, instead of being in love with you, he is very much in love with her friend.",
+        "chunk_id": "cab8a9ce-e415-41ca-8084-79caf41ded79",
+        "chapter_number": 21
+      },
+      {
+        "page": 90,
+        "count": 2,
+        "context": "Jane confessed herself a little surprised at the match: but she said less of her astonishment than of her earnest desire for their happiness; nor could Elizabeth persuade her to consider it as improbable.",
+        "chunk_id": "02a9df99-18d8-4278-a0b4-e79061c0c993",
+        "chapter_number": 23
+      },
+      {
+        "page": 91,
+        "count": 1,
+        "context": "Jane had sent Caroline an early answer to her letter, and was counting the days till she might reasonably hope to hear again. The promised letter of thanks from Mr. Collins arrived on Tuesday, addressed to their father, and written with all the solemnity of gratitude which a twelve-month's abode in the family might have prompted.",
+        "chunk_id": "ac54bccb-86e1-4626-9b6b-9eb943918251",
+        "chapter_number": 23
+      },
+      {
+        "page": 92,
+        "count": 1,
+        "context": "Neither Jane nor Elizabeth were comfortable on this subject. Day after day passed away without bringing any other tidings of him than the report which shortly prevailed in Meryton of his coming no more to Netherfield the whole winter; a report which highly incensed Mrs. Bennet, and which she never failed to contradict as a most scandalous falsehood.",
+        "chunk_id": "48602eb8-63c6-4c25-8adb-b33dccc79962",
+        "chapter_number": 23
+      },
+      {
+        "page": 93,
+        "count": 1,
+        "context": "Hope was over, entirely over; and when Jane could attend to the rest of the letter, she found little, except the professed affection of the writer, that could give her any comfort.",
+        "chunk_id": "e097ee59-ad30-45f7-a482-ee9065b2ae34",
+        "chapter_number": 24
+      },
+      {
+        "page": 94,
+        "count": 2,
+        "context": "You alluded to something else. You mentioned _two_ instances. I cannot misunderstand you, but I entreat you, dear Lizzy, not to pain me by thinking _that person_ to blame, and saying your opinion of him is sunk.",
+        "chunk_id": "17b5f6b8-bfcd-4ba9-bae1-2c7fd816a4b8",
+        "chapter_number": 24
+      },
+      {
+        "page": 96,
+        "count": 1,
+        "context": "Two of her girls had been on the point of marriage, and after all there was nothing in it. 'I do not blame Jane,' she continued, 'for Jane would have got Mr. Bingley if she could.",
+        "chunk_id": "f5c518fe-852f-4f69-8d3d-f7b843359294",
+        "chapter_number": 25
+      },
+      {
+        "page": 98,
+        "count": 1,
+        "context": "Elizabeth was exceedingly pleased with this proposal, and felt persuaded of her sister's ready acquiescence.",
+        "chunk_id": "0a3fef61-0341-4b1c-93de-12b92ce1af82",
+        "chapter_number": 25
+      },
+      {
+        "page": 98,
+        "count": 1,
+        "context": "The Bingleys were no otherwise in her thoughts at the same time than as she hoped, by Caroline's not living in the same house with her brother, she might occasionally spend a morning with her, without any danger of seeing him.",
+        "chunk_id": "fd058c8b-5a89-4e4f-984d-3e3f5a6cad9e",
+        "chapter_number": 25
+      },
+      {
+        "page": 99,
+        "count": 1,
+        "context": "Thursday was to be the wedding-day, and on Wednesday Miss Lucas paid her farewell visit; and when she rose to take leave, Elizabeth, ashamed of her mother's ungracious and reluctant good wishes, and sincerely affected herself, accompanied her out of the room.",
+        "chunk_id": "001f6730-55a8-4ef1-8d83-6dd6f9f536bc",
+        "chapter_number": 26
+      },
+      {
+        "page": 99,
+        "count": 1,
+        "context": "Jane had already written a few lines to her sister, to announce their safe arrival in London; and when she wrote again, Elizabeth hoped it would be in her power to say something of the Bingleys. Her impatience for this second letter was as well rewarded as impatience generally is.",
+        "chunk_id": "8ab9471c-0929-4499-a927-66bfd6fa8a66",
+        "chapter_number": 26
+      },
+      {
+        "page": 102,
+        "count": 1,
+        "context": "'My dearest Lizzy will, I am sure, be incapable of triumphing in her better judgment, at my expense, when I confess myself to have been entirely deceived in Miss Bingley's regard for me. But, my dear sister, though the event has proved you right, do not think me obstinate if I still assert that, considering what her behaviour was, my confidence was as natural as your suspicion.",
+        "chunk_id": "c9dcdf68-06a8-4dae-9df2-6915b92d1800",
+        "chapter_number": 26
+      },
+      {
+        "page": 139,
+        "count": 1,
+        "context": "Anxiety on Jane's behalf was another prevailing concern; and Mr. Darcy's explanation, by restoring Bingley to all her former good opinion, heightened the sense of what Jane had lost.",
+        "chunk_id": "aadceee0-847c-438e-84fb-b214f9333ef9",
+        "chapter_number": 37
+      },
+      {
+        "page": 140,
+        "count": 1,
+        "context": "But Jane was to go home with her, and at Longbourn there would be leisure enough for observation.",
+        "chunk_id": "85b7b436-3eed-4910-8dd5-dccbac8d6315",
+        "chapter_number": 38
+      },
+      {
+        "page": 143,
+        "count": 1,
+        "context": "As soon as all had ate, and the elder ones paid, the carriage was ordered; and, after some contrivance, the whole party, with all their boxes, workbags, and parcels, and the unwelcome addition of Kitty's and Lydia's purchases, were seated in it.",
+        "chunk_id": "9f5a1d2b-16f2-4273-bf9d-b1a401d9aee8",
+        "chapter_number": 38
+      },
+      {
+        "page": 144,
+        "count": 1,
+        "context": "Mrs. Bennet was doubly engaged, on one hand collecting an account of the present fashions from Jane, who sat some way below her, and on the other, retailing them all to the younger Miss Lucases;",
+        "chunk_id": "9ac01800-80fa-49fd-a65f-d60fab84850c",
+        "chapter_number": 38
+      },
+      {
+        "page": 145,
+        "count": 1,
+        "context": "Nor was Darcy's vindication, though grateful to her feelings, capable of consoling her for such discovery. Most earnestly did she labour to prove the probability of error, and seek to clear one, without involving the other.",
+        "chunk_id": "7966ce1d-414e-4d68-9fb0-76bb581bc055",
+        "chapter_number": 40
+      },
+      {
+        "page": 147,
+        "count": 2,
+        "context": "She was now, on being settled at home, at leisure to observe the real state of her sister's spirits. Jane was not happy.",
+        "chunk_id": "e91899a9-83a8-4ac6-97d3-605ecb907650",
+        "chapter_number": 40
+      },
+      {
+        "page": 173,
+        "count": 1,
+        "context": "Elizabeth had been a good deal disappointed in not finding a letter from Jane on their first arrival at Lambton; and this disappointment had been renewed on each of the mornings that had now been spent there; but on the third her repining was over, and her sister justified, by the receipt of two letters from her at once, on one of which was marked that it had been mis-sent elsewhere.",
+        "chunk_id": "745805cc-15c6-4bbe-adca-0c4e14e18a7c",
+        "chapter_number": 46
+      },
+      {
+        "page": 175,
+        "count": 1,
+        "context": "I have just had a letter from Jane, with such dreadful news.",
+        "chunk_id": "b1a8865c-3d05-4a7c-b12a-efa7fac48800",
+        "chapter_number": 46
+      },
+      {
+        "page": 176,
+        "count": 1,
+        "context": "Never since reading Jane's second letter had she entertained a hope of Wickham's meaning to marry her.",
+        "chunk_id": "58c44331-e9a5-469a-87c6-af8c038e6155",
+        "chapter_number": 46
+      },
+      {
+        "page": 178,
+        "count": 2,
+        "context": "Of whom does Jane ever think ill? And who is there, whatever might be their former conduct, that she would believe capable of such an attempt, till it were proved against them?",
+        "chunk_id": "a669a7ed-8d96-4a7e-802f-b39cbb8e1edb",
+        "chapter_number": 47
+      },
+      {
+        "page": 180,
+        "count": 5,
+        "context": "They travelled as expeditiously as possible; and sleeping one night on the road, reached Longbourn by dinnertime the next day. It was a comfort to Elizabeth to consider that Jane could not have been wearied by long expectations.",
+        "chunk_id": "33b47eb5-6847-413d-9c48-1531f2e5875f",
+        "chapter_number": 47
+      },
+      {
+        "page": 183,
+        "count": 1,
+        "context": "And till Colonel Forster came himself, not one of you entertained a doubt, I suppose, of their being really married?",
+        "chunk_id": "b25f87ec-1dbd-49cf-a37f-f4315e81e830",
+        "chapter_number": 47
+      },
+      {
+        "page": 184,
+        "count": 1,
+        "context": "My poor father! how he must have felt it!' 'I never saw anyone so shocked. He could not speak a word for full ten minutes. My mother was taken ill immediately, and the whole house in such confusion!' 'Oh, Jane,' cried Elizabeth, 'was there a servant belonging to it who did not know the whole story before the end of the day?'",
+        "chunk_id": "1827352b-50cf-483f-a06f-6fec5c85567c",
+        "chapter_number": 47
+      },
+      {
+        "page": 184,
+        "count": 1,
+        "context": "She then proceeded to inquire into the measures which her father had intended to pursue, while in town, for the recovery of his daughter. 'He meant, I believe,' replied Jane, 'to go to Epsom, the place where they last changed horses, see the postilions, and try if anything could be made out from them.",
+        "chunk_id": "1cad6dd2-fcf2-419f-851d-ce0ee140f7cc",
+        "chapter_number": 47
+      },
+      {
+        "page": 185,
+        "count": 1,
+        "context": "and even Jane, who believed still less of it, became almost hopeless, more especially as the time was now come, when, if they had gone to Scotland, which she had never before entirely despaired of, they must in all probability have gained some",
+        "chunk_id": "8c6e4bf4-e46c-4204-865a-6a1537058b18",
+        "chapter_number": 48
+      },
+      {
+        "page": 198,
+        "count": 2,
+        "context": "Jane and Elizabeth felt for her probably more than she felt for herself.",
+        "chunk_id": "fac4f49a-09c5-4a49-b8c7-bb2edaed1843",
+        "chapter_number": 51
+      },
+      {
+        "page": 199,
+        "count": 1,
+        "context": "'If it was to be a secret,' said Jane, 'say not another word on the subject. You may depend upon my seeking no further.'",
+        "chunk_id": "bdb05eaa-21bc-4dd9-8367-ac1e37fc7e97",
+        "chapter_number": 51
+      },
+      {
+        "page": 201,
+        "count": 1,
+        "context": "Jane's delicate sense of honour would not allow her to speak to Elizabeth privately of what Lydia had let fall; Elizabeth was glad of it:--till it appeared whether her inquiries would receive any satisfaction, she had rather be without a confidante.",
+        "chunk_id": "adf573c7-9c9f-479b-9238-89abdfff9795",
+        "chapter_number": 51
+      },
+      {
+        "page": 208,
+        "count": 1,
+        "context": "She looked at Jane, and smiled, and shook her head,",
+        "chunk_id": "8df3bfc3-a734-428d-a935-d9a5be05aa44",
+        "chapter_number": 52
+      },
+      {
+        "page": 210,
+        "count": 1,
+        "context": "Jane resolutely kept her place at the table;",
+        "chunk_id": "edb79be3-281d-4559-897a-497bfbe9b77d",
+        "chapter_number": 52
+      },
+      {
+        "page": 210,
+        "count": 1,
+        "context": "Jane looked at Elizabeth with surprise and concern.",
+        "chunk_id": "809ab756-5ecd-488e-88a9-e0648b4fc1cf",
+        "chapter_number": 52
+      },
+      {
+        "page": 210,
+        "count": 1,
+        "context": "Jane, to whom she had never yet had courage to show Mrs. Gardiner's letter, or to relate her own change of sentiment towards him.",
+        "chunk_id": "32844047-bddf-4435-ad50-46ebb63cae0f",
+        "chapter_number": 52
+      },
+      {
+        "page": 210,
+        "count": 1,
+        "context": "at least as reasonable and just, as what Jane felt for Bingley",
+        "chunk_id": "bf5bdf7c-435a-422d-8843-b2bbd766d536",
+        "chapter_number": 52
+      },
+      {
+        "page": 211,
+        "count": 1,
+        "context": "Jane looked a little paler than usual,",
+        "chunk_id": "5eaa71b2-52bb-41b3-b980-b97af17e6f14",
+        "chapter_number": 52
+      },
+      {
+        "page": 213,
+        "count": 1,
+        "context": "Jane was anxious that no difference should be perceived in her at all, and was really persuaded that she talked as much as ever;",
+        "chunk_id": "09ea4ee1-79d1-4ae3-8aaf-7c04808cf4d8",
+        "chapter_number": 54
+      },
+      {
+        "page": 221,
+        "count": 1,
+        "context": "about a week after Bingley's engagement with Jane had been formed, as he and the females of the family were sitting together in the dining-room, their attention was suddenly drawn to the window by the sound of a carriage; and they perceived a chaise and four driving up the lawn.",
+        "chunk_id": "23865af5-e5c7-4e87-92af-a777138a0c25",
+        "chapter_number": 56
+      },
+      {
+        "page": 235,
+        "count": 3,
+        "context": "She had only to say in reply, that they had wandered about till she was beyond her own knowledge.",
+        "chunk_id": "354258e5-647e-4118-9f99-b42696d719ab",
+        "chapter_number": 58
+      },
+      {
+        "page": 241,
+        "count": 1,
+        "context": "Miss Bingley's congratulations to her brother on his approaching marriage were all that was affectionate and insincere.",
+        "chunk_id": "a1b4a62e-de26-425d-a2ea-edfc84812625",
+        "chapter_number": 58
+      },
+      {
+        "page": 243,
+        "count": 1,
+        "context": "Mr. Bingley and Jane remained at Netherfield only a twelvemonth.",
+        "chunk_id": "6b77a8bc-5421-49fc-93c8-3bff08c9c444",
+        "chapter_number": 61
+      }
+    ]
+  },
+  {
+    "surface_form": "Miss Bennet",
+    "mention_count": 23,
+    "contexts": [
+      {
+        "page": 9,
+        "count": 1,
+        "context": "A note for Miss Bennet 36 Cheerful prognostics 40 The apothecary came 43 Covering a screen 45 Mrs. Bennet and her two youngest girls 53",
+        "chunk_id": "e8286fbe-7f1e-4658-9336-954b78507013",
+        "chapter_number": null
+      },
+      {
+        "page": 21,
+        "count": 2,
+        "context": "Miss Bennet was therefore established as a sweet girl; and their brother felt authorized by such commendation to think of her as he chose.",
+        "chunk_id": "7e69af3e-add0-4319-8314-6a75bd0f9e67",
+        "chapter_number": 5
+      },
+      {
+        "page": 23,
+        "count": 1,
+        "context": "Miss Bennet's pleasing manners grew on the good-will of Mrs. Hurst and Miss Bingley",
+        "chunk_id": "7c6358d7-07d8-4981-9718-0f1fa1ee242e",
+        "chapter_number": 6
+      },
+      {
+        "page": 35,
+        "count": 1,
+        "context": "Elizabeth joined them again only to say that her sister was worse, and that she could not leave her.",
+        "chunk_id": "57abcf2b-0043-4883-9cd7-310a38c878a5",
+        "chapter_number": 8
+      },
+      {
+        "page": 37,
+        "count": 1,
+        "context": "Bingley met them with hopes that Mrs. Bennet had not found Miss Bennet worse than she expected. 'Indeed I have, sir,' was her answer. 'She is a great deal too ill to be moved. Mr. Jones says we must not think of moving her. We must trespass a little longer on your kindness.'",
+        "chunk_id": "7054714e-42f3-41e5-b8cc-8a4490e382ed",
+        "chapter_number": 9
+      },
+      {
+        "page": 42,
+        "count": 1,
+        "context": "To yield readily--easily--to the _persuasion_ of a friend is no merit with",
+        "chunk_id": "f0cf3a4f-b9a9-494d-83a9-743595b62f91",
+        "chapter_number": 10
+      },
+      {
+        "page": 43,
+        "count": 1,
+        "context": "I assure you that if Darcy were not such a great tall fellow, in comparison with myself, I should not pay him half so much deference. I declare I do not know a more awful object than Darcy on particular occasions, and in particular places; at his own house especially, and of a Sunday evening, when he has nothing to do.",
+        "chunk_id": "63ddae90-fa91-4d89-8a48-95ee9dcc9f7c",
+        "chapter_number": 10
+      },
+      {
+        "page": 93,
+        "count": 1,
+        "context": "Miss Bennet eagerly disclaimed all extraordinary merit, and threw back the praise on her sister's warm affection.",
+        "chunk_id": "e097ee59-ad30-45f7-a482-ee9065b2ae34",
+        "chapter_number": 24
+      },
+      {
+        "page": 95,
+        "count": 1,
+        "context": "Miss Bennet was the only creature who could suppose there might be any extenuating circumstances in the case unknown to the society of Hertfordshire: her mild and steady candour always pleaded for allowances, and urged the possibility of mistakes;",
+        "chunk_id": "03a27418-b84a-420b-960b-c0972d533632",
+        "chapter_number": 24
+      },
+      {
+        "page": 112,
+        "count": 1,
+        "context": "Four nieces of Mrs. Jenkinson are most delightfully situated through my means; and it was but the other day that I recommended another young person, who was merely accidentally mentioned to me, and the family are quite delighted with her. Mrs. Collins, did I tell you of Lady Metcalfe's calling yesterday to thank me? She finds Miss Pope a treasure. 'Lady Catherine,' said she, 'you have given me a treasure.' Are any of your younger sisters out, Miss Bennet?' 'Yes, ma'am, all.' 'All! What, all five out at once? Very odd! And you only the second. The younger ones out before the elder are married! Your younger sisters must be very young?' 'Yes, my youngest is not sixteen. Perhaps _she_ is full young to be much in company. But really, ma'am, I think it would be very hard upon younger sisters that they should not have their share of society and amusement, because the elder may not have the means or inclination to marry early. The last born has as good a right to the pleasures of youth as the first. And to be kept back on",
+        "chunk_id": "efb321c7-0fc0-4fcc-a5ef-16b0a9d11cbe",
+        "chapter_number": 28
+      },
+      {
+        "page": 118,
+        "count": 1,
+        "context": "Lady Catherine continued her remarks on Elizabeth's performance, mixing with them many instructions on execution and taste. Elizabeth received them with all the forbearance of civility; and at the request of the gentlemen remained at the instrument till her Ladyship's carriage was ready to take them all home.",
+        "chunk_id": "97164b69-e12a-4f4d-adc4-2559b0a1b577",
+        "chapter_number": 31
+      },
+      {
+        "page": 145,
+        "count": 1,
+        "context": "Miss Bennet's astonishment was soon lessened by the strong sisterly partiality which made any admiration of Elizabeth appear perfectly natural;",
+        "chunk_id": "7966ce1d-414e-4d68-9fb0-76bb581bc055",
+        "chapter_number": 40
+      },
+      {
+        "page": 209,
+        "count": 1,
+        "context": "Miss Bennet had not been able to hear of his coming without changing colour.",
+        "chunk_id": "49001eeb-7480-4209-b333-654b01749d17",
+        "chapter_number": 52
+      },
+      {
+        "page": 221,
+        "count": 1,
+        "context": "Bingley instantly prevailed on Miss Bennet to avoid the confinement of such an intrusion, and walk away with him into the shrubbery.",
+        "chunk_id": "23865af5-e5c7-4e87-92af-a777138a0c25",
+        "chapter_number": 56
+      },
+      {
+        "page": 223,
+        "count": 1,
+        "context": "As soon as they entered the copse, Lady Catherine began in the following manner:-- 'You can be at no loss, Miss Bennet, to understand the reason of my journey hither. Your own heart, your own conscience, must tell you why I come.'",
+        "chunk_id": "20d9cd2f-e527-4024-b07d-acf67a9077e0",
+        "chapter_number": 56
+      },
+      {
+        "page": 224,
+        "count": 6,
+        "context": "Because honour, decorum, prudence--nay, interest--forbid it. Yes, Miss Bennet, interest; for do not expect to be noticed by his family or friends, if you wilfully act against the inclinations of all.",
+        "chunk_id": "b372a959-698b-4ea1-b6e0-26808d03b16a",
+        "chapter_number": 56
+      },
+      {
+        "page": 235,
+        "count": 1,
+        "context": "Miss Bennet still looked all amazement. Elizabeth again, and more seriously, assured her of its truth.",
+        "chunk_id": "354258e5-647e-4118-9f99-b42696d719ab",
+        "chapter_number": 58
+      }
+    ]
+  },
+  {
+    "surface_form": "Miss Eliza",
+    "mention_count": 1,
+    "contexts": [
+      {
+        "page": 27,
+        "count": 1,
+        "context": "Elizabeth at that instant moving towards them, he was struck with the notion of doing a very gallant thing, and called out to her,-- 'My dear Miss Eliza, why are not you dancing?'",
+        "chunk_id": "d0a4141f-2266-477a-a629-889b7e5a019b",
+        "chapter_number": 6
+      }
+    ]
+  },
+  {
+    "surface_form": "Miss Elizabeth Bennet",
+    "mention_count": 3,
+    "contexts": [
+      {
+        "page": 27,
+        "count": 1,
+        "context": "I have been meditating on the very great pleasure which a pair of fine eyes in the face of a pretty woman can bestow.' Miss Bingley immediately fixed her eyes on his face, and desired he would tell her what lady had the credit of inspiring such reflections. Mr. Darcy replied, with great intrepidity,-- 'Miss Elizabeth Bennet.'",
+        "chunk_id": "d0a4141f-2266-477a-a629-889b7e5a019b",
+        "chapter_number": 6
+      },
+      {
+        "page": 223,
+        "count": 2,
+        "context": "that Miss Elizabeth Bennet would, in all likelihood, be soon afterwards united to my nephew--my own nephew, Mr. Darcy.",
+        "chunk_id": "20d9cd2f-e527-4024-b07d-acf67a9077e0",
+        "chapter_number": 56
+      }
+    ]
+  },
+  {
+    "surface_form": "Miss Lydia Bennet",
+    "mention_count": 1,
+    "contexts": [
+      {
+        "page": 212,
+        "count": 1,
+        "context": "It was only said, 'Lately, George Wickham, Esq., to Miss Lydia Bennet,'",
+        "chunk_id": "1b1613e5-95dd-4d41-bf18-3e8900aafdba",
+        "chapter_number": 52
+      }
+    ]
+  },
+  {
+    "surface_form": "Mr. Bennet",
+    "mention_count": 89,
+    "contexts": [
+      {
+        "page": 3,
+        "count": 1,
+        "context": "the epicurean delight in dissecting, in displaying, in setting at work her fools and her mean persons",
+        "chunk_id": "9a387551-bd0d-48c4-92e1-7af99a0d57f6",
+        "chapter_number": null
+      },
+      {
+        "page": 3,
+        "count": 1,
+        "context": "Mr. Bennet",
+        "chunk_id": "09b8f497-df57-412e-9c8a-6ab098b956a0",
+        "chapter_number": null
+      },
+      {
+        "page": 12,
+        "count": 1,
+        "context": "Mr. Bennet was so odd a mixture of quick parts, sarcastic humour, reserve, and caprice, that the experience of three-and-twenty years had been insufficient to make his wife understand his character.",
+        "chunk_id": "64ccfff5-0241-41e3-a621-08a2e948d66e",
+        "chapter_number": 1
+      },
+      {
+        "page": 13,
+        "count": 1,
+        "context": "Mr. Bennet was so odd a mixture of quick parts, sarcastic humour, reserve, and caprice, that the experience of three-and-twenty years had been insufficient to make his wife understand his character.",
+        "chunk_id": "a29b9eeb-5c51-4250-8d1b-9cb846b727cd",
+        "chapter_number": 1
+      },
+      {
+        "page": 14,
+        "count": 1,
+        "context": "Mr. Bennet was among the earliest of those who waited on Mr. Bingley.",
+        "chunk_id": "067c1061-ca51-4393-99ac-0ae8ac438bfc",
+        "chapter_number": 2
+      },
+      {
+        "page": 28,
+        "count": 1,
+        "context": "Mr. Bennet's property consisted almost entirely in an estate of two thousand a year, which, unfortunately for his daughters, was entailed, in default of heirs male, on a distant relation; and their mother's fortune, though ample for her situation in life, could but ill supply the deficiency of his.",
+        "chunk_id": "29d495d6-717e-400f-bdcd-581fa02dae5d",
+        "chapter_number": 7
+      },
+      {
+        "page": 29,
+        "count": 1,
+        "context": "She did at last extort from her father an acknowledgment that the horses were engaged; Jane was therefore obliged to go on horseback, and her mother attended her to the door with many cheerful prognostics of a bad day.",
+        "chunk_id": "b2a09eb0-3a25-444a-b57c-80d8bed11ebb",
+        "chapter_number": 7
+      },
+      {
+        "page": 49,
+        "count": 1,
+        "context": "But their father, though very laconic in his expressions of pleasure, was really glad to see them; he had felt their importance in the family circle.",
+        "chunk_id": "8afc44b3-e53f-494b-9e33-b14a78834096",
+        "chapter_number": 10
+      },
+      {
+        "page": 50,
+        "count": 1,
+        "context": "I hope, my dear,' said Mr. Bennet to his wife, as they were at breakfast the next morning, 'that you have ordered a good dinner to-day, because I have reason to expect an addition to our family party.",
+        "chunk_id": "2ff46c85-e256-46a2-b9ab-7dc3a2230f71",
+        "chapter_number": 10
+      },
+      {
+        "page": 50,
+        "count": 1,
+        "context": "Mr. Bennet indeed said little; but the ladies were ready enough to talk, and Mr. Collins seemed neither in need of encouragement, nor inclined to be silent himself.",
+        "chunk_id": "8501cfe0-d1c2-45ba-84d3-461a59c6c3e4",
+        "chapter_number": 10
+      },
+      {
+        "page": 50,
+        "count": 1,
+        "context": "Mr. Bennet, who quarrelled with no compliments, answered most readily,-- 'You are very kind, sir, I am sure",
+        "chunk_id": "98337bc1-1823-4ed0-8834-83b1c28a6ac8",
+        "chapter_number": 10
+      },
+      {
+        "page": 53,
+        "count": 1,
+        "context": "Mr. Bennet's expectations were fully answered. His cousin was as absurd as he had hoped; and he listened to him with the keenest enjoyment",
+        "chunk_id": "1775c03e-3b2d-4ed4-b6ae-e28d729d9a86",
+        "chapter_number": 14
+      },
+      {
+        "page": 54,
+        "count": 1,
+        "context": "Mr. Bennet was most anxious to get rid of him, and have his library to himself",
+        "chunk_id": "83735f2b-b296-4888-ae3c-46c486f77762",
+        "chapter_number": 14
+      },
+      {
+        "page": 55,
+        "count": 1,
+        "context": "Mr. Bennet was most anxious to get rid of him, and have his library to himself",
+        "chunk_id": "27bdc3bf-ddf8-42f9-b5a6-d058e0f95187",
+        "chapter_number": 15
+      },
+      {
+        "page": 74,
+        "count": 2,
+        "context": "Many stared--many smiled; but no one looked more amused than Mr. Bennet himself, while his wife seriously commended Mr. Collins for having spoken so sensibly",
+        "chunk_id": "5b40440e-3d04-4176-8e08-b4d2750976ff",
+        "chapter_number": 18
+      },
+      {
+        "page": 79,
+        "count": 3,
+        "context": "Mr. Bennet, who had persuaded himself that his husband regarded the affair as she wished",
+        "chunk_id": "fd5e9328-f521-4123-a2d6-e64b62a650c9",
+        "chapter_number": 20
+      },
+      {
+        "page": 81,
+        "count": 1,
+        "context": "What do you mean, Mr. Bennet, by talking in this way? You promised me to _insist_ upon her marrying him. My dear,",
+        "chunk_id": "6dbcac84-cba8-43b6-8056-4014b36d81fd",
+        "chapter_number": 20
+      },
+      {
+        "page": 87,
+        "count": 1,
+        "context": "They were all astonished; and Mr. Bennet, who could by no means wish for so speedy a return, immediately said,-- 'But is there not danger of Lady Catherine's disapprobation here, my good sir?'",
+        "chunk_id": "506b8f67-6358-4ecb-942e-4d54c3787a0b",
+        "chapter_number": 22
+      },
+      {
+        "page": 90,
+        "count": 1,
+        "context": "Mr. Bennet's emotions were much more tranquil on the occasion, and such as he did experience he pronounced to be of a most agreeable sort; for it gratified him, he said, to discover that Charlotte Lucas, whom he had been used to think tolerably sensible, was as foolish as his wife, and more foolish than his daughter!",
+        "chunk_id": "02a9df99-18d8-4278-a0b4-e79061c0c993",
+        "chapter_number": 23
+      },
+      {
+        "page": 91,
+        "count": 1,
+        "context": "Mr. Collins's return into Hertfordshire was no longer a matter of pleasure to Mrs. Bennet. On the contrary, she was as much disposed to complain of it as her husband.",
+        "chunk_id": "ac54bccb-86e1-4626-9b6b-9eb943918251",
+        "chapter_number": 23
+      },
+      {
+        "page": 92,
+        "count": 3,
+        "context": "Mr. Collins returned most punctually on the Monday fortnight, but his reception at Longbourn was not quite so gracious as it had been on his first introduction. He was too happy, however, to need much attention; and, luckily for the others, the business of love-making relieved them from a great deal of his company.",
+        "chunk_id": "48602eb8-63c6-4c25-8adb-b33dccc79962",
+        "chapter_number": 23
+      },
+      {
+        "page": 95,
+        "count": 1,
+        "context": "Mr. Bennet treated the matter differently. 'So, Lizzy,' said he, one day, 'your sister is crossed in love, I find. I congratulate her. Next to being married, a girl likes to be crossed in love a little now and then.",
+        "chunk_id": "03a27418-b84a-420b-960b-c0972d533632",
+        "chapter_number": 24
+      },
+      {
+        "page": 140,
+        "count": 6,
+        "context": "as they drew near the appointed inn where Mr. Bennet's carriage was to meet them, they quickly perceived, in token of the coachman's punctuality, both Kitty and Lydia looking out of a dining-room upstairs.",
+        "chunk_id": "85b7b436-3eed-4910-8dd5-dccbac8d6315",
+        "chapter_number": 38
+      },
+      {
+        "page": 143,
+        "count": 1,
+        "context": "Their reception at home was most kind. Mrs. Bennet rejoiced to see Jane in undiminished beauty; and more than once during dinner did Mr. Bennet say voluntarily to Elizabeth,",
+        "chunk_id": "9f5a1d2b-16f2-4273-bf9d-b1a401d9aee8",
+        "chapter_number": 38
+      },
+      {
+        "page": 144,
+        "count": 1,
+        "context": "Elizabeth saw directly that her father had not the smallest intention of yielding; but his answers were at the same time so vague and equivocal, that her mother, though often disheartened, had never yet despaired of succeeding at last.",
+        "chunk_id": "9ac01800-80fa-49fd-a65f-d60fab84850c",
+        "chapter_number": 38
+      },
+      {
+        "page": 149,
+        "count": 2,
+        "context": "He heard her attentively, and then said,-- 'Lydia will never be easy till she has exposed herself in some public place or other, and we can never expect her to do it with so little expense or inconvenience to her family as under the present circumstances.'",
+        "chunk_id": "2a28786c-bab9-456d-af7d-79db829098e1",
+        "chapter_number": 41
+      },
+      {
+        "page": 153,
+        "count": 1,
+        "context": "Mr. Bennet was not of a disposition to seek comfort for the disappointment which his own imprudence had brought on in any of those pleasures which too often console the unfortunate for their folly or their vice.",
+        "chunk_id": "f302d833-3637-45e8-96ab-3e646a619a1b",
+        "chapter_number": 42
+      },
+      {
+        "page": 181,
+        "count": 1,
+        "context": "Mrs. Bennet, to whose apartment they all repaired, after a few minutes' conversation together, received them exactly as might be expected; with tears and lamentations of regret, invectives against the villainous conduct of Wickham, and complaints of her own sufferings and ill-usage; blaming everybody but the person to whose ill-judging indulgence the errors of her daughter must be principally owing.",
+        "chunk_id": "e7f9846b-7e15-4f79-ba90-eb798bacf4e3",
+        "chapter_number": 47
+      },
+      {
+        "page": 181,
+        "count": 1,
+        "context": "Mr. Gardiner, after general assurances of his affection for her and all her family, told her that he meant to be in London the very next day, and would assist Mr. Bennet in every endeavour for recovering Lydia.",
+        "chunk_id": "d6d261d7-2ebd-4a7e-a9d5-2243addd7dca",
+        "chapter_number": 47
+      },
+      {
+        "page": 184,
+        "count": 2,
+        "context": "My mother was in hysterics; and though I endeavoured to give her every assistance in my power, I am afraid I did not do so much as I might have done. But the horror of what might possibly happen almost took from me my faculties.' 'Your attendance upon her has been too much for you. You do not look well. Oh that I had been with you! you have had every care and anxiety upon yourself alone.' 'Mary and Kitty have been very kind, and would have shared in every fatigue, I am sure, but I did not think it right for either of them. Kitty is slight and delicate, and Mary studies so much that her hours of repose should not be broken in on. My aunt Philips came to Longbourn on Tuesday, after my father went away; and was so good as to stay till Thursday with me. She was of great use and comfort to us all, and Lady Lucas has been very kind: she walked here on Wednesday morning to condole with us, and offered her services, or any of her daughters, if they could be of use to us.'",
+        "chunk_id": "1827352b-50cf-483f-a06f-6fec5c85567c",
+        "chapter_number": 47
+      },
+      {
+        "page": 184,
+        "count": 3,
+        "context": "He meant, I believe,' replied Jane, 'to go to Epsom, the place where they last changed horses, see the postilions, and try if anything could be made out from them.",
+        "chunk_id": "1cad6dd2-fcf2-419f-851d-ce0ee140f7cc",
+        "chapter_number": 47
+      },
+      {
+        "page": 185,
+        "count": 4,
+        "context": "The whole party were in hopes of a letter from Mr. Bennet the next morning, but the post came in without bringing a single line from him.",
+        "chunk_id": "8c6e4bf4-e46c-4204-865a-6a1537058b18",
+        "chapter_number": 48
+      },
+      {
+        "page": 187,
+        "count": 2,
+        "context": "When Mr. Bennet arrived, he had all the appearance of his usual philosophic composure.",
+        "chunk_id": "f6058b0d-d4e1-4059-9c7c-358a6ccb2376",
+        "chapter_number": 48
+      },
+      {
+        "page": 187,
+        "count": 4,
+        "context": "When Mr. Bennet arrived, he had all the appearance of his usual philosophic composure. He said as little as he had ever been in the habit of saying; made no mention of the business that had taken him away; and it was some time before his daughters had courage to speak of it.",
+        "chunk_id": "9f008386-2dd0-4541-8c92-77b8a4053c81",
+        "chapter_number": 48
+      },
+      {
+        "page": 189,
+        "count": 2,
+        "context": "Kitty, who took all these threats in a serious light, began to cry. 'Well, well,' said he, 'do not make yourself unhappy. If you are a good girl for the next ten years, I will take you to a review at the end of them.'",
+        "chunk_id": "05f2729c-f357-4bf1-91dd-a707e0a8aa6e",
+        "chapter_number": 48
+      },
+      {
+        "page": 190,
+        "count": 1,
+        "context": "Upon this information, they instantly passed through the hall once more, and ran across the lawn after their father, who was deliberately pursuing his way towards a small wood on one side of the paddock.",
+        "chunk_id": "21fb48f9-8206-40aa-aa0d-fb8d6148c993",
+        "chapter_number": 49
+      },
+      {
+        "page": 191,
+        "count": 1,
+        "context": "And so saying, he turned back with them, and walked towards the house.",
+        "chunk_id": "7d41a1be-5811-4fca-a8a3-39603a4010b5",
+        "chapter_number": 49
+      },
+      {
+        "page": 192,
+        "count": 2,
+        "context": "Their conduct has been such,",
+        "chunk_id": "9d4b1236-6053-4dc4-ad86-a0bf829406d1",
+        "chapter_number": 49
+      },
+      {
+        "page": 192,
+        "count": 4,
+        "context": "They went to the library, therefore, and asked their father whether he would not wish them to make it known to her. He was writing, and, without raising his head, coolly replied,-- 'Just as you please.'",
+        "chunk_id": "be5cf084-ab87-4785-a04d-5e32a051b65b",
+        "chapter_number": 49
+      },
+      {
+        "page": 194,
+        "count": 2,
+        "context": "He was seriously concerned that a cause of so little advantage to anyone should be forwarded at the sole expense of his brother-in-law; and he was determined, if possible, to find out the extent of his assistance, and to",
+        "chunk_id": "64939e67-e683-49d1-a69a-301855d1da21",
+        "chapter_number": 49
+      },
+      {
+        "page": 195,
+        "count": 4,
+        "context": "He had never before supposed that, could Wickham be prevailed on to marry his daughter, it would be done with so little inconvenience to himself as by the present arrangement.",
+        "chunk_id": "b2816620-e976-4743-b28f-87d908752dce",
+        "chapter_number": 49
+      },
+      {
+        "page": 195,
+        "count": 3,
+        "context": "She had no fear of its spreading farther, through his means. There were few people on whose secrecy she would have more confidently depended; but at the same time there was no one whose knowledge of a sister's frailty would have mortified her so much.",
+        "chunk_id": "869ed4ab-766f-4ad2-8b09-f6fa18e7cb17",
+        "chapter_number": 49
+      },
+      {
+        "page": 197,
+        "count": 2,
+        "context": "Mr. Gardiner soon wrote again to his brother. To Mr. Bennet's acknowledgments he briefly replied, with assurances of his eagerness to promote the welfare of any of his family; and concluded with entreaties that the subject might never be mentioned to him again.",
+        "chunk_id": "b815055f-4c57-4040-916b-f446cc3179f2",
+        "chapter_number": 49
+      },
+      {
+        "page": 197,
+        "count": 1,
+        "context": "Elizabeth was surprised, however, that Wickham should consent to such a scheme; and, had she consulted only her own inclination, any meeting with him would have been the last object of her wishes.",
+        "chunk_id": "804e2311-0d7d-4909-896b-72925671636a",
+        "chapter_number": 49
+      },
+      {
+        "page": 198,
+        "count": 2,
+        "context": "Their reception from Mr. Bennet, to whom they then turned, was not quite so cordial.",
+        "chunk_id": "fac4f49a-09c5-4a49-b8c7-bb2edaed1843",
+        "chapter_number": 51
+      },
+      {
+        "page": 212,
+        "count": 1,
+        "context": "I beg you will come here and shoot as many as you please on Mr. Bennet's manor. I am sure he will be vastly happy to oblige you,",
+        "chunk_id": "f3ba6f82-e669-47dc-bd13-e6441c93bc21",
+        "chapter_number": 52
+      },
+      {
+        "page": 212,
+        "count": 1,
+        "context": "I beg you will come here and shoot as many as you please on Mr. Bennet's manor. I am sure he will be vastly happy to oblige you,",
+        "chunk_id": "f04116d3-5944-445f-bc60-b3d597c93f43",
+        "chapter_number": 52
+      },
+      {
+        "page": 212,
+        "count": 1,
+        "context": "I beg you will come here and shoot as many as you please on Mr. Bennet's manor. I am sure he will be vastly happy to oblige you,",
+        "chunk_id": "e980323d-56e8-4725-ae2d-ea6b7c2156cd",
+        "chapter_number": 52
+      },
+      {
+        "page": 236,
+        "count": 2,
+        "context": "She did not fear her father's opposition, but he was going to be made unhappy, and that it should be through her means; that she, his favourite child, should be distressing him by her choice, should be filling him with fears and regrets in disposing of her, was a wretched reflection, and she sat in misery till Mr. Darcy appeared again, when, looking at him, she was a little relieved by his smile.",
+        "chunk_id": "a7125985-467f-4772-9770-5cd7f823d343",
+        "chapter_number": 58
+      },
+      {
+        "page": 241,
+        "count": 1,
+        "context": "I am more likely to want time than courage, Elizabeth. But it ought to be done; and if you will give me a sheet of paper it shall be done directly.",
+        "chunk_id": "066d274c-114b-468a-9b69-6f13b5dcd153",
+        "chapter_number": 58
+      },
+      {
+        "page": 241,
+        "count": 3,
+        "context": "Mr. Darcy's letter to Lady Catherine was in a different style, and still different from either was what Mr. Bennet sent to Mr. Collins, in return for his last.",
+        "chunk_id": "a1b4a62e-de26-425d-a2ea-edfc84812625",
+        "chapter_number": 58
+      },
+      {
+        "page": 243,
+        "count": 1,
+        "context": "Mr. Bennet missed his second daughter exceedingly; his affection for her drew him oftener from home than anything else could do.",
+        "chunk_id": "6b77a8bc-5421-49fc-93c8-3bff08c9c444",
+        "chapter_number": 61
+      }
+    ]
+  },
+  {
+    "surface_form": "Mrs. Bennet",
+    "mention_count": 70,
+    "contexts": [
+      {
+        "page": 6,
+        "count": 1,
+        "context": "Mrs. Bennet we have glanced at",
+        "chunk_id": "4ddd1e59-1b6b-4728-a08a-74d5466eeb12",
+        "chapter_number": null
+      },
+      {
+        "page": 6,
+        "count": 1,
+        "context": "poor Mrs. Bennet's anguish over the entail. The Bingleys and the Gardiners and the Lucases, Miss Darcy and Miss de Bourgh, Jane, Wickham, and the rest",
+        "chunk_id": "7fe1983d-baed-4dd8-a894-f9125ff19c55",
+        "chapter_number": null
+      },
+      {
+        "page": 9,
+        "count": 1,
+        "context": "Mrs. Bennet and her two youngest girls 53 Heading to Chapter X. 60 No, no; stay where you are 67 Piling up the fire 69 Heading to Chapter XII. 75 Heading to Chapter XIII. 78 Heading to Chapter XIV. 84",
+        "chunk_id": "e8286fbe-7f1e-4658-9336-954b78507013",
+        "chapter_number": null
+      },
+      {
+        "page": 12,
+        "count": 1,
+        "context": "Mrs. Bennet was a woman of mean understanding, little information, and uncertain temper.",
+        "chunk_id": "64ccfff5-0241-41e3-a621-08a2e948d66e",
+        "chapter_number": 1
+      },
+      {
+        "page": 13,
+        "count": 1,
+        "context": "Mrs. Bennet was a woman of mean understanding, little information, and uncertain temper.",
+        "chunk_id": "a29b9eeb-5c51-4250-8d1b-9cb846b727cd",
+        "chapter_number": 1
+      },
+      {
+        "page": 14,
+        "count": 1,
+        "context": "Mrs. Bennet deigned not to make any reply; but, unable to contain herself, began scolding one of her daughters.",
+        "chunk_id": "067c1061-ca51-4393-99ac-0ae8ac438bfc",
+        "chapter_number": 2
+      },
+      {
+        "page": 23,
+        "count": 1,
+        "context": "Mrs. Bennet; 'and if I were to see you at it, I should take away your bottle directly.'",
+        "chunk_id": "3b444188-7bd8-4ce8-98ac-b1fdc862d5de",
+        "chapter_number": 6
+      },
+      {
+        "page": 28,
+        "count": 3,
+        "context": "The two youngest of the family, Catherine and Lydia, were particularly frequent in these attentions: their minds were more vacant than their sisters', and when nothing better offered, a walk to Meryton was necessary to amuse their morning hours and furnish conversation for the evening; and, however bare of news the country in general might be, they always contrived to learn some from their aunt. At present, indeed, they were well supplied both with news and happiness by the recent arrival of a militia regiment in the neighbourhood; it was to remain the whole winter, and Meryton was the head-quarters. Their visits to Mrs. Philips were now productive of the most interesting intelligence.",
+        "chunk_id": "29d495d6-717e-400f-bdcd-581fa02dae5d",
+        "chapter_number": 7
+      },
+      {
+        "page": 29,
+        "count": 3,
+        "context": "'Dining out,' said Mrs. Bennet; 'that is very unlucky.'",
+        "chunk_id": "b2a09eb0-3a25-444a-b57c-80d8bed11ebb",
+        "chapter_number": 7
+      },
+      {
+        "page": 35,
+        "count": 1,
+        "context": "Elizabeth joined them again only to say that her sister was worse, and that she could not leave her. Bingley urged Mr. Jones's being sent for immediately; while his sisters, convinced that no country advice could be of any service, recommended an express to town for one of the most eminent physicians.",
+        "chunk_id": "57abcf2b-0043-4883-9cd7-310a38c878a5",
+        "chapter_number": 8
+      },
+      {
+        "page": 37,
+        "count": 1,
+        "context": "she requested to have a note sent to Longbourn, desiring her mother to visit Jane, and form her own judgment of her situation. The note was immediately despatched, and its contents as quickly complied with. Mrs. Bennet, accompanied by her two youngest girls, reached Netherfield soon after the family breakfast.",
+        "chunk_id": "7054714e-42f3-41e5-b8cc-8a4490e382ed",
+        "chapter_number": 9
+      },
+      {
+        "page": 38,
+        "count": 1,
+        "context": "Mrs. Bennet, who fancied she had gained a complete victory over him, continued her triumph,",
+        "chunk_id": "88c47523-2f0b-4678-90ae-bbd49e1a65f2",
+        "chapter_number": 9
+      },
+      {
+        "page": 39,
+        "count": 2,
+        "context": "She longed to speak, but could think of nothing to say; and after a short silence Mrs. Bennet began repeating her thanks to Mr. Bingley for his kindness to Jane, with an apology for troubling him also with Lizzy.",
+        "chunk_id": "5dba184b-82de-4f11-8e0a-36aefc0a99b8",
+        "chapter_number": 9
+      },
+      {
+        "page": 49,
+        "count": 1,
+        "context": "They were not welcomed home very cordially by their mother. Mrs. Bennet wondered at their coming, and thought them very wrong to give so much trouble, and was sure Jane would have caught cold again.",
+        "chunk_id": "8afc44b3-e53f-494b-9e33-b14a78834096",
+        "chapter_number": 10
+      },
+      {
+        "page": 50,
+        "count": 1,
+        "context": "Mrs. Bennet's eyes sparkled. 'A gentleman and a stranger! It is Mr. Bingley, I am sure. Why, Jane--you never dropped a word of this--you sly thing! Well, I am sure I shall be extremely glad to see Mr. Bingley.",
+        "chunk_id": "2ff46c85-e256-46a2-b9ab-7dc3a2230f71",
+        "chapter_number": 10
+      },
+      {
+        "page": 74,
+        "count": 4,
+        "context": "The Longbourn party were the last of all the company to depart; and by a man\u0153uvre of Mrs. Bennet had to wait for their carriage a quarter of an hour after everybody else was gone, which gave them time to see how heartily they were wished away by some of the family.",
+        "chunk_id": "5b40440e-3d04-4176-8e08-b4d2750976ff",
+        "chapter_number": 18
+      },
+      {
+        "page": 76,
+        "count": 3,
+        "context": "Bennet at conversation, and, by so doing, threw a languor over the whole party, which was very little relieved by the long speeches of Mr. Collins, who was complimenting Mr. Bingley and his sisters on the elegance of their entertainment, and the hospitality and politeness which had marked their behaviour to their guests.",
+        "chunk_id": "b0ba1f93-0495-4413-a291-f62173bae2b6",
+        "chapter_number": 19
+      },
+      {
+        "page": 76,
+        "count": 1,
+        "context": "On finding Mrs. Bennet, Elizabeth, and one of the younger girls together, soon after breakfast, he addressed the mother in these words,-- 'May I hope, madam, for your interest with your fair daughter Elizabeth, when I solicit for the honour of a private audience with her in the course of this morning?' Before Elizabeth had time for anything but a blush of surprise, Mrs. Bennet instantly answered,-- 'Oh dear! Yes, certainly. I am sure Lizzy will be very happy--I am sure she can have no objection.",
+        "chunk_id": "c11befb4-8815-41a4-90ec-4e3d2a50fd8c",
+        "chapter_number": 19
+      },
+      {
+        "page": 79,
+        "count": 6,
+        "context": "Mrs. Bennet, having dawdled about in the vestibule to watch for the end of the conference, no sooner saw Elizabeth open the door and with quick step pass her towards the staircase, than she entered the breakfast-room",
+        "chunk_id": "fd5e9328-f521-4123-a2d6-e64b62a650c9",
+        "chapter_number": 20
+      },
+      {
+        "page": 81,
+        "count": 1,
+        "context": "Not yet, however, in spite of her disappointment in her husband, did Mrs. Bennet give up the point. She talked to Elizabeth again and again;",
+        "chunk_id": "6dbcac84-cba8-43b6-8056-4014b36d81fd",
+        "chapter_number": 20
+      },
+      {
+        "page": 81,
+        "count": 1,
+        "context": "no sooner had they entered the breakfast-room, where Mrs. Bennet was alone, than she likewise began on the subject, calling on Miss Lucas for her compassion, and entreating her to persuade her friend Lizzy to comply with the wishes of her family.",
+        "chunk_id": "667031c8-fcc5-4f51-b2d6-6a6716b29904",
+        "chapter_number": 20
+      },
+      {
+        "page": 87,
+        "count": 1,
+        "context": "Mrs. Bennet, with great politeness and cordiality, said how happy they should be to see him at Longbourn again, whenever his other engagements might allow him to visit them.",
+        "chunk_id": "506b8f67-6358-4ecb-942e-4d54c3787a0b",
+        "chapter_number": 22
+      },
+      {
+        "page": 88,
+        "count": 1,
+        "context": "Mrs. Bennet wished to understand by it that he thought of paying his addresses to one of her younger girls, and Mary might have been prevailed on to accept him.",
+        "chunk_id": "f56272bd-d679-48cd-8612-3c944ee7012b",
+        "chapter_number": 22
+      },
+      {
+        "page": 90,
+        "count": 2,
+        "context": "for Mrs. Bennet, with more perseverance than politeness, protested he must be entirely mistaken; and Lydia, always unguarded and often uncivil, boisterously exclaimed,-- 'Good Lord! Sir William, how can you tell such a story? Do not you know that Mr. Collins wants to marry Lizzy?'",
+        "chunk_id": "02a9df99-18d8-4278-a0b4-e79061c0c993",
+        "chapter_number": 23
+      },
+      {
+        "page": 91,
+        "count": 1,
+        "context": "Mr. Collins's return into Hertfordshire was no longer a matter of pleasure to Mrs. Bennet. On the contrary, she was as much disposed to complain of it as her husband.",
+        "chunk_id": "ac54bccb-86e1-4626-9b6b-9eb943918251",
+        "chapter_number": 23
+      },
+      {
+        "page": 92,
+        "count": 2,
+        "context": "Bingley's continued absence. Neither Jane nor Elizabeth were comfortable on this subject. Day after day passed away without bringing any other tidings of him than the report which shortly prevailed in Meryton of his coming no more to Netherfield the whole winter; a report which highly incensed Mrs. Bennet, and which she never failed to contradict as a most scandalous falsehood.",
+        "chunk_id": "48602eb8-63c6-4c25-8adb-b33dccc79962",
+        "chapter_number": 23
+      },
+      {
+        "page": 93,
+        "count": 1,
+        "context": "Jane... after a longer irritation than usual about Netherfield and its master, she could not help saying,--",
+        "chunk_id": "e097ee59-ad30-45f7-a482-ee9065b2ae34",
+        "chapter_number": 24
+      },
+      {
+        "page": 95,
+        "count": 1,
+        "context": "Mrs. Bennet's best comfort was, that Mr. Bingley must be down again in the summer.",
+        "chunk_id": "03a27418-b84a-420b-960b-c0972d533632",
+        "chapter_number": 24
+      },
+      {
+        "page": 96,
+        "count": 1,
+        "context": "Mrs. Bennet had many grievances to relate, and much to complain of. They had all been very ill-used since she last saw her sister.",
+        "chunk_id": "f5c518fe-852f-4f69-8d3d-f7b843359294",
+        "chapter_number": 25
+      },
+      {
+        "page": 138,
+        "count": 1,
+        "context": "I am not in my power to accept it. I must be in town next Saturday.' 'Why, at that rate, you will have been here only six weeks. I expected you to stay two months. I told Mrs. Collins so before you came. There can be no occasion for your going so soon. Mrs. Bennet could certainly spare you for another fortnight.",
+        "chunk_id": "00d71a14-d5aa-4072-9a4c-c1290460d9fe",
+        "chapter_number": 37
+      },
+      {
+        "page": 143,
+        "count": 1,
+        "context": "Their reception at home was most kind. Mrs. Bennet rejoiced to see Jane in undiminished beauty; and more than once during dinner did Mr. Bennet say voluntarily to Elizabeth,",
+        "chunk_id": "9f5a1d2b-16f2-4273-bf9d-b1a401d9aee8",
+        "chapter_number": 38
+      },
+      {
+        "page": 144,
+        "count": 1,
+        "context": "Mrs. Bennet was doubly engaged, on one hand collecting an account of the present fashions from Jane, who sat some way below her, and on the other, retailing them all to the younger Miss Lucases;",
+        "chunk_id": "9ac01800-80fa-49fd-a65f-d60fab84850c",
+        "chapter_number": 38
+      },
+      {
+        "page": 147,
+        "count": 1,
+        "context": "Well, Lizzy,' said Mrs. Bennet, one day, 'what is your opinion _now_ of this sad business of Jane's?",
+        "chunk_id": "e91899a9-83a8-4ac6-97d3-605ecb907650",
+        "chapter_number": 40
+      },
+      {
+        "page": 149,
+        "count": 1,
+        "context": "Their affectionate mother shared all their grief; she remembered what she had herself endured on a similar occasion five-and-twenty years ago.",
+        "chunk_id": "df1ae771-962f-4c5a-8a1b-dea757b5e40d",
+        "chapter_number": 41
+      },
+      {
+        "page": 181,
+        "count": 1,
+        "context": "Mrs. Bennet, to whose apartment they all repaired, after a few minutes' conversation together, received them exactly as might be expected; with tears and lamentations of regret, invectives against the villainous conduct of Wickham, and complaints of her own sufferings and ill-usage; blaming everybody but the person to whose ill-judging indulgence the errors of her daughter must be principally owing.",
+        "chunk_id": "e7f9846b-7e15-4f79-ba90-eb798bacf4e3",
+        "chapter_number": 47
+      },
+      {
+        "page": 181,
+        "count": 1,
+        "context": "Mr. Gardiner, after general assurances of his affection for her and all her family, told her that he meant to be in London the very next day, and would assist Mr. Bennet in every endeavour for recovering Lydia.",
+        "chunk_id": "d6d261d7-2ebd-4a7e-a9d5-2243addd7dca",
+        "chapter_number": 47
+      },
+      {
+        "page": 185,
+        "count": 1,
+        "context": "and their uncle promised, at parting, to prevail on Mr. Bennet to return to Longbourn as soon as he could, to the great consolation of his sister, who considered it as the only security for her husband's not being Mrs. Gardiner and the children were to remain in Hertfordshire a few days longer, as the former thought her presence might be serviceable to her nieces.",
+        "chunk_id": "8c6e4bf4-e46c-4204-865a-6a1537058b18",
+        "chapter_number": 48
+      },
+      {
+        "page": 187,
+        "count": 1,
+        "context": "When Mr. Bennet arrived, he had all the appearance of his usual philosophic composure. He said as little as he had ever been in the habit of saying; made no mention of the business that had taken him away; and it was some time before his daughters had courage to speak of it.",
+        "chunk_id": "f6058b0d-d4e1-4059-9c7c-358a6ccb2376",
+        "chapter_number": 48
+      },
+      {
+        "page": 198,
+        "count": 1,
+        "context": "Smiles decked the face of Mrs. Bennet, as the carriage drove up to the door; her husband looked impenetrably grave; her daughters, alarmed, anxious, uneasy.",
+        "chunk_id": "fac4f49a-09c5-4a49-b8c7-bb2edaed1843",
+        "chapter_number": 51
+      },
+      {
+        "page": 199,
+        "count": 3,
+        "context": "'Very true; and if I had my will we should. But, my dear Lydia, I don't at all like your going such a way off. Must it be so?'",
+        "chunk_id": "bdb05eaa-21bc-4dd9-8367-ac1e37fc7e97",
+        "chapter_number": 51
+      },
+      {
+        "page": 206,
+        "count": 1,
+        "context": "Bennet and Lydia are going in the carriage to Meryton.",
+        "chunk_id": "170c0514-9029-4888-979b-96f8a365a826",
+        "chapter_number": 52
+      },
+      {
+        "page": 208,
+        "count": 1,
+        "context": "and Mrs. Bennet was forced to submit to a separation",
+        "chunk_id": "2a0ecb3f-d2f7-41f3-97a6-3ecf94ada3de",
+        "chapter_number": 52
+      },
+      {
+        "page": 208,
+        "count": 1,
+        "context": "The loss of her daughter made Mrs. Bennet very dull for several days.",
+        "chunk_id": "13296d9f-4201-40ea-a405-9d75677a2eb5",
+        "chapter_number": 52
+      },
+      {
+        "page": 208,
+        "count": 1,
+        "context": "Mrs. Bennet was quite in the fidgets.",
+        "chunk_id": "6c37de2f-5517-412d-a66d-e600359085ab",
+        "chapter_number": 52
+      },
+      {
+        "page": 209,
+        "count": 1,
+        "context": "Mrs. Bennet, 'you will wait on him, of course.'",
+        "chunk_id": "df65a6d9-d1f9-4d11-82fd-0e917003c521",
+        "chapter_number": 52
+      },
+      {
+        "page": 221,
+        "count": 1,
+        "context": "they were of course all intending to be surprised: but their astonishment was beyond their expectation; and on the part of Mrs. Bennet and Kitty, though she was perfectly unknown to them, even inferior to what Elizabeth felt.",
+        "chunk_id": "23865af5-e5c7-4e87-92af-a777138a0c25",
+        "chapter_number": 56
+      },
+      {
+        "page": 235,
+        "count": 1,
+        "context": "She had only to say in reply, that they had wandered about till she was beyond her own knowledge.",
+        "chunk_id": "354258e5-647e-4118-9f99-b42696d719ab",
+        "chapter_number": 58
+      },
+      {
+        "page": 236,
+        "count": 1,
+        "context": "As soon as they entered, Bingley looked at her so expressively, and shook hands with such warmth, as left no doubt of his good information;",
+        "chunk_id": "a7125985-467f-4772-9770-5cd7f823d343",
+        "chapter_number": 58
+      },
+      {
+        "page": 238,
+        "count": 2,
+        "context": "When her mother went up to her dressing-room at night, she followed her, and made the important communication.",
+        "chunk_id": "fecd325d-1a1a-48a9-9f54-30e6d6b5892b",
+        "chapter_number": 58
+      },
+      {
+        "page": 243,
+        "count": 1,
+        "context": "Happy for all her maternal feelings was the day on which Mrs. Bennet got rid of her two most deserving daughters.",
+        "chunk_id": "6b77a8bc-5421-49fc-93c8-3bff08c9c444",
+        "chapter_number": 61
+      }
+    ]
+  }
+]

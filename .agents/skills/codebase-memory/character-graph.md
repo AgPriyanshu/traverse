@@ -55,6 +55,18 @@ Tiering method (`mention_count` | `participation`) is chosen by the
 `api.config.settings` (orchestrator-owned, no such key yet — SCR filed in
 `plans/sprint-3/SCR.md`).
 
+**A bare given name never blocks against a bare "Miss/Mrs. <Surname>".**
+`_blocking_pairs` keys on the honorific-stripped first/last token, so "Jane"
+(token `Jane`) and "Miss Bennet" (token `Bennet`) share nothing and are never
+even proposed as a pair — this is a gap in reach, not a wrong merge decision,
+and `collision.py`'s sibling-ambiguity veto never runs on them either. Do not
+"fix" this by matching on the Regency eldest-daughter convention (bare
+"Miss <Surname>" = eldest unmarried daughter): verified on the real Pride and
+Prejudice roster that the convention does not hold everywhere in one book —
+ch. 56 has Lady Catherine address Elizabeth, not Jane, as "Miss Bennet" — so a
+blanket merge would misattribute a real scene. Left split; regression test at
+`api/tests/extraction/test_jane_miss_bennet_split.py` pins this on purpose.
+
 ## Name collision — the headline correctness case
 
 Two characters can share a name (Catherine Earnshaw / Catherine Linton). String
