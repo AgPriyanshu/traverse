@@ -57,19 +57,27 @@ async def _extract_relations(book_id: UUID, record: StageRecord) -> None:
     """
     async with db_session() as session:
         entries = await repository.load_book_roster(session, book_id)
-        chunks = await pipeline_repository.list_chunks_with_chapter_number(
+        raw_chunks = await pipeline_repository.list_chunks_with_chapter_number(
             session, book_id
         )
-        candidate_ids, prefilter = await inputs.candidate_chunk_ids(session, book_id)
+        reading_chunks, candidate_ids, prefilter, members = (
+            await inputs.candidate_reading_chunks(session, book_id, raw_chunks)
+        )
 
     if not entries:
         raise PermanentError(f"book {book_id} has no roster; run pass 1 first")
 
     roster = choose_roster(entries)
     result = await extract_book(
-        chunks, roster, book_id=book_id, only_chunk_ids=candidate_ids
+        reading_chunks, roster, book_id=book_id, only_chunk_ids=candidate_ids
     )
-    summary = {**result.summary(), "prefilter_source": prefilter}
+    raw_read = sum(len(members.get(unit_id, (unit_id,))) for unit_id in candidate_ids)
+    summary = {
+        **result.summary(),
+        "prefilter_source": prefilter,
+        "raw_chunks_total": len(raw_chunks),
+        "raw_chunks_read": raw_read,
+    }
     logger.info("book %s pass 2: %s", book_id, summary)
 
     payload = {
