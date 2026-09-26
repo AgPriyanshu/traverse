@@ -94,11 +94,47 @@ checking first rather than assuming today's number is zero.
 
 ## S5.15 — Multi-book orchestration
 
-*(added once implemented — see below)*
+`scripts/ingest_series.py` + `make ingest-series PROJECT=<series key>`:
+queues an entire series through the real API in order. Sequential by
+default (upload one book, poll to terminal, then the next — always
+race-free regardless of whether the reconcile lock in SCR-2 exists yet);
+`--concurrent` fires every upload immediately as a deliberate stress test.
+`--reverse` uploads in reverse sequence while every book keeps its true
+`series_order` — the mechanism the order-independence checksum check
+(S5.14's `GET /ops/reconciliation-order-check`) depends on.
 
-## S5.15 — Multi-book orchestration
+Per-book report: wall clock, pass-1/pass-2 local-amortised cost
+(`GET /ops/extraction-cost` / `/relation-cost`), roster size after that book
+(`GET /projects/{id}` `character_count`), aggregated into a
+**roster-growth cost curve** — the ratio of (pass-2 cost growth) to (roster
+size growth) between consecutive books, flagged if it runs consistently
+above ~1.15 (superlinear). This is plumbing, not yet a measured number:
+running it for real needs the reconcile stage merged (same dependency as
+S5.14).
 
-*(added once implemented — see below)*
+**Per-project reconcile lock (SCR-2): not built by do1, cannot be.** The
+lock has to be acquired inside the Celery task
+(`_reconcile_characters`/`api/pipeline/tasks.py`) where the transaction
+actually runs; `api/pipeline/**` and `api/workers/**` are be1-owned, and
+`scripts/**` genuinely cannot reach into that process. `--concurrent` is
+built as an honest stress-test harness (fires every upload with no
+between-book wait) rather than a fake "proof" — flagged to the orchestrator/
+be1 in SCR-2 rather than silently assumed to exist.
+
+## Verification
+
+Everything in this handoff is real, unit-tested code (`eval/tests/`,
+`scripts/test_ingest_series.py`, `scripts/test_label_roster.py` all pass
+locally: `pytest eval/tests scripts/test_label_roster.py
+scripts/test_ingest_series.py -q`). What is **not** verified is a live
+number from a real multi-book ingestion run, because
+`pipeline.reconcile_characters` (be1, S5.1/S5.2) is still a stub in this
+worktree's history — the same position S3.14's extraction-quality eval was
+in before be1's pass 1 merged (`plans/sprint-3/HANDOFF.md`). Re-run
+`make seed-series && make eval-reconciliation PROJECT=anne-of-green-gables`
+and `make ingest-series PROJECT=anne-of-green-gables` once be1/be2's Sprint 5
+work lands on `ai-master` — no code change should be needed here for real
+numbers to start appearing.
 
 ## Known carried infra items (spot-checked, not re-investigated)
 

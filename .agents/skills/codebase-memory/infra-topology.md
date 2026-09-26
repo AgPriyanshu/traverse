@@ -119,6 +119,16 @@ per-book checksum pins), `api/ops/reconciliation_quality.py` behind
 reconcile output** — `pipeline.reconcile_characters` (be1, S5.1/S5.2) is
 still a stub in this branch's history; see plans/sprint-5/HANDOFF.md.
 
+**Built (S5, do1):** `scripts/ingest_series.py` + `make ingest-series
+PROJECT=<series key>` — queues a whole series in order, sequential by
+default (always race-free) or `--concurrent` (a deliberate stress test, see
+SCR-2: the real per-project reconcile lock lives in be1's
+`api/pipeline/tasks.py`, not reachable from a script). Reports per-book wall
+clock/cost/prefix-cache hit rate and a roster-growth cost curve (flags
+superlinear pass-2-cost-vs-roster-size growth). `--reverse` uploads books in
+reverse sequence while keeping each book's true `series_order`, feeding the
+order-independence checksum check.
+
 **Not built:** anything else in Sprint 5+.
 
 ## Services

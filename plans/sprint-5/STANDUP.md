@@ -21,7 +21,16 @@ is real and unit-tested; the live numbers are unverified until be1's
 `pipeline.reconcile_characters` (S5.1/S5.2, still a stub in this worktree)
 merges — same situation S3.14 was in pre-be1-merge.
 
-**Next:** S5.15 (multi-book orchestration).
+**Also landed:** S5.15 (multi-book orchestration). `scripts/ingest_series.py`
++ `make ingest-series PROJECT=<series key>` — sequential by default
+(race-free regardless of SCR-2), `--concurrent` as an honest stress-test
+harness, `--reverse` for the order-independence check. Per-book cost/time
+report plus a roster-growth cost curve (flags superlinear pass-2 cost
+growth). All three S5.13/14/15 stories are now implemented and committed.
 
-**Blocked:** SCR-2 (per-project reconcile lock) blocks S5.15's own
-concurrency-proof DoD line, not the rest of S5.15.
+**Next:** the full verification pass (build, targeted + full test run,
+lint) requested at the end of today's session, then push.
+
+**Blocked:** SCR-2 (per-project reconcile lock) blocks a live proof of
+S5.15's concurrency DoD line, not the code itself — see SCR.md and
+HANDOFF.md. Everything else in this sprint's do1 scope is unblocked.
