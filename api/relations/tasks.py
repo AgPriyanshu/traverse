@@ -56,7 +56,7 @@ async def _extract_relations(book_id: UUID, record: StageRecord) -> None:
     ``relations.aggregate`` has grouped, oriented and evidenced it.
     """
     async with db_session() as session:
-        entries = await repository.load_book_roster(session, book_id)
+        entries = await repository.load_project_roster(session, book_id)
         raw_chunks = await pipeline_repository.list_chunks_with_chapter_number(
             session, book_id
         )

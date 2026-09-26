@@ -1,9 +1,9 @@
 from uuid import UUID
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, or_, select
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
-from ..contracts.enums import ReviewStatus, ReviewTaskType
+from ..contracts.enums import ImportanceTier, ReviewStatus, ReviewTaskType
 from ..contracts.graph import AggregatedRelation
 from ..db.models import (
     Book,
@@ -17,11 +17,20 @@ from ..db.models import (
 from .aggregate import Fact
 from .roster import RosterEntry, descriptor_from_attributes
 
+# Tiers a series roster always carries, project-wide, regardless of which book
+# pass 2 is reading — a later book stating a fact about an earlier book's lead
+# character is the whole point of S5.5.
+_ALWAYS_TIERS = (ImportanceTier.PROTAGONIST, ImportanceTier.MAJOR)
+
 
 async def load_book_roster(
     session: SQLModelAsyncSession, book_id: UUID
 ) -> list[RosterEntry]:
-    """Return the characters that appear in one book, as roster entries."""
+    """Return the characters that appear in one book, as roster entries.
+
+    Book-local view only — use :func:`load_project_roster` for pass 2, which
+    needs the series' cross-book roster, not just this book's.
+    """
     statement = (
         select(Character, CharacterAppearance.importance_tier)
         .join(CharacterAppearance, CharacterAppearance.character_id == Character.id)
@@ -37,6 +46,62 @@ async def load_book_roster(
             descriptor=descriptor_from_attributes(character.attributes or {}),
         )
         for character, tier in rows
+    ]
+
+    return entries
+
+
+async def load_project_roster(
+    session: SQLModelAsyncSession, book_id: UUID
+) -> list[RosterEntry]:
+    """Return the project's roster for pass 2, tier-scoped to one book.
+
+    In a series the roster pass 2 reads against is the **project's**, not the
+    book's (S5.5) — that is what lets book 5 state a fact about a book-1
+    character and land it on the same node. Protagonist and major characters
+    are always included, project-wide; minor and mentioned characters are
+    included only when this book itself has produced an appearance or a
+    mention for them, so an eight-book series does not carry every walk-on
+    character from book one into book eight's prompt prefix.
+
+    Returns:
+        Roster entries covering the whole project, tier-scoped to ``book_id``.
+        Empty if the book does not exist.
+    """
+    book = await session.get(Book, book_id)
+    if book is None:
+        return []
+
+    local_appearance = (
+        select(CharacterAppearance.id)
+        .where(CharacterAppearance.character_id == Character.id)
+        .where(CharacterAppearance.book_id == book_id)
+        .exists()
+    )
+    local_mention = (
+        select(CharacterMention.id)
+        .where(CharacterMention.character_id == Character.id)
+        .where(CharacterMention.book_id == book_id)
+        .exists()
+    )
+    statement = select(Character).where(
+        Character.project_id == book.project_id,
+        or_(
+            Character.importance_tier.in_(_ALWAYS_TIERS),
+            local_appearance,
+            local_mention,
+        ),
+    )
+    characters = (await session.execute(statement)).scalars().all()
+    entries = [
+        RosterEntry(
+            id=character.id,
+            canonical_name=character.canonical_name,
+            aliases=tuple(sorted(set(character.aliases or []))),
+            tier=character.importance_tier,
+            descriptor=descriptor_from_attributes(character.attributes or {}),
+        )
+        for character in characters
     ]
 
     return entries
@@ -116,22 +181,37 @@ async def replace_conflict_tasks(
     return len(payloads)
 
 
-async def load_facts_from_other_books(
-    session: SQLModelAsyncSession, project_id: UUID, exclude_book_id: UUID
+async def load_project_facts(
+    session: SQLModelAsyncSession,
+    project_id: UUID,
+    *,
+    exclude_book_id: UUID | None = None,
 ) -> list[Fact]:
-    """Return the project's standing evidence from every book except one.
+    """Return the project's standing machine-made evidence, as raw facts.
 
     Aggregation recomputes the whole project from raw evidence rather than
     patching edges, which is what makes ingesting book 3 before book 2 come out
-    the same as the other order.
+    the same as the other order — and what lets a book's removal converge to a
+    consistent graph through the same recompute rather than a bespoke
+    "subtract one book" code path (S5.8).
+
+    Args:
+        session: An open database session.
+        project_id: The project whose evidence is loaded.
+        exclude_book_id: Omit one book's evidence — the shape a book's own
+            pass 2 needs while its fresh extraction is still staged, so its
+            facts are added back in from that run rather than the previous
+            one's stale copy.
     """
     statement = (
         select(Relation, RelationEvidence)
         .join(RelationEvidence, RelationEvidence.relation_id == Relation.id)
         .where(Relation.project_id == project_id)
         .where(Relation.human_verified.is_(False))
-        .where(RelationEvidence.book_id != exclude_book_id)
     )
+    if exclude_book_id is not None:
+        statement = statement.where(RelationEvidence.book_id != exclude_book_id)
+
     facts = [
         Fact(
             subject_id=relation.subject_character_id,
@@ -150,6 +230,17 @@ async def load_facts_from_other_books(
         )
         for relation, evidence in (await session.execute(statement)).all()
     ]
+
+    return facts
+
+
+async def load_facts_from_other_books(
+    session: SQLModelAsyncSession, project_id: UUID, exclude_book_id: UUID
+) -> list[Fact]:
+    """Return the project's standing evidence from every book except one."""
+    facts = await load_project_facts(
+        session, project_id, exclude_book_id=exclude_book_id
+    )
 
     return facts
 

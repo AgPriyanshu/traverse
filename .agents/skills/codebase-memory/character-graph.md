@@ -126,12 +126,18 @@ for a book** or vLLM's prefix cache misses and cost roughly doubles with no erro
 Sort the roster deterministically. A dict-ordering change breaks this silently.
 Target ≥80% cache hit rate; it is alerted on in the ops dashboard.
 
-**In a series the roster is the project's, not the book's** (S5) — that is what
-lets book 5 state a fact about a book-1 character. The roster therefore grows with
-the series, and the tier-filtered roster (protagonist + major always; minor only
-when present in this book or chapter) stops being an optimisation. The prefix
-must be byte-identical per **book**, not per project, since each book's tier
-filter differs.
+**In a series the roster is the project's, not the book's** (`load_project_roster`,
+`api/relations/repository.py`, S5.5 — **Built**) — that is what lets book 5 state
+a fact about a book-1 character. Protagonist and major characters are always
+included, project-wide; minor and mentioned characters are included only when
+*this* book itself has produced an appearance or a mention for them (checked
+directly against `CharacterAppearance`/`CharacterMention`, not a chunk- or
+chapter-scoped check — the roster is computed once per book, which is what keeps
+the prefix byte-identical for every call within that book). The roster therefore
+grows with the series rather than the book, and the tier filter stops being an
+optimisation. The prefix must be byte-identical per **book**, not per project,
+since each book's tier filter differs — `load_book_roster` still exists for the
+book-local view (review UIs, etc.); pass 2 itself no longer calls it.
 
 ## Edge rules
 
