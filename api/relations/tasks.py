@@ -60,9 +60,12 @@ async def _extract_relations(book_id: UUID, record: StageRecord) -> None:
         raw_chunks = await pipeline_repository.list_chunks_with_chapter_number(
             session, book_id
         )
-        reading_chunks, candidate_ids, prefilter, members = (
-            await inputs.candidate_reading_chunks(session, book_id, raw_chunks)
-        )
+        (
+            reading_chunks,
+            candidate_ids,
+            prefilter,
+            members,
+        ) = await inputs.candidate_reading_chunks(session, book_id, raw_chunks)
 
     if not entries:
         raise PermanentError(f"book {book_id} has no roster; run pass 1 first")

@@ -10,7 +10,12 @@ A, B = uuid.uuid4(), uuid.uuid4()
 
 def make_chunk(text: str, page: int) -> DocumentChunk:
     return DocumentChunk(
-        id=uuid.uuid4(), book_id=BOOK, text=text, pages=[page], page_start=page, page_end=page
+        id=uuid.uuid4(),
+        book_id=BOOK,
+        text=text,
+        pages=[page],
+        page_start=page,
+        page_end=page,
     )
 
 
@@ -83,5 +88,7 @@ def test_scene_member_order_and_page_span_are_preserved():
     units, _, _ = build_reading_chunks([(first, 1), (second, 1)], [scene])
 
     unit, _ = units[0]
-    assert unit.text.index("Elizabeth walked in.") < unit.text.index("Darcy followed her.")
+    assert unit.text.index("Elizabeth walked in.") < unit.text.index(
+        "Darcy followed her."
+    )
     assert unit.page_start == 10 and unit.page_end == 11

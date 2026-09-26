@@ -10,7 +10,9 @@ def build_reading_chunks(
     chunks: list[tuple[DocumentChunk, int | None]],
     scenes: list[SceneRow],
 ) -> tuple[
-    list[tuple[DocumentChunk, int | None]], dict[UUID, int], dict[UUID, tuple[UUID, ...]]
+    list[tuple[DocumentChunk, int | None]],
+    dict[UUID, int],
+    dict[UUID, tuple[UUID, ...]],
 ]:
     """Merge each scene's member chunks into one pass-2 reading unit.
 

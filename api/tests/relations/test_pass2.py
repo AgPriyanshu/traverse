@@ -83,9 +83,7 @@ def test_pronoun_only_quote_is_accepted_when_both_endpoints_are_in_the_chunk():
     r = roster()
     text = "Mr. Darcy proposed to Elizabeth Bennet. He asked for her hand in marriage."
 
-    result = validate(
-        raw(quote="He asked for her hand in marriage."), text, r, stats
-    )
+    result = validate(raw(quote="He asked for her hand in marriage."), text, r, stats)
 
     assert result is not None
     assert "quote_names_neither_endpoint" not in stats.by_reason
@@ -105,13 +103,9 @@ def test_pronoun_only_quote_still_needs_its_predicate_cue():
 def test_pronoun_only_quote_naming_a_third_character_is_still_rejected():
     stats = RejectionStats()
     r = roster()
-    text = (
-        "Mr. Darcy proposed to Elizabeth Bennet. Charles Bingley smiled at them."
-    )
+    text = "Mr. Darcy proposed to Elizabeth Bennet. Charles Bingley smiled at them."
 
-    result = validate(
-        raw(quote="Charles Bingley smiled at them."), text, r, stats
-    )
+    result = validate(raw(quote="Charles Bingley smiled at them."), text, r, stats)
 
     assert result is None
     assert stats.by_reason["quote_names_other_characters"] == 1
