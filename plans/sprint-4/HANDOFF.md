@@ -345,3 +345,68 @@ density an explorer graph would look nearly empty otherwise, and it is a
 cheap, non-LLM signal that does not compete with the precision problem
 above. Not implemented this run (no time left in the pass); a small addition
 to `graph.upsert` reading `scene_participant` directly.
+
+## be2 → all · re-run after the semaphore fix and be1's live roster correction (2026-09-26)
+
+**Bug found and fixed:** re-triggering `relations.extract` a second time in the
+same worker process crashed in 1.8s with `Semaphore ... bound to a different
+event loop`. `api/llm/client.py::semaphore()` kept a single process-wide
+`asyncio.Semaphore`; each Celery task wraps its body in its own
+`asyncio.run(...)` (a fresh loop per task, same worker process), and
+`Semaphore.acquire` binds to whichever loop first awaited it. Fixed by
+rebuilding the semaphore whenever the running loop differs from the one it
+was created on (`api/llm/client.py`, regression test in
+`api/tests/llm/test_client.py`). This is a previously-latent bug, not
+introduced this sprint — any worker child handling two LLM-calling tasks in a
+row would have hit it eventually, for any purpose.
+
+**Re-ran pass 2** on the same book after be1's live roster fix (Fitzwilliam
+Darcy merged, 73-character roster) and the semaphore fix:
+
+| | before (broken roster) | after (roster + semaphore fix) |
+|---|---|---|
+| completion | 731s (12.2 min) | 651s (10.8 min), no crash |
+| edges after aggregation | 28 | 29 |
+| evidence-free edges (Postgres + Neo4j) | 0 / 0 | 0 / 0 |
+| prefix-cache hit rate | 0.68 | 0.67 |
+| `GET /ops/relation-quality` P / R / F1 | 0.818 / 0.273 / 0.409 | **1.0 / 0.333 / 0.5** |
+
+The roster fix helped recall (0.273 → 0.333) but **not enough** — still less
+than half the 0.80 target. Precision on the gold overlap is 1.0, but the gold
+set only covers a subset of predicates; my own hand-check of all 29 edges
+found 2 clearly wrong (**~93% hand-checked precision** — see below), close to
+target but the gold number is optimistic.
+
+**Hand-check of the 29 edges, this run:** 27 correct, 2 wrong.
+- **Wrong:** `Mrs. Gardiner sibling_of Mr. Gardiner` — they are spouses. The
+  quote, "Mr. Gardiner was a sensible, gentlemanlike man, greatly superior to
+  his sister," is about Mr. Gardiner's actual sister **Mrs. Bennet**, not his
+  wife; the model (or roster resolution) attached "his sister" to the wrong
+  person entirely.
+- **Wrong:** `Sir William Lucas parent_of Miss Lydia Bennet` — the quote
+  ("Sir William Lucas himself appeared, sent by his daughter to announce her
+  engagement") is about Sir William's real daughter (Charlotte/Miss Lucas);
+  the object resolved to Lydia Bennet instead, who is not named in the
+  chunk's engagement passage at all.
+- Both are the same class of gap named in the earlier run: the endpoint and
+  cue checks confirm words are *present somewhere in the chunk*, not that the
+  predicate holds *between exactly this pair*. Still unresolved — a
+  proper fix needs the verifier (or the extractor) to reason over the
+  antecedent of pronouns like "his sister" / "her daughter", which a
+  substring-based check cannot do.
+- **Duplicate fact, not wrong:** `Elizabeth Bennet sibling_of Miss Bennet` is
+  the same fact as `Elizabeth Bennet sibling_of Jane` — `"Jane"` and
+  `"Miss Bennet"` are still two separate `Character` rows for Jane Bennet.
+  Same class of roster fragmentation as SCR-18, not fixed by be1's Darcy/Lucas
+  correction; still costing real recall (a fact naming "Miss Bennet" and one
+  naming "Jane" split into two edges instead of merging into one with more
+  evidence).
+
+**Honest bottom line: the roster fix was real and helped, but it is not the
+whole story.** Recall (0.333, best case) is still under half the 0.80 DoD
+target after both fixes. The remaining gap is pass-2 extraction coverage
+itself (231 of 719 chunks read; the extractor still declines to extract many
+real relationships the prose states) and the cited-quote-vs-claim precision
+class of bug above, not roster quality. **Sprint 4's relation-quality DoD is
+not met** — precision is plausibly close (93-100% depending on measurement),
+recall is not (0.33 vs 0.80).

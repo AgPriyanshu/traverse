@@ -74,3 +74,16 @@ a second-pass verifier).
   rows) that is costing real recall — SCR-16.
 - Full details, before/after table and the hand-checked edge list are in
   `HANDOFF.md`.
+
+## be2 — 2026-09-26
+
+Found and fixed a real bug: `api/llm/client.py`'s process-wide
+`asyncio.Semaphore` broke on the second Celery task in the same worker
+(event-loop mismatch) — latent since it was written, not new this sprint.
+Regression test added. Re-ran pass 2 after be1's live Darcy/Lucas roster fix:
+completion 10.8 min (was 12.2), no crash, evidence-free edges still 0/0.
+`GET /ops/relation-quality`: **P 1.0 / R 0.333 / F1 0.5** (was 0.818/0.273/0.409
+on the broken roster). Hand-check of all 29 edges: 27 correct, 2 wrong
+(pronoun-antecedent misattribution, same class as last time). **Recall is
+still well short of the 0.80 DoD target** even with both fixes — the roster
+fix helped but isn't the whole story; full details in `HANDOFF.md`.
