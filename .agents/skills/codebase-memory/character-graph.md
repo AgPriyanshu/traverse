@@ -15,7 +15,7 @@ Symbols over line numbers.
 | Alias cascade (S3.3), `honorifics.yaml`, `nicknames.yaml` | `api/extraction/aliases.py`, `api/extraction/normalization.py` | **Built** |
 | Name-collision guard (S3.4) | `api/extraction/collision.py` | **Built** |
 | Character records, tiering, attributes (S3.5) | `api/extraction/characters.py`, `tiering.py`, `attributes.py` | **Built** |
-| `pipeline.resolve_aliases` task body (clusters → `Character`/`CharacterAppearance`/`CharacterMention`, idempotent replace) | `api/pipeline/tasks.py`, `api/extraction/repository.py` | **Built** |
+| `pipeline.resolve_aliases` task body (clusters → `Character`/`CharacterAppearance`/`CharacterMention`, idempotent replace) | `api/pipeline/tasks.py`, `api/extraction/repository.py` | **Built** — `persist_characters` upserts by `(project_id, canonical_name)` and `sweep_orphaned_characters` runs only after the new roster is persisted, so a rerun reuses the same `Character.id` for an unchanged person (S4 fix; see plans/sprint-4/HANDOFF.md "roster5" — a rerun used to regenerate every id and cascade-delete `relation` rows while Neo4j still held the old ids) |
 | `cluster_contexts`, `MentionContext`, `similarity_threshold` (embedding similarity, stage 4 of the cascade) | `api/graph/similarity.py` | **Built** (S3.8) — threshold measured against real BGE-M3 + real text, not assumed; see `plans/sprint-3/HANDOFF.md`. Reuses `retrieval/repository.py::embedding_model()`, never a second copy. `api/extraction/similarity.py` lazy-imports it (degraded no-op if unavailable) — both are now landed so the degradation path is dead code in practice, kept for the same defensive reason it was written |
 | `merge_characters`, `split_character` (transactional, mention-accurate) | `api/graph/merge.py`, wired at `POST /characters/merge` and `POST /characters/{id}/split` | **Built** (S3.7) — both recompute appearances and derived fields from actual `CharacterMention` rows rather than adjusting counters, which is what makes a merge followed by a split restore the original partition |
 | `relations.extract` (pass 2) | `api/relations/` | **Built** (S4; `extract.py`, `validator.py`, `aggregate.py`, `graph/upsert.py`, reads in `graph/queries.py`) |
@@ -54,6 +54,18 @@ Tiering method (`mention_count` | `participation`) is chosen by the
 `TIERING_METHOD` env var, read directly in `tiering.py` rather than through
 `api.config.settings` (orchestrator-owned, no such key yet — SCR filed in
 `plans/sprint-3/SCR.md`).
+
+**A bare given name never blocks against a bare "Miss/Mrs. <Surname>".**
+`_blocking_pairs` keys on the honorific-stripped first/last token, so "Jane"
+(token `Jane`) and "Miss Bennet" (token `Bennet`) share nothing and are never
+even proposed as a pair — this is a gap in reach, not a wrong merge decision,
+and `collision.py`'s sibling-ambiguity veto never runs on them either. Do not
+"fix" this by matching on the Regency eldest-daughter convention (bare
+"Miss <Surname>" = eldest unmarried daughter): verified on the real Pride and
+Prejudice roster that the convention does not hold everywhere in one book —
+ch. 56 has Lady Catherine address Elizabeth, not Jane, as "Miss Bennet" — so a
+blanket merge would misattribute a real scene. Left split; regression test at
+`api/tests/extraction/test_jane_miss_bennet_split.py` pins this on purpose.
 
 ## Name collision — the headline correctness case
 
