@@ -41,7 +41,11 @@ RABBITMQ_VHOSTS="$AGENTS" $COMPOSE run --rm --no-deps \
   -e RABBITMQ_VHOSTS="$AGENTS" rabbitmq-init
 
 echo "==> MinIO buckets"
-buckets=""
+# traverse-test is included here too, same reasoning as the Postgres test
+# database above: it belongs to the `test` compose service, not to $AGENTS,
+# and a cluster running before MINIO_BUCKETS grew this entry needs the
+# idempotent path to pick it up.
+buckets="traverse-test"
 for agent in $AGENTS; do buckets="$buckets traverse-${agent}"; done
 $COMPOSE run --rm --no-deps \
   -e MINIO_BUCKETS="${buckets# }" minio-init

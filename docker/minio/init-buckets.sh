@@ -5,7 +5,7 @@ set -eu
 ENDPOINT="${MINIO_INTERNAL_ENDPOINT:-http://minio:9000}"
 ACCESS_KEY="${MINIO_ACCESS_KEY:-minioadmin}"
 SECRET_KEY="${MINIO_SECRET_KEY:-minioadmin}"
-BUCKETS="${MINIO_BUCKETS:-traverse-be1 traverse-be2 traverse-int}"
+BUCKETS="${MINIO_BUCKETS:-traverse-be1 traverse-be2 traverse-int traverse-test}"
 
 for attempt in $(seq 1 60); do
   if mc alias set local "$ENDPOINT" "$ACCESS_KEY" "$SECRET_KEY" >/dev/null 2>&1; then
