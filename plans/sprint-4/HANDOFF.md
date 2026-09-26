@@ -378,3 +378,74 @@ a "Miss Y" from the same book.
 roster, before this fix landed live. The 0.273 recall number is measured
 against that stale roster; worth a re-run against the current one before
 trusting the number as roster3's ceiling rather than a mix of two bugs.
+
+---
+
+## fe1 → all · S4.11–S4.13 verified against the real stack (2026-09-26)
+
+Branch `ai/fe1/sprint-4-verify`. Everything below was checked in a real
+headless browser (Playwright, installed locally for this session — not
+committed, no project dependency added) against the live API on
+`localhost:8000`/`:5174`, project `6146f7d0-…`, book `4d5750ce-…`.
+
+**No `web/src/**` code changes were needed.** Every real-data path I could
+drive — graph canvas, list view, evidence drawer, character-detail
+relationships, `RelationArc`, 400px, dark mode, keyboard-only interaction —
+rendered correctly or degraded gracefully (a real `ErrorState` with retry,
+never a blank crash or an infinite spinner). Full pass: `pnpm lint`,
+`pnpm tsc --noEmit`, `pnpm build` all clean; `docker compose --profile test
+build test-web` + `run --rm test-web` → 166/166 passing, unchanged.
+
+**Real graph is much smaller than 900 edges.** 73 characters / 29
+relationships live right now (be2's aggregation is intentionally
+conservative post-verifier — see be2's numbers above). List view and graph
+view both read correctly at this scale; nothing about the small size broke
+anything.
+
+**900-edge target checked with a synthetic 60-node/900-edge payload**
+(`page.route` intercepting the graph fetch, not committed anywhere — a
+throwaway script). Loaded in ~1.8s, a family-filter toggle updated the
+canvas in well under 300ms, no console errors, `hideEdgesOnViewport`/
+`textureOnViewport`/layout-computed-once all behaved as designed. I'm
+confident the current approach plausibly holds at 900; I did not benchmark
+on this shared host per BRANCH.md §9 (shared vLLM/GPU note doesn't apply
+here, but the box is still shared, so treat the ms numbers as directional).
+
+**400px and dark mode**, both against real P&P data: no horizontal overflow
+at 400px (list view auto-selects below 47em, per the existing
+`matchMedia` default), dark-mode canvas colours and legend all legible.
+Screenshots aren't committed; happy to regenerate on request.
+
+**SCR-12 (book_id scoping): confirmed NOT resolved.** See the SCR.md reply
+above — `_NODES` in `api/graph/queries.py` never filters by book, only
+`_EDGES` does. Invisible today (every project is single-book); will leak in
+Sprint 5. be2-owned, not fixed here.
+
+**Evidence panel and citations: verified against real quotes.** Once a
+live, in-progress pass-2 re-run (not started by fe1 — see the SCR.md finding
+below) finished mid-session, evidence items showed real cited text ("Of Mr.
+Darcy it was now a matter of anxiety to think well...", p. 165-168, ch. 44,
+narrated) and a correct single-state `RelationArc`. The current live corpus
+has **no pair with more than one relation state** (every arc is flat), so
+the 2-state and 3-state paths could not be re-confirmed against real data
+this session — they're still covered by the existing unit suite (166 green)
+and were exercised visually last sprint per the prior standup entry.
+
+**Page-ref click-through: routing and error handling verified; images
+cannot render.** Clicking a citation lands on the exact right page number
+(matches the evidence item's `page_start`). But `GET
+/api/books/{id}/pages/{n}` 500s for every page of both ingested books — the
+source PDF was never persisted (or no longer exists) at
+`books/{book_id}/source.pdf` in the shared MinIO bucket, confirmed by `mc
+ls`. Filed as SCR-19. The frontend's own behaviour here is correct: a
+loading skeleton, then (once the query client's 2-retry backoff exhausts,
+~4-5s) a real "Something went wrong / HTTP 500 / Try again" — no blank
+placeholder, no crash. SCR-10's evidence `span` field also still hasn't
+landed, so there's nothing to highlight yet even once an image renders.
+
+**A live data-integrity issue self-resolved mid-session** — see the SCR.md
+finding for the full timeline (Neo4j left orphaned relative to Postgres
+after a `resolve_aliases` rerun regenerated character ids, cascade-deleting
+`relation` rows; a fresh pass-2 run someone else kicked off fixed it while I
+was mid-verification). Recommending a retro item so it can't silently
+recur unnoticed next time; not something to fix from `web/src/**`.

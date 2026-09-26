@@ -86,3 +86,31 @@ from the real candidates. `Charlotte Lucas`/`Mrs. Collins` genuinely cannot
 merge without a textual marriage cue that isn't in the stored contexts —
 documented as a limitation, not fixed. be2's P&P pass-2 numbers were measured
 against the stale roster; flagged for a re-run.
+
+## fe1 — 2026-09-26
+
+**Verified S4.11–S4.13 against the real stack** (branch
+`ai/fe1/sprint-4-verify`), the item every prior standup entry flagged as
+unverified. Result: no `web/src/**` fix needed — the graph explorer, list
+view, evidence panel and character-detail relationships all rendered
+correctly or degraded gracefully (real `ErrorState` + retry, no crashes, no
+console errors) against real data, a transient bad-data window, and a
+synthetic 60-node/900-edge stress payload. 400px and dark mode both checked
+in a real headless browser. Full local pass clean: lint, tsc, build, and
+166/166 tests in `test-web`.
+
+**Found, not fixed (out of `web/src/**` scope):**
+- SCR-12 confirmed **not** resolved — `book_id` never filters the graph's
+  node list server-side, only its edges (`api/graph/queries.py`). Invisible
+  today, will leak in Sprint 5's multi-book projects.
+- Filed **SCR-19**: `source.pdf` is missing from the shared MinIO bucket for
+  both ingested books, so every page-image request 500s. Citation routing,
+  page numbering and the frontend's own error handling are all correct;
+  there's simply no image to render right now.
+- A transient Neo4j/Postgres desync (Neo4j left pointing at character ids
+  `resolve_aliases` had already deleted) made every evidence lookup 404 for
+  the first part of this session; self-resolved when a fresh pass-2 run
+  (not started by fe1) completed mid-session. Flagged as a retro item — see
+  SCR.md — since nothing currently reconciles this automatically.
+- Real graph is 73 chars / 29 edges right now, not 900 — noted for context,
+  not a bug.
