@@ -186,6 +186,12 @@ async def _prefix_cache_hit_rate() -> float | None:
     llm-runtime.md "Prefix caching is the cost argument"); `INFERENCE_MODE=api`
     has no prefix cache to report on, so this is skipped rather than scraping
     a URL that was never meant to serve one.
+
+    This is vLLM's lifetime-cumulative rate since its last boot, not scoped
+    to any one book or stage -- a live "what is the cache doing right now"
+    reading, not a per-book measurement (S4.15 finding, plans/sprint-4/
+    HANDOFF.md; a real per-book number needs a before/after delta, as
+    `scripts/ingest_book.py` takes).
     """
     if settings.inference_mode != InferenceMode.LOCAL:
         return None

@@ -186,7 +186,16 @@ def render_markdown(
             )
         hit = cost.get("prefix_cache_hit_rate")
         alert = " **ALERT: below 80%**" if cost.get("prefix_cache_alert") else ""
-        lines.append(f"- prefix-cache hit rate: {_fmt(hit, pct=True)}{alert}")
+        # This is vLLM's lifetime-cumulative rate since the server's last
+        # boot, not scoped to this book -- it blends in every other purpose's
+        # calls and, since vLLM is a host singleton shared by every agent's
+        # worktree, any concurrent traffic too (S4.15, plans/sprint-4/
+        # HANDOFF.md). A PR/nightly comment has no clean way to snapshot a
+        # scoped delta around a run it did not itself drive; caveated here
+        # rather than presented as a per-book number.
+        lines.append(
+            f"- prefix-cache hit rate (server lifetime avg): {_fmt(hit, pct=True)}{alert}"
+        )
 
     return "\n".join(lines) + "\n"
 

@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -209,6 +210,76 @@ def poll_status(book_id: str, *, timeout_s: float = POLL_TIMEOUT_S) -> dict:
     raise TimeoutError(
         f"book {book_id} did not reach a terminal status within {timeout_s}s: {last}"
     )
+
+
+_VLLM_METRICS_URL = os.environ.get(
+    "VLLM_METRICS_URL",
+    f"http://localhost:{os.environ.get('VLLM_PORT', '8080')}/metrics",
+)
+# vLLM's V1 engine dropped the `gpu_` infix from these two counters; both
+# names are read so this still works against an older image (api/ops/
+# vllm_metrics.py's own note, S3.9/S4.15).
+_PREFIX_CACHE_HITS_NAMES = (
+    "vllm:prefix_cache_hits_total",
+    "vllm:gpu_prefix_cache_hits_total",
+)
+_PREFIX_CACHE_QUERIES_NAMES = (
+    "vllm:prefix_cache_queries_total",
+    "vllm:gpu_prefix_cache_queries_total",
+)
+_METRIC_LINE_RE = re.compile(r"^([a-zA-Z_:][a-zA-Z0-9_:]*)(?:\{[^}]*\})?\s+([0-9.eE+-]+)$")
+
+
+def fetch_vllm_prefix_cache_counters() -> tuple[float, float] | None:
+    """Raw cumulative ``(hits, queries)`` from vLLM's own ``/metrics``.
+
+    ``None`` when vLLM is unreachable (``INFERENCE_MODE=api``, no GPU
+    profile). Differencing two calls to this around one book's own pass-2
+    window is the only per-book prefix-cache hit rate there is: the
+    equivalent live-snapshot field (``GET /ops/relation-cost``) reads vLLM's
+    lifetime-cumulative counters, which blend in every other purpose's calls
+    (chapter/character extraction, the relation verifier) and, since vLLM is
+    a host singleton shared by every agent's worktree (BRANCH.md §9), any
+    concurrent traffic from another agent too -- see plans/sprint-4/HANDOFF.md
+    (S4.15) for why that made the reported hit rate unreliable.
+    """
+    try:
+        with urllib.request.urlopen(_VLLM_METRICS_URL, timeout=5) as response:
+            text = response.read().decode()
+    except (urllib.error.URLError, TimeoutError):
+        return None
+
+    hits = queries = None
+    for line in text.splitlines():
+        match = _METRIC_LINE_RE.match(line.strip())
+        if not match:
+            continue
+        name, raw_value = match.groups()
+        if name in _PREFIX_CACHE_HITS_NAMES:
+            hits = float(raw_value)
+        elif name in _PREFIX_CACHE_QUERIES_NAMES:
+            queries = float(raw_value)
+    if hits is None or queries is None:
+        return None
+
+    return hits, queries
+
+
+def prefix_cache_hit_rate_between(
+    before: tuple[float, float] | None, after: tuple[float, float] | None
+) -> float | None:
+    """Prefix-cache hit rate over the window between two counter snapshots."""
+    if before is None or after is None:
+        return None
+    hits_before, queries_before = before
+    hits_after, queries_after = after
+    queries = queries_after - queries_before
+    if queries <= 0:
+        return None
+
+    rate = (hits_after - hits_before) / queries
+
+    return rate
 
 
 def main() -> int:

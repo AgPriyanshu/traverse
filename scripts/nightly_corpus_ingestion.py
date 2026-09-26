@@ -43,7 +43,14 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
-from test_integration_ingestion import _multipart_body, _psql, _request, poll_status
+from test_integration_ingestion import (
+    _multipart_body,
+    _psql,
+    _request,
+    fetch_vllm_prefix_cache_counters,
+    poll_status,
+    prefix_cache_hit_rate_between,
+)
 
 sys.path.insert(0, str(REPO_ROOT))
 from eval.loaders import available_gold_books  # noqa: E402
@@ -134,8 +141,23 @@ def _report_extraction_quality_and_cost(book_key: str, book_id: str) -> list[str
     return lines
 
 
-def _report_relations(book_key: str, book_id: str) -> tuple[list[str], list[str]]:
+_PREFIX_CACHE_ALERT_THRESHOLD = 0.80
+
+
+def _report_relations(
+    book_key: str, book_id: str, *, scoped_hit_rate: float | None
+) -> tuple[list[str], list[str]]:
     """Relation quality and pass-2 cost for one book (S4.14/S4.15).
+
+    ``scoped_hit_rate`` is the prefix-cache hit rate measured as a delta
+    across this book's own upload-to-ready window (``/metrics`` before and
+    after), not ``GET /ops/relation-cost``'s ``prefix_cache_hit_rate`` field,
+    which is vLLM's lifetime-cumulative average since the server's last boot
+    and is contaminated by every other purpose's calls and (vLLM being a host
+    singleton shared by every agent's worktree) any other agent's concurrent
+    traffic -- see plans/sprint-4/HANDOFF.md (S4.15). The scoped number is what
+    the alert and trend line use; the endpoint's own field is kept in the
+    trend record too, for comparison, but no longer drives the alert.
 
     Returns:
         The markdown lines for the run summary, and hard failures. An
@@ -155,13 +177,14 @@ def _report_relations(book_key: str, book_id: str) -> tuple[list[str], list[str]
         f"### {book_key}",
         render_markdown(quality, cost if status_cost == 200 else None),
     ]
+    if scoped_hit_rate is not None:
+        lines.append(f"- prefix-cache hit rate (scoped to this run): {scoped_hit_rate:.1%}")
     failures = [f"{book_key}: {p}" for p in invariant_violations(quality)]
+    if scoped_hit_rate is not None and scoped_hit_rate < _PREFIX_CACHE_ALERT_THRESHOLD:
+        failures.append(
+            f"{book_key}: prefix-cache hit rate {scoped_hit_rate:.1%} is below 80%"
+        )
     if status_cost == 200:
-        if cost.get("prefix_cache_alert"):
-            failures.append(
-                f"{book_key}: prefix-cache hit rate {cost['prefix_cache_hit_rate']:.1%} "
-                "is below 80%"
-            )
         record = {
             "date": datetime.date.today().isoformat(),
             "book": book_key,
@@ -171,7 +194,8 @@ def _report_relations(book_key: str, book_id: str) -> tuple[list[str], list[str]
             "output_tokens": cost.get("output_tokens"),
             "cost_usd_local": cost.get("total_cost_usd_local"),
             "wall_clock_ms": cost.get("wall_clock_ms"),
-            "prefix_cache_hit_rate": cost.get("prefix_cache_hit_rate"),
+            "prefix_cache_hit_rate": scoped_hit_rate,
+            "prefix_cache_hit_rate_lifetime_avg": cost.get("prefix_cache_hit_rate"),
         }
         with TREND_FILE.open("a") as handle:
             handle.write(json.dumps(record) + "\n")
@@ -210,6 +234,7 @@ def main() -> int:
             continue
 
         start = time.monotonic()
+        cache_before = fetch_vllm_prefix_cache_counters()
         status_code, body = upload(project_id, i, pdf_path)
         if status_code == 501:
             _log(
@@ -226,6 +251,8 @@ def main() -> int:
         ingested_any = True
         book_id = body["id"]
         final = poll_status(book_id, timeout_s=PER_BOOK_TIMEOUT_S)
+        cache_after = fetch_vllm_prefix_cache_counters()
+        scoped_hit_rate = prefix_cache_hit_rate_between(cache_before, cache_after)
         elapsed_s = time.monotonic() - start
         _log(f"{key}: {final['status']} in {elapsed_s:.0f}s")
         rows.append(
@@ -238,7 +265,9 @@ def main() -> int:
 
         if key in available_gold_books():
             quality_lines.extend(_report_extraction_quality_and_cost(key, book_id))
-            lines, failures = _report_relations(key, book_id)
+            lines, failures = _report_relations(
+                key, book_id, scoped_hit_rate=scoped_hit_rate
+            )
             relation_lines.extend(lines)
             hard_failures.extend(failures)
 

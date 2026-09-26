@@ -138,6 +138,17 @@ async def compute_relation_cost(
         skipped = max(chunks_total - processed, 0)
         skip_ratio = skipped / chunks_total
 
+    # `fetch_vllm_cache_stats` is vLLM's lifetime-cumulative counters since the
+    # server's last boot, not a number scoped to this book or even to pass 2:
+    # it blends in every other purpose's calls (chapter/character extraction,
+    # the relation verifier) and, since vLLM is a host singleton shared by
+    # every agent's worktree (BRANCH.md §9), any concurrent traffic from
+    # another agent too. It is still useful as "what is vLLM's cache doing
+    # right now", but do not trust it as this book's own rate -- for that, use
+    # a delta of two `fetch_vllm_cache_counters` snapshots taken immediately
+    # around the run, the way `scripts/ingest_book.py` and
+    # `scripts/nightly_corpus_ingestion.py` do (S4.15 finding, see
+    # plans/sprint-4/HANDOFF.md).
     hit_rate = None
     if settings.inference_mode == InferenceMode.LOCAL:
         stats = await fetch_vllm_cache_stats(settings.vllm_base_url)
