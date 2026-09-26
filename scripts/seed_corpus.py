@@ -120,6 +120,15 @@ class CorpusBook:
     author: str
     gutenberg_id: int
     why: str  # PRD §7's reason this title is in the set — carried into LICENSES.md.
+    # Series metadata (S5.13). None/"standalone" for the original PRD §7 five.
+    series_key: str | None = None
+    project_name: str | None = None
+    project_kind: str = "standalone"
+    series_order: int | None = None  # this project's ingestion order, 1-based.
+    # The book's real position in its original series -- kept only for
+    # documentation when `series_order` has gaps (a volume skipped because it
+    # is not yet public domain). Never used for ingestion or pagination.
+    canonical_series_number: int | None = None
 
 
 # The PRD §7 set (devops-1.md S2.16 table), keyed by Project Gutenberg ebook id.
@@ -160,6 +169,156 @@ CORPUS: list[CorpusBook] = [
         "scale + patronymics/diminutives stress case",
     ),
 ]
+
+# S5.13's series corpus (devops-1.md). Anne of Green Gables ships six of its
+# eight books, not eight: "Anne of Windy Poplars" (1936, book 4) and "Anne of
+# Ingleside" (1939, book 6) are still under US copyright (95 years from
+# publication, until 2031 and 2034) and are not on gutenberg.org regardless of
+# what the sprint brief assumed -- verified directly against the live catalog
+# (`gutenberg.org/ebooks/author/36`) rather than guessed, see LICENSES.md and
+# plans/sprint-5/HANDOFF.md. `series_order` is this project's own ingestion
+# order (1..6, no gaps); `canonical_series_number` is the book's real position
+# in the eight-book series, carried for documentation only.
+SERIES_CORPUS: list[CorpusBook] = [
+    CorpusBook(
+        "anne-of-green-gables",
+        "Anne of Green Gables",
+        "L. M. Montgomery",
+        45,
+        "the reconciliation gold set: Anne ages 11 to adult, aliases shift, "
+        "the Anne<->Gilbert arc runs enemies to rivals to married across volumes",
+        series_key="anne-of-green-gables",
+        project_name="Anne of Green Gables",
+        project_kind="series",
+        series_order=1,
+        canonical_series_number=1,
+    ),
+    CorpusBook(
+        "anne-of-avonlea",
+        "Anne of Avonlea",
+        "L. M. Montgomery",
+        47,
+        "book 2: Anne becomes a schoolteacher -- 'Anne Shirley' narrows to "
+        "'Miss Shirley' in a new social context, the same person",
+        series_key="anne-of-green-gables",
+        project_name="Anne of Green Gables",
+        project_kind="series",
+        series_order=2,
+        canonical_series_number=2,
+    ),
+    CorpusBook(
+        "anne-of-the-island",
+        "Anne of the Island",
+        "L. M. Montgomery",
+        51,
+        "book 3: Redmond College; the Anne<->Gilbert arc turns from rivalry "
+        "to engagement, cited across three books' worth of pages",
+        series_key="anne-of-green-gables",
+        project_name="Anne of Green Gables",
+        project_kind="series",
+        series_order=3,
+        canonical_series_number=3,
+    ),
+    CorpusBook(
+        "annes-house-of-dreams",
+        "Anne's House of Dreams",
+        "L. M. Montgomery",
+        544,
+        "book 5 (book 4, 'Anne of Windy Poplars', is not yet public domain in "
+        "the US): marriage, a death, and a new generation entering the roster",
+        series_key="anne-of-green-gables",
+        project_name="Anne of Green Gables",
+        project_kind="series",
+        series_order=4,
+        canonical_series_number=5,
+    ),
+    CorpusBook(
+        "rainbow-valley",
+        "Rainbow Valley",
+        "L. M. Montgomery",
+        5343,
+        "book 7 (book 6, 'Anne of Ingleside', is not yet public domain in the "
+        "US): Anne's own children become the standing cast",
+        series_key="anne-of-green-gables",
+        project_name="Anne of Green Gables",
+        project_kind="series",
+        series_order=5,
+        canonical_series_number=7,
+    ),
+    CorpusBook(
+        "rilla-of-ingleside",
+        "Rilla of Ingleside",
+        "L. M. Montgomery",
+        3796,
+        "book 8: the youngest daughter ages from girl to adult across the "
+        "First World War -- the series' longest single-book time span",
+        series_key="anne-of-green-gables",
+        project_name="Anne of Green Gables",
+        project_kind="series",
+        series_order=6,
+        canonical_series_number=8,
+    ),
+    CorpusBook(
+        "a-study-in-scarlet",
+        "A Study in Scarlet",
+        "Arthur Conan Doyle",
+        244,
+        "book 1: Holmes and Watson meet -- establishes the small recurring cast",
+        series_key="sherlock-holmes",
+        project_name="Sherlock Holmes",
+        project_kind="series",
+        series_order=1,
+        canonical_series_number=1,
+    ),
+    CorpusBook(
+        "the-sign-of-the-four",
+        "The Sign of the Four",
+        "Arthur Conan Doyle",
+        2097,
+        "book 2: the precision case -- a wholly new supporting cast per "
+        "instalment against Holmes/Watson's two recurring names",
+        series_key="sherlock-holmes",
+        project_name="Sherlock Holmes",
+        project_kind="series",
+        series_order=2,
+        canonical_series_number=2,
+    ),
+    CorpusBook(
+        "the-hound-of-the-baskervilles",
+        "The Hound of the Baskervilles",
+        "Arthur Conan Doyle",
+        2852,
+        "book 3: don't merge two strangers sharing a first name across "
+        "instalments -- the namesake-blocking test",
+        series_key="sherlock-holmes",
+        project_name="Sherlock Holmes",
+        project_kind="series",
+        series_order=3,
+        canonical_series_number=3,
+    ),
+    CorpusBook(
+        "the-valley-of-fear",
+        "The Valley of Fear",
+        "Arthur Conan Doyle",
+        3289,
+        "book 4: a framed narrative within a narrative, entirely new supporting cast",
+        series_key="sherlock-holmes",
+        project_name="Sherlock Holmes",
+        project_kind="series",
+        series_order=4,
+        canonical_series_number=4,
+    ),
+]
+
+ALL_CORPUS: list[CorpusBook] = CORPUS + SERIES_CORPUS
+
+
+def series_books(series_key: str) -> list[CorpusBook]:
+    """Every book in one series, in ingestion order."""
+    return sorted(
+        (b for b in SERIES_CORPUS if b.series_key == series_key),
+        key=lambda b: b.series_order or 0,
+    )
 
 
 def sha256_of(path: Path) -> str:
@@ -378,15 +537,56 @@ def write_licenses_md(manifest: dict) -> None:
         "|---|---|---|---|---|---|",
     ]
 
-    by_key = {book.key: book for book in CORPUS}
+    by_key = {book.key: book for book in ALL_CORPUS}
     for key in sorted(manifest["books"]):
         record = manifest["books"][key]
+        if record.get("series_key"):
+            continue  # listed in the series table below instead.
         why = by_key[key].why if key in by_key else ""
         lines.append(
             f"| {record['title']} | {record['author']} | {record['gutenberg_id']} | "
             f"{record['page_count']} | `{record['source_sha256'][:12]}…` | {why} |"
         )
     lines.append("")
+
+    for series_key, project_name in (
+        ("anne-of-green-gables", "Anne of Green Gables"),
+        ("sherlock-holmes", "Sherlock Holmes"),
+    ):
+        entries = [
+            manifest["books"][b.key]
+            for b in series_books(series_key)
+            if b.key in manifest["books"]
+        ]
+        if not entries:
+            continue
+        lines += [
+            f"### {project_name} (series)",
+            "",
+            "| Order | Title | Gutenberg ID | Pages | Source SHA-256 |",
+            "|---|---|---|---|---|",
+        ]
+        for record in entries:
+            lines.append(
+                f"| {record['series_order']} | {record['title']} | "
+                f"{record['gutenberg_id']} | {record['page_count']} | "
+                f"`{record['source_sha256'][:12]}…` |"
+            )
+        lines.append("")
+
+    lines += [
+        "**Anne of Green Gables ships six of its eight books, not eight.**",
+        "\"Anne of Windy Poplars\" (1936, book 4) and \"Anne of Ingleside\" "
+        "(1939, book 6) are still under US copyright (95 years from "
+        "publication: until 2031 and 2034 respectively) and are not on "
+        "gutenberg.org — verified directly against the live catalog, not "
+        "assumed. They exist on gutenberg.net.au (Australian public domain, "
+        "life+70), a different licence regime this corpus does not mix in. "
+        "`series_order` therefore runs 1-6 with no gap; each entry's true "
+        "position in the eight-book series is `manifest.json`'s "
+        "`canonical_series_number`.",
+        "",
+    ]
 
     LICENSES_PATH.write_text("\n".join(lines) + "\n")
 
@@ -438,6 +638,11 @@ def process_book(book: CorpusBook, *, force: bool) -> dict:
         },
         "pdf_path": str(pdf_path.relative_to(REPO_ROOT)),
         "built_at": datetime.now(UTC).isoformat(),
+        "series_key": book.series_key,
+        "project_name": book.project_name,
+        "project_kind": book.project_kind,
+        "series_order": book.series_order,
+        "canonical_series_number": book.canonical_series_number,
     }
     manifest["books"][book.key] = record
     manifest["generated_at"] = datetime.now(UTC).isoformat()
@@ -459,14 +664,28 @@ def main() -> None:
     )
     parser.add_argument(
         "--only",
-        help="Comma-separated corpus keys to process (default: all five).",
+        help=(
+            "Comma-separated corpus keys to process, from either the "
+            "standalone five or the series corpus (default: the standalone "
+            "five only -- pass --all or --only to also build series books)."
+        ),
+    )
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Process the standalone five plus every series book (S5.13).",
     )
     args = parser.parse_args()
 
     wanted = set(args.only.split(",")) if args.only else None
-    books = [book for book in CORPUS if wanted is None or book.key in wanted]
+    if wanted is not None:
+        books = [book for book in ALL_CORPUS if book.key in wanted]
+    elif args.all:
+        books = list(ALL_CORPUS)
+    else:
+        books = list(CORPUS)
     if not books:
-        raise SystemExit(f"--only matched nothing in {sorted(b.key for b in CORPUS)}")
+        raise SystemExit(f"--only matched nothing in {sorted(b.key for b in ALL_CORPUS)}")
 
     for book in books:
         process_book(book, force=args.force)

@@ -94,7 +94,20 @@ roster:chunk ratio, not purely a config problem. Also wired
 `prefix_cache_hit_rate` field is vLLM's lifetime-cumulative average since
 last boot, not scoped to a book or run.
 
-**Not built:** anything Sprint 5+.
+**Built (S5, do1):** `scripts/seed_corpus.py`'s `CorpusBook` gained series
+fields (`series_key`, `project_name`, `project_kind`, `series_order`,
+`canonical_series_number`) and a `SERIES_CORPUS` list (S5.13) — Anne of Green
+Gables (6 of its 8 books; books 4 and 6 are still under US copyright and are
+not on gutenberg.org, verified against the live catalog rather than assumed —
+see `corpus/LICENSES.md`) and the four Sherlock Holmes novels. `--only` now
+matches across both lists; a bare `make seed` is unchanged (still just the
+standalone five) and `--all` builds everything. `scripts/seed_series.py` +
+`make seed-series` creates both projects (`kind=SERIES`, straight to Postgres
+like `scripts/ingest_book.py` — `POST /projects` is still S5.9) and uploads
+each series' books through the real API in `series_order`, sequentially and
+idempotently.
+
+**Not built:** anything else in Sprint 5+.
 
 ## Services
 
