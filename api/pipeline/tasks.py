@@ -320,6 +320,10 @@ async def _resolve_aliases(book_id: UUID, record: StageRecord) -> None:
         persisted = await extraction_repository.persist_characters(
             session, book_id, project_id, rows
         )
+        # Runs only after the new roster is persisted -- a character this
+        # rerun still resolves must never be swept as orphaned in between
+        # (`api/extraction/repository.py::sweep_orphaned_characters`).
+        await extraction_repository.sweep_orphaned_characters(session, project_id)
         await extraction_repository.set_cluster_keys(session, mention_assignments)
 
         for cluster in clusters:

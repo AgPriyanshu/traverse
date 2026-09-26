@@ -12,7 +12,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
 from ..contracts.enums import CandidateKind, ReviewTaskType
 from ..db.models import (
-    Book,
     BookCharacterCandidate,
     Character,
     CharacterAppearance,
@@ -251,6 +250,21 @@ async def set_cluster_keys(
 async def delete_book_characters(session: SQLModelAsyncSession, book_id: UUID) -> None:
     """Undo this book's roster contribution so ``resolve_aliases`` can replace it.
 
+    Deliberately does **not** delete ``Character`` rows. ``persist_characters``
+    reuses an existing ``(project_id, canonical_name)`` row's id rather than
+    replacing it, which is what keeps that character's id — and every
+    ``relation``, ``CharacterMention`` and evidence row keyed off it — stable
+    across a rerun. Deleting it here, even for an instant before the rerun
+    recreates it, previously regenerated the id every time and cascade-deleted
+    every ``relation`` that named it (Postgres ``ON DELETE CASCADE`` on
+    ``relation.subject_character_id``/``object_character_id``) while Neo4j —
+    upserted from an earlier run — kept the old id, 404ing every evidence
+    lookup until a full pass-2 re-run replaced it (see
+    ``plans/sprint-4/SCR.md``, the fe1 finding). A ``Character`` no longer
+    produced by any book's roster is removed by
+    :func:`sweep_orphaned_characters`, called after the new roster is
+    persisted, not before it.
+
     A ``Character`` a human has already verified is left untouched even if
     this leaves it with a stale appearance — ``human_verified`` values are
     never overwritten (``api/AGENTS.md``), and Sprint 5's reconciliation, not
@@ -263,20 +277,68 @@ async def delete_book_characters(session: SQLModelAsyncSession, book_id: UUID) -
         delete(CharacterAppearance).where(CharacterAppearance.book_id == book_id)  # type: ignore[arg-type]
     )
 
-    book = await session.get(Book, book_id)
-    if book is not None:
-        orphaned = select(Character.id).where(
-            Character.project_id == book.project_id,  # type: ignore[arg-type]
-            Character.human_verified.is_(False),  # type: ignore[union-attr]
-            ~Character.id.in_(  # type: ignore[union-attr]
-                select(CharacterAppearance.character_id)
-            ),
-        )
-        await session.execute(
-            delete(Character).where(Character.id.in_(orphaned))  # type: ignore[union-attr]
-        )
-
     await session.commit()
+
+
+async def sweep_orphaned_characters(
+    session: SQLModelAsyncSession, project_id: UUID
+) -> None:
+    """Delete a project's unverified ``Character`` rows no book's roster claims.
+
+    Must run **after** :func:`persist_characters` commits the new roster, not
+    before — a character this rerun still resolves has no ``CharacterAppearance``
+    for the instant between :func:`delete_book_characters`'s wipe and its own
+    re-persist, and sweeping on that window is exactly the delete-then-recreate
+    bug this ordering exists to avoid (see :func:`delete_book_characters`).
+    """
+    orphaned = select(Character.id).where(
+        Character.project_id == project_id,  # type: ignore[arg-type]
+        Character.human_verified.is_(False),  # type: ignore[union-attr]
+        ~Character.id.in_(select(CharacterAppearance.character_id)),  # type: ignore[union-attr]
+    )
+    await session.execute(delete(Character).where(Character.id.in_(orphaned)))  # type: ignore[union-attr]
+    await session.commit()
+
+
+async def _replace_appearance_and_mentions(
+    session: SQLModelAsyncSession,
+    character: Character,
+    book_id: UUID,
+    entry: dict,
+) -> None:
+    """Write this book's appearance and mentions for an already-persisted ``Character``.
+
+    ``delete_book_characters`` already cleared this book's prior appearance
+    and mentions, so this only ever inserts.
+    """
+    appearance = CharacterAppearance(
+        character_id=character.id,
+        book_id=book_id,
+        first_page=entry["first_page"],
+        first_chapter=entry["first_chapter"],
+        last_page=entry["last_page"],
+        last_chapter=entry["last_chapter"],
+        mention_count=entry["mention_count"],
+        importance_tier=entry["importance_tier"],
+        surface_forms=entry["aliases"],
+        attributes=entry["attributes"],
+    )
+    session.add(appearance)
+
+    mention_rows = [
+        {
+            "character_id": character.id,
+            "book_id": book_id,
+            "chunk_id": UUID(context["chunk_id"]),
+            "surface_form": context["surface_form"],
+            "page": context["page"],
+            "confidence": context.get("confidence"),
+            "resolution_method": context["resolution_method"],
+        }
+        for context in entry["mentions"]
+    ]
+    if mention_rows:
+        await session.execute(insert(CharacterMention), mention_rows)
 
 
 async def persist_characters(
@@ -285,7 +347,17 @@ async def persist_characters(
     project_id: UUID,
     characters: list[dict],
 ) -> list[Character]:
-    """Insert this book's resolved characters, their appearance, and their mentions.
+    """Upsert this book's resolved characters and rewrite their appearance/mentions.
+
+    A resolved cluster reuses the existing ``Character`` row for its
+    ``(project_id, canonical_name)`` — the same pair the table's own unique
+    constraint treats as one identity — rather than always inserting a new
+    row. A rerun of ``resolve_aliases`` with no roster change must be
+    idempotent in the strong sense: the same person keeps the same id, not
+    merely the same fields, because everything from ``relation`` rows to the
+    Neo4j projection is keyed on it (see ``delete_book_characters`` for what
+    goes wrong when it isn't). Only a canonical name genuinely new to the
+    project gets a fresh id.
 
     Args:
         session: Open session; this function commits.
@@ -300,52 +372,42 @@ async def persist_characters(
     persisted: list[Character] = []
 
     for entry in characters:
-        character = Character(
-            project_id=project_id,
-            canonical_name=entry["canonical_name"],
-            aliases=entry["aliases"],
-            importance_tier=entry["importance_tier"],
-            first_book_id=book_id,
-            first_chapter=entry["first_chapter"],
-            first_page=entry["first_page"],
-            last_book_id=book_id,
-            last_chapter=entry["last_chapter"],
-            mention_count=entry["mention_count"],
-            attributes=entry["attributes"],
-            collision_suspected=entry["collision_suspected"],
-        )
+        character = (
+            await session.execute(
+                select(Character).where(
+                    Character.project_id == project_id,  # type: ignore[arg-type]
+                    Character.canonical_name == entry["canonical_name"],  # type: ignore[arg-type]
+                )
+            )
+        ).scalar_one_or_none()
+
+        if character is None:
+            character = Character(
+                project_id=project_id, canonical_name=entry["canonical_name"]
+            )
+        elif character.human_verified:
+            # A human's own edit is never overwritten by a rerun
+            # (``api/AGENTS.md``) -- only its appearance and mentions refresh.
+            session.add(character)
+            await session.flush()
+            await _replace_appearance_and_mentions(session, character, book_id, entry)
+            persisted.append(character)
+            continue
+
+        character.aliases = entry["aliases"]
+        character.importance_tier = entry["importance_tier"]
+        character.first_book_id = character.first_book_id or book_id
+        character.first_chapter = entry["first_chapter"]
+        character.first_page = entry["first_page"]
+        character.last_book_id = book_id
+        character.last_chapter = entry["last_chapter"]
+        character.mention_count = entry["mention_count"]
+        character.attributes = entry["attributes"]
+        character.collision_suspected = entry["collision_suspected"]
+
         session.add(character)
         await session.flush()
-
-        appearance = CharacterAppearance(
-            character_id=character.id,
-            book_id=book_id,
-            first_page=entry["first_page"],
-            first_chapter=entry["first_chapter"],
-            last_page=entry["last_page"],
-            last_chapter=entry["last_chapter"],
-            mention_count=entry["mention_count"],
-            importance_tier=entry["importance_tier"],
-            surface_forms=entry["aliases"],
-            attributes=entry["attributes"],
-        )
-        session.add(appearance)
-
-        mention_rows = [
-            {
-                "character_id": character.id,
-                "book_id": book_id,
-                "chunk_id": UUID(context["chunk_id"]),
-                "surface_form": context["surface_form"],
-                "page": context["page"],
-                "confidence": context.get("confidence"),
-                "resolution_method": context["resolution_method"],
-            }
-            for context in entry["mentions"]
-        ]
-        if mention_rows:
-            await session.execute(insert(CharacterMention), mention_rows)
-
+        await _replace_appearance_and_mentions(session, character, book_id, entry)
         persisted.append(character)
 
     await session.commit()

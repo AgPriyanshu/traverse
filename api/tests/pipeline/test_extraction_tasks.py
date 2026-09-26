@@ -188,6 +188,15 @@ class TestResolveAliasesTask:
         await tasks._resolve_aliases(
             book_with_chunks.id, _record(StageName.RESOLVE_ALIASES)
         )
+
+        statement = select(Character).where(
+            Character.project_id == book_with_chunks.project_id  # type: ignore[arg-type]
+        )
+        first_ids = {
+            c.canonical_name: c.id
+            for c in (await session.execute(statement)).scalars().all()
+        }
+
         await tasks._extract_characters(
             book_with_chunks.id, _record(StageName.EXTRACT_CHARACTERS)
         )
@@ -195,10 +204,24 @@ class TestResolveAliasesTask:
             book_with_chunks.id, _record(StageName.RESOLVE_ALIASES)
         )
 
-        statement = (
+        second_ids = {
+            c.canonical_name: c.id
+            for c in (await session.execute(statement)).scalars().all()
+        }
+
+        statement_count = (
             select(func.count())
             .select_from(Character)
             .where(Character.project_id == book_with_chunks.project_id)  # type: ignore[arg-type]
         )
-        total = (await session.execute(statement)).scalar_one()
+        total = (await session.execute(statement_count)).scalar_one()
         assert total == 2
+
+        # The regression this pins (plans/sprint-4/SCR.md, fe1's finding): a
+        # resolve_aliases rerun with no input change used to regenerate every
+        # Character's id, which cascade-deleted every `relation` row naming
+        # it while Neo4j still held the old ids under the old graph -- every
+        # evidence lookup 404'd until a full pass-2 re-run replaced it.
+        # Matching row *counts* across a rerun (the assertion above) would
+        # not have caught that; only same-identity, same-id survives it.
+        assert second_ids == first_ids
