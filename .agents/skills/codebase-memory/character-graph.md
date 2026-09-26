@@ -22,7 +22,7 @@ Symbols over line numbers.
 | `pipeline.reconcile_characters` | `api/reconcile/` | S5 |
 | Cross-book blocking (death, namesake, kinship) | `api/reconcile/` | S5 |
 | Appearance recompute, order independence | `api/reconcile/` | S5 |
-| Series-position validity, `/relations/arc` | `api/graph/` | S5 |
+| Series-position validity, `/relations/arc` (`repository.relation_arc`, wired at `GET /relations/arc`) | `api/graph/` | **Built** (S5.6) — `aggregate.py` and `Relation` were already `(book_order, chapter)`-shaped from S4; S5.6's own work was closing a real gap, not building the mechanism: `ontology.yaml` was missing the `enemy_of -> rival_of` transition the Sprint 5 demo's Anne/Gilbert arc names explicitly (it reported as a conflict instead of a supersession) |
 | Off-roster validator, quote-substring check | `api/relations/` | **Built** (S4; `extract.py`, `validator.py`, `aggregate.py`, `graph/upsert.py`, reads in `graph/queries.py`) |
 | `relations.aggregate` | `api/relations/` | **Built** (S4; `extract.py`, `validator.py`, `aggregate.py`, `graph/upsert.py`, reads in `graph/queries.py`) |
 | `graph.upsert` | `api/graph/` | **Built** (S4; `extract.py`, `validator.py`, `aggregate.py`, `graph/upsert.py`, reads in `graph/queries.py`) |
