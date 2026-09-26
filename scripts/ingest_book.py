@@ -85,8 +85,13 @@ def main() -> int:
         return 1
     book_id = created["id"]
     print(f"uploaded: book_id={book_id}; polling status")
+    before = gate.fetch_vllm_prefix_cache_counters()
     final = gate.poll_status(book_id, timeout_s=POLL_TIMEOUT_S)
+    after = gate.fetch_vllm_prefix_cache_counters()
     print(f"{key}: {final['status']}  book_id={book_id}")
+    rate = gate.prefix_cache_hit_rate_between(before, after)
+    if rate is not None:
+        print(f"  prefix-cache hit rate (this run, scoped): {rate:.1%}")
     if final["status"] != "ready":
         for stage in final.get("stages", []):
             if stage.get("state") == "failed":

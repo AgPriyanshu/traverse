@@ -83,6 +83,16 @@ and `/ops/relation-cost`, `api/ops/graph_rebuild.py` + `graph_fixture.py` (the
 drill), `scripts/ingest_book.py`, `scripts/judge_citations.py`,
 `.github/workflows/relation-quality.yml`. Make targets: `ingest`, `graph-rebuild`,
 `graph-rebuild-drill`, `eval-relations`, `judge-citations`, `docker-nocreds`.
+S4.15 root-caused the prefix-cache-hit-rate shortfall against a real run and
+raised the vLLM `vllm` service's `--gpu-memory-utilization` `0.75` → `0.85`
+(+39% KV-cache budget on the 12GB card); see llm-runtime.md's "Serving" and
+"Gotchas" for the numbers and why 80% is a structural ceiling for this book's
+roster:chunk ratio, not purely a config problem. Also wired
+`api/ops/vllm_metrics.py`'s previously-dead `hit_rate_between`/
+`fetch_vllm_cache_counters` into `scripts/ingest_book.py` and
+`scripts/nightly_corpus_ingestion.py` — the ops endpoints' own
+`prefix_cache_hit_rate` field is vLLM's lifetime-cumulative average since
+last boot, not scoped to a book or run.
 
 **Not built:** anything Sprint 5+.
 

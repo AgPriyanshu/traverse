@@ -514,3 +514,115 @@ real relationships the prose states) and the cited-quote-vs-claim precision
 class of bug above, not roster quality. **Sprint 4's relation-quality DoD is
 not met** — precision is plausibly close (93-100% depending on measurement),
 recall is not (0.33 vs 0.80).
+
+## do1 → be2, orchestrator · S4.15 prefix-cache root cause (2026-09-26)
+
+Root-caused the 68–76% prefix-cache hit rate. Two real, separate problems, one
+fix landed, one config change landed, and a third thing that turned out not to
+be a bug.
+
+**Not a bug: the prefix is genuinely byte-identical per book.** Read
+`api/relations/extract.py`/`prompts.py`/`roster.py` end to end. `build_prefix`
+is called once per `extract_book` call and reused unchanged for every chunk;
+`Roster.prompt_block` sorts entries and aliases deterministically;
+`ontology.prompt_fragment` is explicitly sorted for the same reason. Nothing
+chunk-specific leaks before `CHUNK_TEMPLATE`. This part of PRD §5.2's argument
+holds.
+
+**Finding 1 — the reported number was measuring the wrong thing.**
+`api/ops/vllm_metrics.py` has had `hit_rate_between`/`fetch_vllm_cache_counters`
+(a proper before/after delta) since S3.9, but nothing ever called them.
+`relation_cost.py`, `extraction_cost.py` and `pipeline_status.py` all read
+`fetch_vllm_cache_stats` instead — vLLM's **lifetime-cumulative** average
+since the server's last boot. Since vLLM is a host singleton shared by every
+agent's worktree (BRANCH.md §9), that number silently blends in pass-1 calls,
+the relation verifier's `adjudicate` calls, and any other agent's concurrent
+traffic — it was never a per-book number at all. Fixed by wiring the existing
+delta helpers into `scripts/ingest_book.py` and
+`scripts/nightly_corpus_ingestion.py`, which can snapshot `/metrics`
+immediately before and after the run they themselves drive (book-scoped, not
+stage-scoped — a true pass-2-only number needs stage-boundary sampling, not
+attempted this pass). The nightly's alert and trend line now use the scoped
+number; the raw endpoint field is kept in the trend record for comparison and
+documented in all three call sites as a live/lifetime reading, not a per-book
+one. `eval/runners/relations.py`'s PR-comment renderer has no run to scope a
+delta around (it only queries after the fact), so its line is now labelled
+"server lifetime avg" instead of presented as this book's rate.
+
+**Finding 2 — KV-cache headroom was genuinely tight, and raising it helped.**
+vLLM's own startup log on this 12GB RTX 4070: `--gpu-memory-utilization 0.75`
+computed a 9.0 GiB budget, of which weights (5.69 GiB) + peak activation
+(0.21 GiB) + non-torch (0.05 GiB) left only **3.05 GiB for KV cache**, against
+10.83 GiB actually free (`Maximum concurrency for 16,384 tokens per request:
+2.71x`). Raised to `0.85`: budget 10.19 GiB, same fixed overhead, **4.25 GiB
+for KV cache (+39%)**, `~0.6` GiB of the free 10.83 GiB still unclaimed as
+margin (went to 0.85, not vLLM's suggested "fully utilize" 0.90ish, on
+purpose — that leaves ~50 MB slack against WSL2/driver fluctuation on an
+always-on shared service, not worth the extra ~11% KV cache for the OOM risk).
+
+Measured with a clean controlled A/B: restarted vLLM (only after confirming
+nothing was running — see below), which reset its counters to 0/0, then
+called `extract_book` directly against the same book/roster/candidate set
+under each config, reading the raw `/metrics` counters before and after as
+the scoped delta (no Celery/IngestionStage writes, no persisted facts — a
+pure read+LLM measurement).
+
+| | 0.75 (before) | 0.85 (after) |
+|---|---|---|
+| KV-cache budget | 3.05 GiB | 4.25 GiB |
+| Scoped hit rate (clean delta) | 67.3% | **75.0%** |
+
++7.7 points from one config value, for free, with no correctness risk. Still
+short of 80%.
+
+**Finding 3 — 80% may not be reachable for this book at this roster size, and
+that's a structural ceiling, not (mainly) a config problem.** vLLM's hit rate
+is `hit_tokens / total_prompt_tokens`; only the fixed prefix is ever a hit, so
+even a perfectly-retained, never-evicted cache caps out at
+`prefix_tokens / (prefix_tokens + avg_chunk_tokens)`. Measured directly against
+the live book (73-character roster, tokenized with the real Qwen3 tokenizer):
+prefix = **1,434 tokens**; the be1 prefilter's candidate chunks average **631
+tokens** (median 770, n=231). Ceiling ≈ 1434/(1434+631) ≈ **69.4%** for
+extraction alone — close to the pre-fix observed range (65–76%) and below it
+after the fix, so the two findings aren't in tension: the fix recovered
+eviction-driven loss, and the corpus geometry sets a real ceiling on top of
+that (the after-fix 75.0% run above had no verifier phase — the deployed
+`api`/`celery-worker` image still runs be2's pre-verifier `extract.py`, see
+below — so it's extraction-only, matching the ceiling model). **The lever
+that would actually move this number is the roster-prefix-to-chunk-size
+ratio** (a bigger roster relative to chunk size, or batching multiple chunks
+per call so the prefix is paid less often — though note batching would
+*lower* the vLLM hit-rate metric even as it lowers real cost, since it grows
+the tail per call; the metric and the cost goal aren't the same thing), not
+concurrency or KV headroom. Recommend the orchestrator decide whether PRD
+§5.2's 80% target should be re-derived per-book from this ratio, or whether
+the target itself needs revisiting.
+
+**Also found, not fixed (flagging, not owned):** the deployed `api`/
+`celery-worker` image's `api/relations/extract.py` has no `verifier_rejected`
+field and does not call `verify.py` — it is running be2's pre-verifier code,
+not what is currently on `ai-master`/worktrees. Discovered when a throwaway
+measurement script crashed on that attribute after a real extraction
+completed successfully against it (no harm — the script never wrote to
+Postgres/object storage). Whoever owns the next image rebuild should confirm
+which commit the running containers are actually built from before trusting
+any live-stack number as current.
+
+**Process note on the shared stack:** per this task's own instructions, checked
+`ingestionstage` for `state='RUNNING'` before touching anything. Found a stale
+row (`EXTRACT_RELATIONS`, `started_at` 2026-09-25) with no worker activity
+since the container's last restart — correctly identified as stale. Separately,
+while investigating, a **real** `relations.extract` task (same `run_id`,
+started 2026-09-26T05:22:45, book `4d5750ce-…`) was live-triggered by another
+process partway through the session; confirmed via fresh celery-worker logs
+and `docker ps` container-creation timestamps before doing anything further,
+then did not touch `celery-worker`/`vllm` until it reached `SUCCEEDED` (05:33:05,
+48 facts, 29 edges, 58 upserted). The gpu-memory-utilization change and its
+measurement only happened after that.
+
+Files: `docker-compose.yml` (vllm command), `api/ops/relation_cost.py`,
+`api/ops/pipeline_status.py` (docstrings only), `scripts/test_integration_ingestion.py`
+(new `fetch_vllm_prefix_cache_counters`/`prefix_cache_hit_rate_between`),
+`scripts/ingest_book.py`, `scripts/nightly_corpus_ingestion.py`,
+`eval/runners/relations.py` (relabelled line). Memory maps updated:
+`llm-runtime.md`, `infra-topology.md`.
