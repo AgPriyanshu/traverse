@@ -19,9 +19,11 @@ Symbols over line numbers.
 | `cluster_contexts`, `MentionContext`, `similarity_threshold` (embedding similarity, stage 4 of the cascade) | `api/graph/similarity.py` | **Built** (S3.8) — threshold measured against real BGE-M3 + real text, not assumed; see `plans/sprint-3/HANDOFF.md`. Reuses `retrieval/repository.py::embedding_model()`, never a second copy. `api/extraction/similarity.py` lazy-imports it (degraded no-op if unavailable) — both are now landed so the degradation path is dead code in practice, kept for the same defensive reason it was written |
 | `merge_characters`, `split_character` (transactional, mention-accurate) | `api/graph/merge.py`, wired at `POST /characters/merge` and `POST /characters/{id}/split` | **Built** (S3.7) — both recompute appearances and derived fields from actual `CharacterMention` rows rather than adjusting counters, which is what makes a merge followed by a split restore the original partition |
 | `relations.extract` (pass 2) | `api/relations/` | **Built** (S4; `extract.py`, `validator.py`, `aggregate.py`, `graph/upsert.py`, reads in `graph/queries.py`) |
-| `pipeline.reconcile_characters` | `api/reconcile/` | S5 |
-| Cross-book blocking (death, namesake, kinship) | `api/reconcile/` | S5 |
-| Appearance recompute, order independence | `api/reconcile/` | S5 |
+| `pipeline.reconcile_characters` task body (`reconcile_book`) | `api/pipeline/tasks.py`, `api/reconcile/service.py` | **Built** (S5.1) — runs after `resolve_aliases`, before `relations.extract`; cascades this book's already-persisted characters against the rest of the project's roster under `project_roster_lock` (`api/workers/locks.py`), never `book_roster_lock` |
+| Cross-book matching cascade (exact → honorific/name-order → alias overlap → embedding → LLM) | `api/reconcile/matching.py` | **Built** (S5.1) — same shape as the within-book cascade, reusing `api.extraction.normalization` directly; deterministic stages compare a character's full known name set (`canonical_name` + `aliases`), so an alias overlap picked up within one book (e.g. book 3's own text glossing "Miss Shirley" as "Anne Shirley") is what lets a rename resolve without ever reaching the LLM stage |
+| Cross-book blocking gate (death, kinship contradiction, generational namesake, tier implausibility) | `api/reconcile/blocking.py` | **Built** (S5.2) — every stage's positive match still passes this gate before a merge is recorded, including the deterministic ones; `character_death` is the hard block, checked by series `book_order` (an appearance at or before the death's book is normal, only a later one blocks); generational/lifespan reuses `api.extraction.collision.check(..., ignore_kinship=True)` directly rather than duplicating it, kinship contradiction is its own relation-aware check (`api/db/models::Relation`, family=kinship) |
+| Appearance recompute, order independence | `api/reconcile/repository.py::recompute_derived_fields` | **Built** (S5.3/S5.4) — `first_book_id`/`last_*`/`mention_count`/`importance_tier`/`aliases`/`canonical_name` are all recomputed from a character's **full** `CharacterAppearance` set after every reconcile, ordered by `(book.series_order, first_chapter, first_page)` rather than ingestion order. `canonical_name` is re-chosen with `api.extraction.aliases.choose_canonical` (renamed public so this can reuse it) — a pure function of the character's full alias set, which is what makes the chosen name identical however the series was ingested. Guarded against renaming onto a name a **different**, deliberately-separate character already owns in the same project (would violate `uq_character_project_name`, and would be a silent false merge by relabelling if it didn't) — skips the rename, keeps the current name, in that one case |
+| `BookCharacterCandidate.resolved_character_id` | `api/extraction/repository.py::set_resolved_character_ids`, written by `pipeline.resolve_aliases` | **Built** (S5.1) — reconcile's reader groups a book's candidates by this to recover each cluster's raw contexts (matching/blocking both need context sentences, not just mention rows); also how cross-book context lookback works (`api/reconcile/repository.py::context_map_for` reads every *other* book's candidates in the project by the same column) |
 | Series-position validity, `/relations/arc` | `api/graph/` | S5 |
 | Off-roster validator, quote-substring check | `api/relations/` | **Built** (S4; `extract.py`, `validator.py`, `aggregate.py`, `graph/upsert.py`, reads in `graph/queries.py`) |
 | `relations.aggregate` | `api/relations/` | **Built** (S4; `extract.py`, `validator.py`, `aggregate.py`, `graph/upsert.py`, reads in `graph/queries.py`) |
@@ -84,7 +86,7 @@ On contradiction: keep separate, set `collision_suspected`, queue a
 
 `test_wuthering_heights_two_catherines` is a permanent regression test.
 
-## Series: reconciliation (S5)
+## Series: reconciliation (Built, S5.1-S5.4)
 
 **Characters and relations are project-scoped, not book-scoped.** Within-book
 alias clustering (above) answers "are these two surface forms the same person in
@@ -100,17 +102,29 @@ already knows?". Same cascade, different blocking evidence:
 
 **The governing asymmetry:** a duplicate is visible and recoverable; a false
 merge is silent and destructive. Bias tight, route the middle band to review
-(`merge_across_books`), and report false merges as their own metric rather than
-inside an F1.
+(`ReviewTaskType.MERGE_ACROSS_BOOKS`, queued by
+`api/reconcile/repository.py::queue_cross_book_review`), and report false
+merges as their own metric rather than inside an F1. Every decision — a link,
+a block, or a genuinely new character — gets an audit row in
+`reconciliation_decision` (`api/reconcile/repository.py::record_decision`); an
+unaudited merge cannot be reviewed or measured.
 
-Derived character fields (`first_book_id`, series-wide tier, mention count) are
-**recomputed from all appearances** after every reconcile, never accumulated.
-That is what makes out-of-order ingestion self-correct — uploading book 3 then
-book 1 must produce a checksum-identical graph.
+Derived character fields (`first_book_id`, series-wide tier, mention count,
+`aliases`, `canonical_name`) are **recomputed from all appearances** after
+every reconcile, never accumulated
+(`api/reconcile/repository.py::recompute_derived_fields`). That is what makes
+out-of-order ingestion self-correct — uploading book 3 then book 1 produces a
+checksum-identical graph (pinned by
+`api/tests/reconcile/test_service.py::TestOrderIndependence`, scoped to
+character identity/appearances/aliases/tiers — relation-edge order
+independence is be2's `relations.aggregate`, S5.7).
 
-Reconciliation takes a **per-project lock**: two books reconciling concurrently
-against the same roster create duplicate characters, and the bug only appears
-under load.
+Reconciliation takes a **per-project lock** (`api/workers/locks.py::
+project_roster_lock`, a *different* advisory-lock key from
+`book_roster_lock`): two books reconciling concurrently against the same
+roster would otherwise both read the roster before either writes a merge and
+each create a duplicate character for the same person — a bug that only
+appears under load, never in a single-book test.
 
 ## Pass 2 and prefix caching
 

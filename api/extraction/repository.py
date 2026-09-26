@@ -247,6 +247,37 @@ async def set_cluster_keys(
     await session.commit()
 
 
+async def set_resolved_character_ids(
+    session: SQLModelAsyncSession, assignments: dict[UUID, UUID]
+) -> None:
+    """Record which persisted ``Character`` each surviving candidate resolved to.
+
+    ``pipeline.reconcile_characters`` (S5) is the reader: it groups this book's
+    candidates by ``resolved_character_id`` to recover each cluster's raw
+    contexts for cross-book matching and blocking, without re-deriving them
+    from ``CharacterMention`` rows that carry no context text.
+
+    Args:
+        session: Open session; this function commits.
+        assignments: ``candidate_id -> character_id``.
+    """
+    if not assignments:
+        return
+
+    table = BookCharacterCandidate.__table__  # type: ignore[attr-defined]
+    rows = [
+        {"candidate_id": candidate_id, "character_id": character_id}
+        for candidate_id, character_id in assignments.items()
+    ]
+    statement = (
+        update(table)
+        .where(table.c.id == bindparam("candidate_id"))
+        .values(resolved_character_id=bindparam("character_id"))
+    )
+    await session.execute(statement, rows)
+    await session.commit()
+
+
 async def delete_book_characters(session: SQLModelAsyncSession, book_id: UUID) -> None:
     """Undo this book's roster contribution so ``resolve_aliases`` can replace it.
 

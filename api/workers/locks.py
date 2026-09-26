@@ -33,3 +33,31 @@ async def book_roster_lock(book_id: UUID) -> AsyncIterator[None]:
                 text("SELECT pg_advisory_unlock(hashtextextended(:key, 0))"),
                 {"key": key},
             )
+
+
+@asynccontextmanager
+async def project_roster_lock(project_id: UUID) -> AsyncIterator[None]:
+    """Serialise ``pipeline.reconcile_characters`` across one project's books.
+
+    Two books of the same series reconciling concurrently would both read the
+    roster before either writes a merge, and both create a duplicate character
+    for the same person — a race that only shows up under load, never in a
+    single-book test. A distinct advisory-lock key from ``book_roster_lock``
+    keeps the two locks from contending with each other.
+
+    Args:
+        project_id: Project whose roster is about to be reconciled.
+    """
+    key = f"project-roster:{project_id}"
+
+    async with engine.connect() as connection:
+        await connection.execute(
+            text("SELECT pg_advisory_lock(hashtextextended(:key, 0))"), {"key": key}
+        )
+        try:
+            yield
+        finally:
+            await connection.execute(
+                text("SELECT pg_advisory_unlock(hashtextextended(:key, 0))"),
+                {"key": key},
+            )

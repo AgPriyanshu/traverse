@@ -21,9 +21,10 @@ from ..extraction import aliases as alias_cascade
 from ..extraction import characters as character_records
 from ..extraction import discovery, rejection
 from ..extraction import repository as extraction_repository
+from ..reconcile import service as reconcile_service
 from ..tasks import celery_app
 from ..workers.errors import PermanentError, TransientError
-from ..workers.locks import book_roster_lock
+from ..workers.locks import book_roster_lock, project_roster_lock
 from ..workers.policy import RETRY_POLICY
 from ..workers.stages import StageRecord, stage
 from . import repository, scene_stage
@@ -293,10 +294,11 @@ async def _resolve_aliases(book_id: UUID, record: StageRecord) -> None:
     Also builds scenes and attributes dialogue speakers (S4.8, S4.9), since the
     stage chain is frozen and both need the roster this stage persists.
 
-    ``pipeline.reconcile_characters`` — the project-wide merge across books —
-    is S5's stage, not this one's; a standalone book's project has exactly
-    one book, so persisting this book's clusters as the project's roster
-    directly is correct until that stage exists.
+    ``pipeline.reconcile_characters`` is S5's stage, not this one's: this
+    stage persists this book's clusters as project ``Character`` rows keyed
+    on ``(project_id, canonical_name)`` (exact match only), and reconcile
+    cascades the result against the rest of the project's roster to catch a
+    returning character introduced under a different canonical name.
     """
     async with db_session() as session:
         book = await repository.get_book(session, book_id)
@@ -320,11 +322,28 @@ async def _resolve_aliases(book_id: UUID, record: StageRecord) -> None:
         persisted = await extraction_repository.persist_characters(
             session, book_id, project_id, rows
         )
+        # Read before ``sweep_orphaned_characters``/``set_cluster_keys`` commit
+        # again below -- either commit expires every object still attached to
+        # this session (SQLAlchemy's default), and a lazy reload of an expired
+        # attribute outside a greenlet raises ``MissingGreenlet``.
+        character_by_cluster_key = {
+            character.canonical_name: character.id for character in persisted
+        }
+
         # Runs only after the new roster is persisted -- a character this
         # rerun still resolves must never be swept as orphaned in between
         # (`api/extraction/repository.py::sweep_orphaned_characters`).
         await extraction_repository.sweep_orphaned_characters(session, project_id)
         await extraction_repository.set_cluster_keys(session, mention_assignments)
+
+        candidate_character_ids = {
+            candidate_id: character_by_cluster_key[cluster_key]
+            for candidate_id, cluster_key in mention_assignments.items()
+            if cluster_key in character_by_cluster_key
+        }
+        await extraction_repository.set_resolved_character_ids(
+            session, candidate_character_ids
+        )
 
         for cluster in clusters:
             if cluster.collision_suspected and cluster.collision_reason:
@@ -346,7 +365,27 @@ async def _resolve_aliases(book_id: UUID, record: StageRecord) -> None:
 
 
 async def _reconcile_characters(book_id: UUID, record: StageRecord) -> None:
-    raise NotImplementedError("pipeline.reconcile_characters lands in S5.2")
+    """Cascade this book's roster against the project's (S5.1-S5.3).
+
+    Takes a per-project lock, not the per-book lock the earlier roster stages
+    use: two books of the same series reconciling at once would both read the
+    roster before either writes a merge and each create a duplicate character
+    for the same person (``plans/sprint-5/backend-1.md``).
+    """
+    async with db_session() as session:
+        book = await repository.get_book(session, book_id)
+
+        if book is None:
+            raise PermanentError(f"book {book_id} does not exist")
+
+        project_id = book.project_id
+
+    async with project_roster_lock(project_id), db_session() as session:
+        considered = await reconcile_service.reconcile_book(
+            session, book_id=book_id, project_id=project_id
+        )
+
+    record.rows_written = considered
 
 
 @celery_app.task(name=StageName.PARSE_AND_CHUNK.value, **RETRY_POLICY)
