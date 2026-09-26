@@ -86,3 +86,22 @@ from the real candidates. `Charlotte Lucas`/`Mrs. Collins` genuinely cannot
 merge without a textual marriage cue that isn't in the stored contexts —
 documented as a limitation, not fixed. be2's P&P pass-2 numbers were measured
 against the stale roster; flagged for a re-run.
+
+## do1 — 2026-09-26
+
+**Root-caused S4.15's prefix-cache shortfall.** Two real bugs, one fixed, one
+config change landed with a measured before/after: (1) the reported hit rate
+was vLLM's lifetime-cumulative average since last boot, not scoped to a book —
+wired up the existing (dead) delta helpers into `ingest_book.py`/
+`nightly_corpus_ingestion.py`. (2) KV-cache budget was tight (3.05 GiB of
+headroom on the 12GB card); raised `--gpu-memory-utilization` 0.75→0.85 (4.25
+GiB), measured **67.3% → 75.0%** on a clean controlled A/B (same book, reset
+counters). Still short of 80% — the honest remaining reason is structural, not
+a bug: hit rate caps at `prefix_tokens/(prefix_tokens+avg_chunk_tokens)`,
+measured ≈69.4% for this book's 73-character roster (1,434-token prefix) vs.
+its prefiltered chunks (631-token average). Recommend re-deriving the 80%
+target per-book from that ratio, or revisiting it. Also found (not fixed,
+flagging): the deployed `api`/`celery-worker` image is running be2's
+pre-verifier `extract.py`, not current `ai-master`. Full writeup and numbers
+in `HANDOFF.md`. Blocked on nothing; next up: full test suite, lint, commit,
+push (this session).
