@@ -415,11 +415,22 @@ services:
       - "8080"
       - --max-model-len
       - "16384"
+      # 0.75 on this 12GB card left only 3.05 GiB for KV cache (vLLM's own
+      # startup log: weights 5.69 GiB + 0.21 GiB activation + 0.05 GiB
+      # non-torch out of a 9.0 GiB budget), against 10.83 GiB actually free.
+      # 0.85 raises the budget to ~10.19 GiB, giving ~4.24 GiB for KV cache
+      # (+39%) while keeping ~0.6 GiB of the free 10.83 GiB unclaimed as
+      # margin against WSL2/driver overhead — see llm-runtime.md's prefix-cache
+      # writeup (Sprint 4, S4.15) for why this only narrows, not closes, the
+      # gap to the 80% target: the dominant limit is the roster prefix's share
+      # of an average prompt, not KV headroom.
       - --gpu-memory-utilization
-      - "0.75"
+      - "0.85"
       # Pass 2 replays a byte-identical roster prefix across calls; prefix
       # caching is what makes that cheap, and --max-num-seqs bounds the damage
-      # two agents sharing one GPU can do to each other's latency.
+      # two agents sharing one GPU can do to each other's latency. In practice
+      # the shared `llm_max_concurrency` semaphore (api/config/settings.py)
+      # caps real fan-out at 8, well under this.
       - --max-num-seqs
       - "16"
       - --dtype
