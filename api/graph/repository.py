@@ -198,6 +198,97 @@ async def list_characters(
     ]
 
 
+async def _character_visible(
+    session: SQLModelAsyncSession,
+    character: Character,
+    *,
+    limit_book_order: int | None,
+    limit_chapter: int | None,
+) -> bool:
+    """Whether ``character`` is visible at a reading position.
+
+    ``None`` (no reading position) is always visible.
+    """
+    if limit_book_order is None:
+        return True
+
+    first_order = None
+    if character.first_book_id is not None:
+        first_order = (await book_orders(session, {character.first_book_id})).get(
+            character.first_book_id
+        )
+    visible = _within_reading_position(
+        first_order,
+        character.first_chapter,
+        limit_book_order=limit_book_order,
+        limit_chapter=limit_chapter,
+    )
+
+    return visible
+
+
+async def list_appearances(
+    session: SQLModelAsyncSession,
+    character_id: UUID,
+    *,
+    limit_book_order: int | None = None,
+    limit_chapter: int | None = None,
+) -> list[AppearanceOut] | None:
+    """Return one character's per-book appearances, series-ordered.
+
+    Args:
+        session: An open database session.
+        character_id: The character whose appearances are listed.
+        limit_book_order: Reading position — book. ``None`` means no limit.
+        limit_chapter: Reading position — chapter within that book.
+
+    Returns:
+        Appearances visible at the reading position, or ``None`` if the
+        character does not exist, or exists but is not yet visible at that
+        position — the same gate ``get_character`` applies, so a deep link to
+        this endpoint cannot leak a future character's appearances either.
+    """
+    character = await session.get(Character, character_id)
+    if character is None:
+        return None
+
+    if not await _character_visible(
+        session,
+        character,
+        limit_book_order=limit_book_order,
+        limit_chapter=limit_chapter,
+    ):
+        return None
+
+    result = await session.exec(
+        select(CharacterAppearance, Book)
+        .join(Book, Book.id == CharacterAppearance.book_id)
+        .where(CharacterAppearance.character_id == character_id)
+        .order_by(Book.series_order)
+    )
+    appearances = [
+        AppearanceOut(
+            book_id=book.id,
+            series_order=book.series_order,
+            book_title=book.title,
+            first_page=appearance.first_page,
+            first_chapter=appearance.first_chapter,
+            mention_count=appearance.mention_count,
+            importance_tier=appearance.importance_tier,
+            surface_forms=list(appearance.surface_forms or []),
+        )
+        for appearance, book in result.all()
+        if _within_reading_position(
+            book.series_order,
+            appearance.first_chapter,
+            limit_book_order=limit_book_order,
+            limit_chapter=limit_chapter,
+        )
+    ]
+
+    return appearances
+
+
 async def get_character(
     session: SQLModelAsyncSession,
     character_id: UUID,
@@ -226,46 +317,24 @@ async def get_character(
     if character is None:
         return None
 
-    if limit_book_order is not None:
-        first_order = None
-        if character.first_book_id is not None:
-            first_order = (await book_orders(session, {character.first_book_id})).get(
-                character.first_book_id
-            )
-        if not _within_reading_position(
-            first_order,
-            character.first_chapter,
-            limit_book_order=limit_book_order,
-            limit_chapter=limit_chapter,
-        ):
-            return None
+    if not await _character_visible(
+        session,
+        character,
+        limit_book_order=limit_book_order,
+        limit_chapter=limit_chapter,
+    ):
+        return None
 
     orders = await appearance_orders(session, [character.id])
-    result = await session.exec(
-        select(CharacterAppearance, Book)
-        .join(Book, Book.id == CharacterAppearance.book_id)
-        .where(CharacterAppearance.character_id == character_id)
-        .order_by(Book.series_order)
-    )
-    appearances = [
-        AppearanceOut(
-            book_id=book.id,
-            series_order=book.series_order,
-            book_title=book.title,
-            first_page=appearance.first_page,
-            first_chapter=appearance.first_chapter,
-            mention_count=appearance.mention_count,
-            importance_tier=appearance.importance_tier,
-            surface_forms=list(appearance.surface_forms or []),
-        )
-        for appearance, book in result.all()
-        if _within_reading_position(
-            book.series_order,
-            appearance.first_chapter,
+    appearances = (
+        await list_appearances(
+            session,
+            character_id,
             limit_book_order=limit_book_order,
             limit_chapter=limit_chapter,
         )
-    ]
+        or []
+    )
 
     alias_detail = await _alias_detail(session, character.project_id, character.id)
     attributes = await _visible_attributes(

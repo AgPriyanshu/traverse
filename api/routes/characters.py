@@ -17,10 +17,8 @@ from ..contracts.enums import ImportanceTier
 from ..db.engine import get_session
 from ..graph import merge, repository
 from ..graph.merge import CharacterNotFoundError, MergeValidationError
-from ._stub import not_implemented
 
 router = APIRouter(tags=["characters"])
-OWNER = "be2"
 
 
 @router.get("/projects/{project_id}/characters", response_model=list[CharacterOut])
@@ -119,8 +117,31 @@ async def list_mentions(
 @router.get(
     "/characters/{character_id}/appearances", response_model=list[AppearanceOut]
 )
-async def list_appearances(character_id: UUID) -> list[AppearanceOut]:
-    not_implemented(OWNER, "S5.8")
+async def list_appearances(
+    character_id: UUID,
+    limit_book_order: int | None = Query(default=None),
+    limit_chapter: int | None = Query(default=None),
+    session: SQLModelAsyncSession = Depends(get_session),
+) -> list[AppearanceOut]:
+    """Return one character's per-book appearances, series-ordered.
+
+    Raises:
+        HTTPException: 404 when no such character exists, or it exists but is
+            not yet visible at the given reading position — the same gate
+            ``get_character`` applies.
+    """
+    appearances = await repository.list_appearances(
+        session,
+        character_id,
+        limit_book_order=limit_book_order,
+        limit_chapter=limit_chapter,
+    )
+    if appearances is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Character not found"
+        )
+
+    return appearances
 
 
 @router.post("/characters/merge", response_model=CharacterOut)

@@ -27,6 +27,9 @@ Symbols over line numbers.
 | `relations.aggregate` | `api/relations/` | **Built** (S4; `extract.py`, `validator.py`, `aggregate.py`, `graph/upsert.py`, reads in `graph/queries.py`) |
 | `graph.upsert` | `api/graph/` | **Built** (S4; `extract.py`, `validator.py`, `aggregate.py`, `graph/upsert.py`, reads in `graph/queries.py`) |
 | `build_reading_chunks`, `candidate_reading_chunks` — scene-level pass-2 reading units | `api/relations/scenes.py`, `api/relations/inputs.py` | **Built** (S4.16) — see "Recall audit" below |
+| `load_project_roster` — project-wide, per-book tier-filtered pass-2 roster | `api/relations/repository.py` | **Built** (S5.5) — protagonist/major always, minor/mentioned only if this book has an appearance or a mention for them; `load_book_roster` (book-local) still exists for other callers |
+| `cascade.remove_book`, `cascade.reaggregate_project` — book-removal cascade, relations/graph half | `api/graph/cascade.py` | **Built** (S5.8) — deletes this book's `RelationEvidence`, reaggregates every edge from what remains (an edge with no evidence left does not come back), re-projects Neo4j via `upsert.upsert_project`. Character-side cleanup (mentions, appearances, orphan sweep, derived-field recompute) is be1's S5.3; the two halves are order-independent (`Relation` FKs `ON DELETE CASCADE` on `character.id`) — see `plans/sprint-5/HANDOFF.md` |
+| `list_appearances` — one character's per-book appearances, reading-position gated | `api/graph/repository.py`, wired at `GET /characters/{id}/appearances` | **Built** (S5.8) — factored out of `get_character`, same visibility gate |
 
 ## Alias resolution cascade (S3)
 
