@@ -75,9 +75,7 @@ def test_miss_bennet_is_not_safely_mergeable_by_the_eldest_daughter_convention(
     # wrong character. This is a real within-book collision on the surface
     # form, the same class of risk collision.py's sibling-ambiguity veto
     # exists to catch, just not one reachable through a shared token here.
-    miss_bennet = next(
-        c for c in resolved if "Miss Bennet" in c.surface_forms
-    )
+    miss_bennet = next(c for c in resolved if "Miss Bennet" in c.surface_forms)
     contexts = [ctx["context"] for ctx in miss_bennet.contexts]
 
     assert any("at no loss, Miss Bennet" in ctx for ctx in contexts)
