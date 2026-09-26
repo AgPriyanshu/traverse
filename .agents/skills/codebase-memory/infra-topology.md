@@ -147,7 +147,7 @@ and is idempotent and create-only, so it is safe to run while others are working
 | Postgres (default) | the `db` container's own `postgres` database, migrated by the plain `migrate` service. `docker compose down -v` wipes this **and every database above** — the integration checkout's `traverse_int` is not a separate volume from an agent's, just a separate database in it |
 | Neo4j | **be2 exclusive** — Community edition is single-database |
 | RabbitMQ | vhost per agent: `/be1`, `/be2`, `/int` |
-| MinIO | bucket per agent |
+| MinIO | bucket per agent, plus `traverse-test` (SCR-19 root cause) for the `test` service — same reasoning as Postgres's `traverse_test` row above |
 | vLLM | **shared** — one GPU. Timings from a worktree are invalid. |
 | FastAPI | 8000 int · 8001 be1 · 8002 be2 · 8003 fe1-mock |
 | Vite | 5173 fe1 · 5174 int |
@@ -224,6 +224,33 @@ make revision m="…"               ORCHESTRATOR ONLY — typed confirmation
   both the embedding model's tokenizer and `settings.llm_model`'s (S2.18
   merge-train fix) — if a third module starts tokenizing a model neither of
   those two warms, add it there rather than assuming "it's already cached."
+- **The `test` service shared the live MinIO bucket with `api`/`celery-worker`
+  — root cause of SCR-19.** Unlike Postgres, `MINIO_BUCKET` had no
+  `test`-service override — the `test` service inherited `${MINIO_BUCKET:-
+  traverse-int}` from `&api-env` untouched, so `api/tests/pipeline/
+  test_books_routes.py`'s `client()` fixture teardown (`await
+  store.delete_prefix("books/")`, run after **every** test) was deleting the
+  live demo books' source PDFs and rendered pages on every
+  `docker compose --profile test run --rm test`. fe1 found the symptom
+  (page-image requests 500ing for both demo books, SCR-19) without knowing the
+  cause; the actual deletions had already happened by the time it was traced.
+  Fixed the same way `traverse_test` isolates Postgres: `traverse-test` is now
+  its own bucket, in `MINIO_BUCKETS` (three copies, see the `AGENT_DATABASES`
+  entry below — `.env.example`, `docker-compose.yml`'s `minio-init` default,
+  `docker/minio/init-buckets.sh`'s own fallback default — plus a fourth,
+  `scripts/bootstrap_databases.sh`, which builds its own bucket list rather
+  than reading the shared default and needed the same edit for an
+  already-running cluster). The `test` service now overrides `MINIO_BUCKET:
+  ${TEST_MINIO_BUCKET:-traverse-test}`, mirroring `TEST_POSTGRES_DB`. Neo4j was
+  checked for the same class of bug and is **not** affected: it has no
+  per-service override (Community edition is single-database, so it can't),
+  but `api/tests/graph/conftest.py`'s `clean_project` fixture scopes every
+  test to a fresh random `project_id` and `projection.reset_project()` only
+  ever deletes nodes matching that one project id — it was never a blanket
+  prefix delete like MinIO's, so sharing the live database is safe by
+  construction. If a fifth resource gets a `test`-service override in
+  `&api-env`, check whether its test teardown does an unscoped delete before
+  assuming isolation is unnecessary.
 - **`AGENT_DATABASES` has three copies that must agree**: `.env.example`,
   `docker-compose.yml`'s inline default, and
   `docker/postgres/init/10-agent-databases.sh`'s own fallback default. Only
