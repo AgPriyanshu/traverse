@@ -790,3 +790,177 @@ Files: `api/extraction/repository.py`, `api/pipeline/tasks.py`,
 `api/tests/extraction/fixtures/pride_and_prejudice_jane_bennet_candidates.json`
 (new), `api/tests/pipeline/test_extraction_tasks.py`,
 `.claude/skills/codebase-memory/character-graph.md`.
+
+---
+
+## be2 → all · recall funnel diagnosis and two fixes (2026-09-26, `ai/be2/sprint-4-recall`)
+
+**Mission:** find where recall was actually being lost (last measurement:
+P 93–100%, R 0.333 — under half the 0.80 DoD target, not explained by the
+roster fixes already landed) and fix what's fixable from `api/relations/**`.
+Checked `ingestionstage` for `RUNNING` before touching anything — none; the
+shared celery-worker had unrelated live traffic from another agent's book
+mid-session (confirmed via fresh logs, a different book id, unrelated FK
+error), so all real-run measurement below was done from **one-off containers
+on the `traverse_default` network** calling the extraction/aggregation
+functions directly, never touching the shared `celery-worker`/`api`
+containers — no restart, no risk to whoever else was using the stack.
+
+### Funnel, instrumented (real numbers, live Pride and Prejudice, 73-char roster)
+
+Added `raw_proposed`/`avg_raw_per_chunk_read` to `ExtractionResult.summary()`
+(the existing `RejectionStats.as_dict()` already broke down every rejection
+reason — this sprint just used it on a real run instead of estimating).
+
+| | before (chunk-level prefilter, old validator) | + scene-level reading | + validator fix |
+|---|---|---|---|
+| raw chunks read (of 719) | 231 | 279 | 279 |
+| reading units | 231 chunks | 60 scene units | 60 scene units |
+| calls | 259 | 112 | 108 |
+| raw relations proposed | 1891 | 1140 | 973 |
+| avg raw per unit read | 8.19 | 19.0 | 16.22 |
+| validator-accepted | 97 (5.1%) | 51 (4.5%) | **138 (14.2%)** |
+| verifier-rejected | 49 | 24 | 82 |
+| facts persisted | 48 | 27 | 56 |
+| `endpoint_not_in_chunk` (% of raw) | 23.3% | 14.0% | 7.6%\* |
+| `quote_names_neither_endpoint` (% of raw) | 18.7% | 28.5% | *(check removed)* |
+| `predicate_cue_missing` (% of raw) | 29.0% | 29.1% | 43.3% |
+
+\*`endpoint_not_in_chunk` keeps dropping in the third column because more
+candidates now clear it and reach the (now-removed) naming check or the cue
+check instead — the denominator (973) also shrank from run-to-run model
+sampling variance, so treat the percentages as directional, not exact.
+
+Full rejection breakdown, all three runs, is in the commit messages for
+`ai/be2/sprint-4-recall` (`feat(relations): read pass-2 candidates at scene
+granularity [S4.16]`, `fix(relations): stop rejecting a relation for a
+pronoun-only quote [S4.17]`) and in `character-graph.md`'s new "Recall audit"
+section.
+
+### Hypothesis testing, in the order asked
+
+**(a) Prefilter excluding chunks that state a relation via pronoun/epithet
+only — confirmed, and worse than framed.** Not a mention-count-of-a-kept-chunk
+problem; a **chunking granularity** problem. Median `documentchunk` length on
+this book is **60 characters** (487 of 719 chunks are under 100 chars) — most
+"chunks" are one clause. be1's S4.10 prefilter already keeps a 1-mention chunk
+when its scene has 2+ participants (recall be1's collision-guard note: this
+fallback exists specifically for "she refused him"), but only when the
+chunk's *own* mention count is ≥1 — a chunk with **zero** own mentions inside
+an otherwise-qualifying scene (a pure-pronoun clause) is dropped
+unconditionally. Measured: **48 such chunks** on this book, all inside scenes
+that already name 2+ roster characters elsewhere. Fixed by reading at scene
+granularity (`api/relations/scenes.py::build_reading_chunks`) — merges each
+scene's member chunks into one LLM call, using be1's own `scene_participant`
+count to decide whether the *scene* qualifies rather than any one chunk.
+Falls back to the unmodified chunk-level rule when scene tables aren't
+migrated in, so nothing regresses for a book without them. This is a genuine,
+load-bearing recovery: the Wickham/Lydia elopement marriage
+(`George Wickham married_to Miss Lydia Bennet`, gold arc `wickham-lydia`) was
+**entirely absent** from every prior run and only appears once scene-level
+reading is in place — it is stated across two sentences that individually
+name only one of the two people.
+
+**(b) Validator's endpoint-in-quote-plus-cue-word requirement too strict for
+a relation split across two sentences — confirmed as the dominant remaining
+bottleneck.** `ENDPOINT_NOT_IN_CHUNK` already checks the *whole grounding
+text* (now scene, was chunk) for both names — that part is fine and, per (a),
+got measurably less strict. But a second check, `QUOTE_NAMES_NEITHER`,
+additionally required the **cited quote itself** to name at least one
+endpoint, independent of chunk size. Fixing (a) alone didn't move recall
+(0.242 → 0.242, see below) because the endpoint-grounding gain it produced
+mostly **shifted into this other rejection reason** instead of an acceptance
+(`quote_names_neither_endpoint` share of raw proposals rose 18.7% → 28.5%
+between the first two columns above) — the model, now able to see that a
+relation holds, proposed it more often using the pronoun sentence it's
+actually stated in, and that got rejected on a technicality the endpoint
+check had already cleared. Removed `QUOTE_NAMES_NEITHER`; kept
+`QUOTE_NAMES_OTHERS` (a quote naming only *other* roster characters), which is
+the actual Sprint 3 wrong-pair-quote guard and doesn't fire on a pronoun-only
+quote. Accept rate jumped 4.5% → 14.2% of raw proposals in the controlled
+same-run comparison.
+
+**(c) Verifier overly conservative — real, but a smaller share than (a)/(b)
+and not touched this pass.** `verify.py` fails closed on any doubt or model
+error, by design (PRD: a wrong edge is worse than a missing one). Verifier
+rejection counts this sprint: 49 → 24 → 82 across the three runs (roughly
+tracking how many facts reach it, not a fixed rate) — not independently
+re-tuned, since (a)/(b) already had clearer, cheaper wins and the verifier is
+the only thing standing between the loosened validator above and a precision
+collapse. **Recommend against touching verifier calibration until Sprint 8**;
+it is currently absorbing exactly the risk that (b)'s loosening reintroduced.
+
+### The honest trade-off, quantified, not picked
+
+Same-session, same-book, same vLLM instance, before/after each fix in
+isolation, measured via `GET /ops/relation-quality`:
+
+| | before | + scene-level reading (a) | + validator fix (b) |
+|---|---|---|---|
+| precision | **1.0** | 0.80 | **0.71** |
+| recall | 0.242 | 0.242 | **0.303** |
+| f1 | 0.390 | 0.373 | 0.426 |
+
+Recall improved **+6 points (+25% relative)**, F1 improved, precision dropped
+**29 points**. On a 33-relation gold set this is roughly ±1–2 relations of
+noise floor either way, so don't over-read the exact decimals, but the
+direction and the fact that F1 net-improved are real. **Neither DoD target is
+met after both fixes**: recall (0.30) is still under half of 0.80; precision
+(0.71) is now also under the 0.90 target it used to clear. This is not a case
+where loosening the validator alone would close the gap by degrees — even at
+0.303, recall is capped by something else entirely.
+
+**What (a) and (b) do not reach, and why:** every run, including the final
+one, scored **zero** true positives on `enemy_of`, `rival_of`,
+`unrequited_love_for`, and `deceives`. These are Austen's most indirectly
+worded relations (irony, understatement) and none of this sprint's fixes
+touch *what the model chooses to propose* — only what survives validation
+once proposed. `in_law_of` is a different problem again: gold's five
+`in_law_of` pairs (Wickham/Elizabeth, Wickham/Jane, Darcy/Bingley,
+Elizabeth/Bingley, Darcy/Jane) are all **transitively derived** from two
+separate marriages Austen states in different chapters — no single chunk or
+scene ever states them directly, so chunk/scene-level extraction structurally
+cannot produce them no matter how the validator is tuned. (The model did
+propose `in_law_of` for the wrong pairs twice this run — `Mr./Mrs. Bennet
+in_law_of Fitzwilliam Darcy`, both counted as spurious — so the predicate
+isn't unreachable, just aimed at the parents instead of the siblings-in-law,
+which is arguably a more natural in-scene reading than the sibling relation
+gold wants.) **Recommendation for Sprint 8, not attempted here:** a
+post-aggregation derivation pass for `in_law_of` (and possibly
+`grandparent_of`) from two `parent_of`/`married_to` edges, which is a graph
+inference step, not an extraction fix — filing rather than implementing,
+since it changes `aggregate.py`'s contract (deriving edges with no direct
+extracted evidence) and deserves its own design pass.
+
+**Sampling variance is real and roughly the size of these deltas.** A
+same-code, same-book re-run of the *unmodified* chunk-level path measured
+recall 0.242 in this session vs. the previously-documented 0.333 from a
+different session — same code, different LLM draws (no temperature=0 in
+`api/llm/client.py`). Every number above is one sample per condition, not an
+average; treat the direction (both fixes together net-improve F1, at the cost
+of precision) as the finding, not the third decimal place.
+
+### State of the live shared graph
+
+Left the shared stack's `4d5750ce-…` project with the **scene-level +
+validator-fix** result upserted (29 relations / 57 edges with inverses,
+`GET /ops/relation-quality` → P 0.71 / R 0.30 / F1 0.43), since it has the
+better F1 and recall is the sprint's named blocker. Re-staged
+`books/4d5750ce-…/relations_extracted.json` in object storage to match, so a
+future real `relations.aggregate` run (once the deployed `celery-worker`
+image is rebuilt — do1 flagged it's still running older code) starts from
+the current facts rather than a stale artifact. Zero evidence-free edges
+confirmed by direct query on both Postgres and Neo4j, same as every prior
+run.
+
+### Sprint 4 DoD status (relation quality)
+
+**Not met.** Precision 0.71 / Recall 0.30 against do1's gold, both now short
+of target after an honest, quantified trade-off — this is the ship-gate
+finding, not a partial pass. The path to 0.80 recall is not "tune the
+validator further": the remaining gap is dominated by predicate classes
+(indirect/ironic relations, transitively-inferred `in_law_of`) that need a
+different kind of fix (better extraction prompting for indirect predicates,
+or a derivation pass for transitive ones), not another validator knob.
+Recommend the orchestrator treat this as a Sprint 8 item rather than block
+the sprint further on it — see Sprint 8 recommendations above.

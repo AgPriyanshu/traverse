@@ -29,8 +29,8 @@ not grep for it.
 | `pipeline.extract_characters` / `resolve_aliases` bodies | `api/pipeline/tasks.py` (logic in `api/extraction/`) | Built (S3) |
 | `render_page`, `PageOutOfRangeError` | `api/pipeline/render.py` | Built — renders straight from the source PDF via `pypdfium2`, not Docling; caches PNG + span JSON at `books/{id}/pages/{n}.{png,json}` |
 | `ObjectStore.put_bytes` / `get_bytes` | `api/pipeline/storage.py` | Built — small in-memory payloads (page renders, span metadata), alongside the streaming `put_stream`/`get_object` pair |
-| `pass2_candidates` prefilter | `api/pipeline/` | S4 |
-| scene segmentation, speaker attribution | `api/pipeline/` | S4 |
+| `pass2_candidates` prefilter | `api/pipeline/prefilter.py` | Built (S4.10) — chunk-level: keeps a chunk with 2+ distinct roster mentions, or 1 mention when its scene has 2+ participants. `api/relations/scenes.py` (be2, S4.16) reads at scene granularity on top of this; see character-graph.md |
+| scene segmentation, speaker attribution | `api/pipeline/scenes.py`, `scene_repository.py`, `speakers.py` | Built (S4.8/S4.9) |
 
 ## Known defects — do not rediscover these
 

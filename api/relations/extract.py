@@ -48,6 +48,7 @@ class ExtractionResult:
     verifier_rejected: int = 0
 
     def summary(self) -> dict:
+        raw_proposed = self.stats.total
         payload = {
             "roster_strategy": self.roster_strategy,
             "roster_size": self.roster_size,
@@ -56,6 +57,10 @@ class ExtractionResult:
             "calls": self.calls,
             "length_splits": self.length_splits,
             "unsplittable_chunks": self.unsplittable_chunks,
+            "raw_proposed": raw_proposed,
+            "avg_raw_per_chunk_read": (
+                round(raw_proposed / self.chunks_read, 2) if self.chunks_read else 0.0
+            ),
             "verifier_rejected": self.verifier_rejected,
             "facts": len(self.facts),
             **self.stats.as_dict(),
