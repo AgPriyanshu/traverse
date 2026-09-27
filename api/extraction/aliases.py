@@ -83,7 +83,7 @@ class Cluster:
         return sum(self.mention_counts.values())
 
 
-def _choose_canonical(surface_forms: set[str], mention_counts: dict[str, int]) -> str:
+def choose_canonical(surface_forms: set[str], mention_counts: dict[str, int]) -> str:
     """Prefer the most complete proper name, then the most frequent form.
 
     "Elizabeth Bennet" over "Elizabeth" over "Lizzy" — a canonical name that
@@ -91,6 +91,12 @@ def _choose_canonical(surface_forms: set[str], mention_counts: dict[str, int]) -
     counts name tokens, not the honorific, so "Mr. Fitzwilliam Darcy" does not
     beat "Fitzwilliam Darcy" merely for its title, and an all-caps or
     punctuation-laden variant loses to a cleanly cased one.
+
+    Public (not underscore-prefixed): S5's cross-book reconciliation
+    (``api/reconcile/repository.py::recompute_derived_fields``) reuses it to
+    pick a merged character's canonical name from its full, project-wide
+    alias set — a pure function of that set, which is what keeps the result
+    the same regardless of which book merged into which.
     """
 
     def sort_key(form: str) -> tuple[int, int, int, int, int]:
@@ -140,7 +146,7 @@ def _combine(base: Cluster, other: Cluster, method: ResolutionMethod) -> Cluster
     mention_counts = {**base.mention_counts, **other.mention_counts}
 
     return Cluster(
-        canonical_name=_choose_canonical(all_forms, mention_counts),
+        canonical_name=choose_canonical(all_forms, mention_counts),
         surface_forms=surface_forms,
         candidate_ids=base.candidate_ids | other.candidate_ids,
         contexts=base.contexts + other.contexts,
