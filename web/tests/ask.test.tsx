@@ -1,5 +1,6 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resetConversations } from "@/routes/ask/conversation-store";
 import { renderRoute } from "./render";
 
 const BOOK_ID = "book-1";
@@ -141,6 +142,16 @@ const mockApi = (options: MockOptions = {}) => {
 };
 
 describe("the ask screen", () => {
+  // Cleared before, not after: `@testing-library/react`'s own `afterEach(cleanup)`
+  // is registered at file scope (on import) while this hook is registered
+  // inside `describe`, so it runs *before* that cleanup unmounts the
+  // component — resetting here would just be repopulated by the unmount
+  // effect a moment later. Every test starting from a clean store is what
+  // actually matters, so `beforeEach` sidesteps the ordering.
+  beforeEach(() => {
+    resetConversations();
+  });
+
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -225,6 +236,32 @@ describe("the ask screen", () => {
 
     await waitFor(() => { expect(threadIds).toEqual([null, "thread-1"]); });
     expect(screen.getAllByText(/five daughters/i)).toHaveLength(2);
+  });
+
+  it("preserves the conversation when a citation is followed to its page and back", async () => {
+    mockApi({ onQuery: () => ANSWER_FRAMES });
+    const { router } = renderRoute(`/books/${BOOK_ID}/ask`);
+
+    fireEvent.click(await screen.findByRole("button", { name: /who is elizabeth bennet/i }));
+    const answer = await screen.findByTestId("answer-text");
+    await waitFor(() => {
+      expect(within(answer).getByText(/five daughters/)).toBeInTheDocument();
+    });
+
+    fireEvent.click(within(answer).getByRole("link"));
+    expect(await screen.findByText(/page 12/i)).toBeInTheDocument();
+
+    await router.navigate(-1);
+
+    // The whole turn — question, prose and citation — is back, not reset,
+    // and the thread continues rather than starting a fresh conversation
+    // (S6.11: "get back to the answer without losing it").
+    expect(await screen.findByTestId("answer-text")).toBeInTheDocument();
+    expect(screen.getByText(/who is elizabeth bennet/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /citation 0/i })).toHaveAttribute(
+      "href",
+      `/books/${BOOK_ID}/pages/12`,
+    );
   });
 
   it("shows the book's reading-position scope with a way to clear it", async () => {

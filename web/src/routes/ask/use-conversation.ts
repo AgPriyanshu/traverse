@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { describeError, pageRenderQueryOptions, streamQuery, streamRespond } from "@/lib/api";
 import type { QueryEvent } from "@/lib/api";
+import { conversationKey, loadConversation, saveConversation } from "./conversation-store";
 import type { AskScope, Turn } from "./types";
 
 let nextId = 0;
@@ -31,12 +32,19 @@ export type UseConversationResult = {
  * response hands one back — never invented client-side.
  */
 export const useConversation = (scope: AskScope): UseConversationResult => {
+  // Variables.
+  const key = conversationKey(scope);
+
   // States.
-  const [turns, setTurns] = useState<Turn[]>([]);
+  const [turns, setTurns] = useState<Turn[]>(() => loadConversation(key)?.turns ?? []);
 
   // Refs.
-  const threadIdRef = useRef<string | null>(null);
+  const threadIdRef = useRef<string | null>(loadConversation(key)?.threadId ?? null);
   const controllerRef = useRef<AbortController | null>(null);
+  // Mirrors `turns` for the unmount cleanup below, which closes over the
+  // render it was created in and would otherwise see a stale, empty array.
+  const turnsRef = useRef(turns);
+  turnsRef.current = turns;
 
   // Hooks.
   const queryClient = useQueryClient();
@@ -46,10 +54,27 @@ export const useConversation = (scope: AskScope): UseConversationResult => {
 
   // useEffects.
   useEffect(() => {
-    // Leaving the screen mid-stream aborts the fetch rather than letting it
-    // keep writing to state nobody will read.
-    return () => { controllerRef.current?.abort(); };
-  }, []);
+    // Every turn update is saved immediately, not just on unmount — the
+    // conversation must survive a citation click-through even if the tab
+    // is closed mid-stream, not only a clean unmount (S6.11).
+    saveConversation(key, { turns, threadId: threadIdRef.current });
+  }, [key, turns]);
+
+  useEffect(() => {
+    return () => {
+      controllerRef.current?.abort();
+      // Aborting mid-stream throws into `consume`'s catch, but that runs
+      // after this component has already unmounted, so its `setTurns` call
+      // is dropped and never reaches the store. Neutralize it here instead:
+      // a stream paused by navigating to a citation's page resumes as a
+      // *done* answer with whatever arrived so far, not a stuck spinner and
+      // not an error — the citation the reader clicked is already in it.
+      const paused = turnsRef.current.map((turn) =>
+        turn.status === "streaming" ? { ...turn, status: "done" as const } : turn,
+      );
+      saveConversation(key, { turns: paused, threadId: threadIdRef.current });
+    };
+  }, [key]);
 
   // Handlers.
   const applyEvent = useCallback(
