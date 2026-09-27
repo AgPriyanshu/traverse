@@ -5,8 +5,10 @@ import pytest
 from eval.loaders import (
     REPO_ROOT,
     CorpusChecksumMismatch,
+    available_gold_answer_books,
     available_gold_books,
     available_gold_identity_series,
+    load_gold_answers,
     load_gold_identity,
     load_gold_roster,
 )
@@ -21,6 +23,29 @@ def test_both_gold_rosters_are_schema_valid_and_checksum_pinned():
         roster = load_gold_roster(book_key)
         assert roster["book_key"] == book_key
         assert len(roster["characters"]) > 0
+
+
+def test_gold_answers_are_schema_valid_and_checksum_pinned():
+    books = available_gold_answer_books()
+
+    assert "pride-and-prejudice" in books
+    document = load_gold_answers("pride-and-prejudice")
+    assert document["book_key"] == "pride-and-prejudice"
+    questions = document["questions"]
+    assert len(questions) == 30
+    classes = {q["class"] for q in questions}
+    assert classes == {
+        "single_fact",
+        "relationship",
+        "path",
+        "aggregation",
+        "temporal",
+        "unanswerable",
+    }
+    # F4.1: abstention is a first-class expectation, not an afterthought --
+    # every unanswerable question must actually say so.
+    for q in questions:
+        assert q["expect_abstain"] == (q["class"] == "unanswerable")
 
 
 def test_wuthering_heights_gold_roster_keeps_the_two_catherines_separate():
