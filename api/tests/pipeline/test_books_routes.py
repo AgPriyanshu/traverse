@@ -385,5 +385,6 @@ class TestStillFrozen:
         # router — bumped here at the merge train once the final count
         # across all four branches was known, same as Sprint 2's SCR-6), +2 at
         # Sprint 4's for GET /ops/relation-quality and GET /ops/relation-cost
-        # (do1's SCR-16).
-        assert len(response.json()["paths"]) == 38
+        # (do1's SCR-16), +2 at Sprint 5's for GET /ops/reconciliation-quality
+        # and GET /ops/reconciliation-order-check (do1's SCR-4).
+        assert len(response.json()["paths"]) == 40
