@@ -1,10 +1,11 @@
 import { Box, HStack, Stack, Text } from "@chakra-ui/react";
 import { useMemo } from "react";
 import { ErrorState, LoadingSkeleton, PageRef } from "@/components/ui";
-import type { Relation } from "@/lib/api";
+import type { Book, Relation } from "@/lib/api";
 import { useRelationArc } from "@/lib/api";
-import { buildSegments } from "./arc-segments";
-import type { ArcSegment } from "./arc-segments";
+import { bookBySeriesOrder } from "../project-lookup";
+import { buildBoundaries, buildSegments, totalGlobalChapters } from "./arc-segments";
+import type { ArcSegment, BookBoundary } from "./arc-segments";
 import { FamilyBadge } from "./family-stroke";
 import {
   FAMILY_COLOR_VAR,
@@ -12,35 +13,39 @@ import {
   predicateLabel,
 } from "./relation-style";
 
-const chapterSpanText = (segment: ArcSegment): string => {
-  if (segment.openEnded) { return `ch. ${segment.start}–end`; }
-  if (segment.start === segment.end) { return `ch. ${segment.start}`; }
-  return `ch. ${segment.start}–${segment.end}`;
+const positionText = (segment: ArcSegment, boundaries: readonly BookBoundary[]): string => {
+  const startBook = boundaries.find((b) => b.startGlobal <= segment.startGlobal && segment.startGlobal <= b.endGlobal);
+  const bookLabel = startBook ? `bk. ${startBook.book.series_order}` : "";
+  const chapterInBook = startBook ? segment.startGlobal - startBook.startGlobal + 1 : segment.startGlobal;
+  if (segment.openEnded) { return `${bookLabel} ch. ${chapterInBook}–end`; }
+  return `${bookLabel} ch. ${chapterInBook}`;
+};
+
+/** The page ref that best represents where a state begins — the one in its own first book, when several are cited. */
+const citationFor = (state: Relation, booksBySeriesOrder: ReadonlyMap<number, Book>) => {
+  const refs = state.page_refs ?? [];
+  const inFirstBook = refs.find((ref) => ref.book_order === state.first_book_order);
+  const ref = inFirstBook ?? refs[0];
+  if (!ref) { return null; }
+  const book = booksBySeriesOrder.get(ref.book_order);
+  return { page: ref.page, bookId: ref.book_id ?? book?.id, bookTitle: book?.title };
 };
 
 export type RelationArcViewProps = {
   states: readonly Relation[];
-  chapterCount: number;
-  bookId: string;
-  bookTitle?: string | null;
+  books: readonly Book[];
 };
 
-export const RelationArcView = ({
-  states,
-  chapterCount,
-  bookId,
-  bookTitle,
-}: RelationArcViewProps) => {
+export const RelationArcView = ({ states, books }: RelationArcViewProps) => {
   // useMemos.
-  const segments = useMemo(() => buildSegments(states, chapterCount), [states, chapterCount]);
+  const boundaries = useMemo(() => buildBoundaries(books), [books]);
+  const booksBySeriesOrder = useMemo(() => bookBySeriesOrder(books), [books]);
+  const segments = useMemo(() => buildSegments(states, boundaries), [states, boundaries]);
 
   // Variables.
-  const total = Math.max(
-    1,
-    chapterCount,
-    ...segments.map((segment) => segment.end),
-  );
-  const percent = (chapter: number) => ((chapter - 1) / total) * 100;
+  const total = totalGlobalChapters(boundaries);
+  const percent = (globalChapter: number) => ((globalChapter - 1) / total) * 100;
+  const multiBook = boundaries.length > 1;
 
   if (segments.length === 0) {
     return (
@@ -59,13 +64,27 @@ export const RelationArcView = ({
         aria-label={segments
           .map(
             (segment) =>
-              `${predicateLabel(segment.state.predicate)}, ${chapterSpanText(segment)}`,
+              `${predicateLabel(segment.state.predicate)}, ${positionText(segment, boundaries)}`,
           )
           .join("; then ")}
       >
+        {multiBook
+          ? boundaries.slice(1).map((boundary) => (
+              <Box
+                key={boundary.book.id}
+                position="absolute"
+                top="-1"
+                bottom="-1"
+                width="1px"
+                bg="border"
+                style={{ left: `${percent(boundary.startGlobal)}%` }}
+                aria-hidden="true"
+              />
+            ))
+          : null}
         {segments.map((segment, index) => {
-          const left = percent(segment.start);
-          const width = ((segment.end - segment.start + 1) / total) * 100;
+          const left = percent(segment.startGlobal);
+          const width = ((segment.endGlobal - segment.startGlobal + 1) / total) * 100;
           const family = segment.state.family;
           return (
             <Box
@@ -120,9 +139,19 @@ export const RelationArcView = ({
         })}
       </Box>
 
+      {multiBook ? (
+        <HStack justify="space-between">
+          {boundaries.map((boundary) => (
+            <Text key={boundary.book.id} textStyle="data" color="fg.subtle">
+              bk. {boundary.book.series_order} — {boundary.book.title}
+            </Text>
+          ))}
+        </HStack>
+      ) : null}
+
       <Stack as="ol" gap="2" listStyleType="none" margin="0" padding="0">
         {segments.map((segment, index) => {
-          const ref = segment.state.page_refs?.[0];
+          const citation = citationFor(segment.state, booksBySeriesOrder);
           return (
             <Box as="li" key={segment.state.id} display="flex" gap="2.5" alignItems="baseline" flexWrap="wrap">
               <Text textStyle="data" color="fg.subtle" aria-hidden="true">
@@ -132,7 +161,7 @@ export const RelationArcView = ({
                 {predicateLabel(segment.state.predicate)}
               </Text>
               <Text textStyle="small" color="fg.muted">
-                {chapterSpanText(segment)}
+                {positionText(segment, boundaries)}
               </Text>
               <FamilyBadge family={segment.state.family} />
               {index > 0 ? (
@@ -140,12 +169,8 @@ export const RelationArcView = ({
                   begins
                 </Text>
               ) : null}
-              {ref ? (
-                <PageRef
-                  page={ref.page}
-                  bookId={ref.book_id ?? bookId}
-                  bookTitle={bookTitle}
-                />
+              {citation ? (
+                <PageRef page={citation.page} bookId={citation.bookId} bookTitle={citation.bookTitle} />
               ) : (
                 <Text textStyle="small" color="status.warn">
                   no page cited
@@ -162,13 +187,11 @@ export const RelationArcView = ({
 export type RelationArcProps = {
   a: string;
   b: string;
-  chapterCount: number;
-  bookId: string;
-  bookTitle?: string | null;
+  books: readonly Book[];
 };
 
 /** Fetches the pair's arc and renders it; nothing at all when the API has none, since an empty arc is not a fact. */
-export const RelationArc = ({ a, b, chapterCount, bookId, bookTitle }: RelationArcProps) => {
+export const RelationArc = ({ a, b, books }: RelationArcProps) => {
   // Apis.
   const arc = useRelationArc(a, b);
 
@@ -186,12 +209,7 @@ export const RelationArc = ({ a, b, chapterCount, bookId, bookTitle }: RelationA
           How it changes
         </Text>
       </HStack>
-      <RelationArcView
-        states={arc.data.states ?? []}
-        chapterCount={chapterCount}
-        bookId={bookId}
-        bookTitle={bookTitle}
-      />
+      <RelationArcView states={arc.data.states ?? []} books={books} />
     </Stack>
   );
 };
