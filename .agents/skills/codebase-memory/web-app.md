@@ -77,6 +77,34 @@ build` all clean. See `plans/sprint-5/SCR.md` SCR-1/2 for the two carried
 gaps and DCR-1 for the missing design artboards this sprint had to
 extrapolate from.
 
+**Built (S6, fe1):** the ask screen (`routes/ask/`, mounted at both
+`/books/:id/ask` and `/projects/:id/ask` via `<AskScreen scope heading>`).
+`use-conversation.ts` drives `POST /api/query` / `POST /api/query/{id}/respond`
+(`lib/api/query-stream.ts`'s `streamQuery`/`streamRespond`, a hand-rolled SSE
+reader — no generated client for a streaming body) and accumulates each turn
+as an ordered `AnswerPart[]` of text runs and citations in stream order, so a
+`CitationEvent` splices in right after the tokens for the claim it supports
+(S6.10 — "inline, not a footnote block"). `thread_id` is carried
+client-side across turns, never invented. Citations render as `<PageRef
+index>` — a superscript unicode figure (`⁰¹²…`), not a chip — prefetched via
+`pageRenderQueryOptions` the moment the `CitationEvent` arrives, before the
+click (S6.11). `<InterruptCard>` (`components/ui/interrupt-card.tsx`)
+renders a clarifying question as option buttons or free text, posts to
+`/respond`, and resumes the same stream in place (S6.12) — built reusable for
+Sprint 7's review queue per the brief. `<ScopeBanner>` shows the
+reading-position scope (`limit_book_order`/`limit_chapter`, the frontend's
+own choice — see the gotcha below) with a way to clear it back to the whole
+series (S6.13). An abstained `done` event renders as a considered answer
+(`<StatusDot tone="idle">`), not an error. `conversation-store.ts` holds the
+turns outside React, keyed by scope — a citation click navigates to a
+*sibling* route (`pages/:n`), which unmounts `<AskScreen>`, so a plain
+`useState` would lose the whole thread on browser back; the store is what
+makes "get back to the answer without losing it" (S6.11) actually true. Its
+unmount cleanup also turns any still-`streaming` turn into a `done` one
+before the fetch aborts, rather than leaving a stuck spinner or surfacing the
+abort as an error. 193 Vitest tests, all passing; `pnpm typecheck`, `pnpm
+lint`, `pnpm build` all clean.
+
 **Known gap:** `MentionOut` and `EvidenceOut` carry a page but no `SpanBox`, so their click-through lands on the page without a highlight (Sprint 3 SCR-9, Sprint 4 SCR-10). The roster sparkline gap (Sprint 3 SCR-1) is closed for the single-book roster; its series-roster descendant reopens a version of it (Sprint 5 SCR-1 — see above).
 
 `web/src/design-system/tokens.ts` **exists** (DCR-1, landed at the Sprint 2
@@ -320,6 +348,31 @@ src/
                               span — the exact chapter is one click away, in
                               the evidence panel and the arc, both of which
                               already carry it per item.
+  ask/                         S6.10-13. `types.ts` (`AnswerPart`, `Turn`,
+                              `AskScope` — `projectId`/`limitBookOrder`/
+                              `limitChapter`/`label`/`clearHref`),
+                              `use-conversation.ts` (the SSE-driving hook —
+                              see above) + `conversation-store.ts` (the
+                              outside-React cache keyed by scope that survives
+                              a citation's unmount/remount — see above),
+                              `ask-screen.tsx` (shared by both
+                              routes), `ask-composer.tsx`, `scope-banner.tsx`,
+                              `suggested-questions.tsx` (ranks the project's
+                              own roster by tier/mentions for the landing
+                              prompts, falls back to three generic ones for
+                              an empty roster — never a blank state, PRD
+                              §9.1), `conversation-thread.tsx` +
+                              `turn-view.tsx` (scroll-anchored, a "Copy
+                              answer" button per done turn), `citation-mark.tsx`
+                              (wraps `<PageRef index>`), `route-badge.tsx` +
+                              `route-labels.ts` ("answered from the character
+                              record", one label per `QueryRoute`).
+  book/ask.tsx, project/ask.tsx   resolve an `AskScope` from `useBook`/
+                              `useProject` and render `<AskScreen>` — the
+                              book route sets `limitBookOrder` to that book's
+                              `series_order` (spoiler-safe default, never
+                              left unset for a book page); the project route
+                              leaves both limits `null` (whole series).
 ```
 
 ## Routes
@@ -342,7 +395,7 @@ project roster.
 | `/books/:id` | ingestion progress stepper, retry-from-stage, local ETA | Built |
 | `/books/:id/chapters` | chapters + chunk inspector | Built |
 | `/books/:id/pages/:n` | page viewer | Built |
-| `/books/:id/ask` | Q&A with citations | S6 |
+| `/books/:id/ask` | Q&A with citations, scoped to this book's reading position | Built (S6) |
 | `/books/:id/review` | review queue | S7 |
 | `/projects` | project list — name, kind, book/character/relation counts | Built (S5) |
 | `/projects/new` | create project (standalone \| series) | Built (S5) |
@@ -350,7 +403,7 @@ project roster.
 | `/projects/:id/characters` | series roster + appearance strip (moved from `/books/:id/characters`, S3.10) | Built (S5) |
 | `/projects/:id/characters/:cid` | character detail + appearances section (moved from `/books/:id/...`, S3.11) | Built (S5) |
 | `/projects/:id/graph` | series graph, book filter, series-position control (moved from `/books/:id/graph`, S4) | Built (S5) |
-| `/projects/:id/ask` | Q&A with citations | S6 |
+| `/projects/:id/ask` | Q&A with citations, whole series | Built (S6) |
 | `/ops`, `/ops/evals` | dashboard, ablations | S8/S9 |
 
 ## Key components
@@ -371,6 +424,9 @@ project roster.
 | `<SparklineBars>` | Built (`routes/project/sparkline-bars.tsx`). A single-hue magnitude bar chart, `interactive` (keyboard-operable `rect`s, click-to-select, a stroke ring on the selected bar) or not (the roster row's mini chart). `responsive` stretches to its container at a fixed height via `viewBox` + `preserveAspectRatio="none"`. | S3 |
 | `<MentionsTimeline>` | Built (`routes/project/mentions-timeline.tsx`). Wraps `<SparklineBars>` with a client-derived per-book histogram (S5 — see the SCR-2 gotcha; no longer trusts the aggregate `mentions_per_chapter` directly) → sorted points and a handful of evenly-spaced axis labels, never one per chapter. | S3, S5 |
 | `<MentionInspectorDrawer>` | Built (`routes/project/mention-inspector-drawer.tsx`). Groups mentions by surface form off `alias_detail`; `resolution_method` shown per mention as the trust affordance, not summarised away at the group level. Takes `books` (plural) since S5, resolving each mention's citation off its own `book_id`. | S3, S5 |
+| `<PageRef index>` | Built. The same `<PageRef>`, now with an `index` prop for an inline citation mark — renders a superscript unicode figure (`⁰¹²…`, not a CSS `font-size`/`vertical-align` hack) instead of "p. N", and its accessible name becomes "citation N: page M of Title". | S6 |
+| `<InterruptCard>` | Built (`components/ui/interrupt-card.tsx`). A clarifying question as selectable option buttons plus a free-text fallback; deliberately generic (question/options/two callbacks) so Sprint 7's review queue can reuse it rather than building a second interrupt UI. | S6 |
+| `<AskScreen>`/`useConversation` | Built (`routes/ask/`). One SSE-driven conversation hook shared by the book- and project-scoped ask routes — see the S6 entry above. | S6 |
 
 ## Gotchas
 
@@ -471,6 +527,25 @@ project roster.
   ambiguous across books** (SCR-2) — chapter numbers reset per volume, so it
   is never trusted directly for a multi-book character; the detail page
   derives its own histogram from mentions filtered to one selected book.
+- **`QueryRequest` has no `book_id`** — a query is always scoped by
+  `project_id` plus the optional reading-position pair
+  `limit_book_order`/`limit_chapter` ("how far the reader has read", the same
+  fields the S5.11 series-position control uses, never a "which book" filter).
+  A book-scoped ask (`/books/:id/ask`) sets `limit_book_order` to that book's
+  own `series_order` — spoiler-safe by default, per `query-path.md` ("no
+  limit" must be an explicit choice, never defaulted); a project-scoped ask
+  leaves both `null` (whole series, no spoiler gate).
+- **The `/query/{thread_id}/respond` request body is named `ClarifyResponse`**
+  in the contract (`api/contracts/api.py`) despite being the request, not the
+  response — `{ answer: string }`. Don't rename it client-side to "fix" the
+  naming; `types.ts` re-exports it as-is like every other schema.
+- **No `QueryEvent` yet surfaces which characters a follow-up resolved
+  against** (Sprint 6 SCR candidate) — `<ScopeBanner>` shows only the
+  reading-position scope the frontend itself chose, not a carried
+  *character* scope like "about Elizabeth Bennet" the S6.13 brief's example
+  implies. Don't fake this from client-side heuristics (e.g. guessing from
+  the question text) — wait for the backend to add it to `DoneEvent` or
+  similar.
 
 ## Related
 
@@ -481,4 +556,6 @@ project roster.
 [plans/sprint-2/SCR.md](../../../plans/sprint-2/SCR.md) ·
 [plans/sprint-2/HANDOFF.md](../../../plans/sprint-2/HANDOFF.md) ·
 [plans/sprint-5/SCR.md](../../../plans/sprint-5/SCR.md) ·
-[plans/sprint-5/HANDOFF.md](../../../plans/sprint-5/HANDOFF.md)
+[plans/sprint-5/HANDOFF.md](../../../plans/sprint-5/HANDOFF.md) ·
+[plans/sprint-6/SCR.md](../../../plans/sprint-6/SCR.md) ·
+[plans/sprint-6/HANDOFF.md](../../../plans/sprint-6/HANDOFF.md)
