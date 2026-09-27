@@ -22,6 +22,8 @@ TABLES_TOUCHED_BY_TESTS = (
     "ingestionrun",
     "documentchunk",
     "chapter",
+    "relationevidence",
+    "relation",
     "charactermention",
     "characterappearance",
     "character",
