@@ -150,7 +150,9 @@ async def test_remove_book_drops_book_only_edges_and_keeps_shared_ones(
     try:
         counts = await cascade.remove_book(session, project.id, book2.id)
 
-        assert counts["evidence_deleted"] == 1
+        # Book two contributed one evidence item to the shared relation and
+        # one to the book-two-only relation — both are deleted.
+        assert counts["evidence_deleted"] == 2
         assert counts["relations_written"] == 1
 
         remaining = (

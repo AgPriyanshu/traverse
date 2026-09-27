@@ -252,56 +252,78 @@ async def replace_project_relations(
 ) -> int:
     """Replace a project's machine-made edges with a fresh aggregation.
 
-    Human-verified edges are never deleted or overwritten (PRD F5.4): they are
-    left in place and an aggregated edge for the same subject, predicate and
-    object is skipped rather than duplicated.
+    Reuses an existing row's id for the same ``(subject, predicate, object)``
+    key rather than deleting and reinserting — the identity-stability
+    invariant Sprint 4 established for ``Character`` via
+    ``persist_characters`` (a rerun that regenerates a row's id
+    cascade-deletes everything keyed off it and orphans any citation, review
+    task or Neo4j edge id pointing at the old one). Every aggregate run,
+    including the one a book removal triggers, must leave an unchanged edge's
+    id unchanged.
+
+    Human-verified edges are never deleted or overwritten (PRD F5.4): left in
+    place, and an aggregated edge for the same key is skipped rather than
+    duplicated.
 
     Returns:
-        The number of relations written.
+        The number of relations written (inserted or updated).
     """
-    verified = {
-        (r.subject_character_id, r.predicate, r.object_character_id)
-        for r in (
+    existing = (
+        (
             await session.execute(
-                select(Relation)
-                .where(Relation.project_id == project_id)
-                .where(Relation.human_verified.is_(True))
+                select(Relation).where(Relation.project_id == project_id)
             )
         )
         .scalars()
         .all()
-    }
-    await session.execute(
-        delete(Relation)
-        .where(Relation.project_id == project_id)
-        .where(Relation.human_verified.is_(False))
     )
+    verified_keys = {
+        (r.subject_character_id, r.predicate, r.object_character_id)
+        for r in existing
+        if r.human_verified
+    }
+    by_key = {
+        (r.subject_character_id, r.predicate, r.object_character_id): r
+        for r in existing
+        if not r.human_verified
+    }
 
     written = 0
+    kept_ids: set[UUID] = set()
     for edge in relations:
         key = (edge.subject_character_id, edge.predicate, edge.object_character_id)
-        if key in verified:
+        if key in verified_keys:
             continue
 
-        row = Relation(
-            project_id=project_id,
-            subject_character_id=edge.subject_character_id,
-            object_character_id=edge.object_character_id,
-            predicate=edge.predicate,
-            family=edge.family,
-            confidence=edge.confidence,
-            status=edge.status,
-            assertion_type=edge.assertion_type,
-            asserted_by_character_id=edge.asserted_by_character_id,
-            hearsay=edge.hearsay,
-            first_book_order=edge.first.book_order,
-            first_chapter=edge.first.chapter,
-            last_book_order=edge.last.book_order if edge.last else None,
-            last_chapter=edge.last.chapter if edge.last else None,
-            evidence_count=len(edge.evidence),
-        )
-        session.add(row)
+        row = by_key.get(key)
+        if row is None:
+            row = Relation(
+                project_id=project_id,
+                subject_character_id=edge.subject_character_id,
+                object_character_id=edge.object_character_id,
+                predicate=edge.predicate,
+            )
+            session.add(row)
+
+        row.family = edge.family
+        row.confidence = edge.confidence
+        row.status = edge.status
+        row.assertion_type = edge.assertion_type
+        row.asserted_by_character_id = edge.asserted_by_character_id
+        row.hearsay = edge.hearsay
+        row.first_book_order = edge.first.book_order
+        row.first_chapter = edge.first.chapter
+        row.last_book_order = edge.last.book_order if edge.last else None
+        row.last_chapter = edge.last.chapter if edge.last else None
+        row.evidence_count = len(edge.evidence)
         await session.flush()
+
+        # Evidence has no external identity of its own to preserve — nothing
+        # cites a bare relation_evidence.id — so it is fully replaced under
+        # the now-stable parent id rather than diffed item by item.
+        await session.execute(
+            delete(RelationEvidence).where(RelationEvidence.relation_id == row.id)
+        )
         session.add_all(
             RelationEvidence(
                 relation_id=row.id,
@@ -317,7 +339,14 @@ async def replace_project_relations(
             )
             for item in edge.evidence
         )
+        kept_ids.add(row.id)
         written += 1
+
+    stale_ids = [
+        r.id for r in existing if not r.human_verified and r.id not in kept_ids
+    ]
+    if stale_ids:
+        await session.execute(delete(Relation).where(Relation.id.in_(stale_ids)))
 
     await session.commit()
 

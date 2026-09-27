@@ -130,3 +130,79 @@ async def test_relation_established_in_two_books_is_one_edge_with_evidence_from_
         .all()
     )
     assert [item.book_order for item in evidence] == [1, 2]
+
+
+@pytest.mark.asyncio
+async def test_relation_id_is_stable_across_reaggregation_reruns(
+    session, project, book
+):
+    """The same identity-stability invariant Sprint 4 fixed for ``Character``
+    (``persist_characters`` upserting by natural key instead of delete/
+    reinsert): a rerun that regenerates a relation's id cascade-deletes its
+    evidence and orphans any citation, review task or Neo4j edge id pointing
+    at the old one. ``replace_project_relations`` must reuse the existing row
+    for an unchanged ``(subject, predicate, object)`` key.
+    """
+    a = Character(project_id=project.id, canonical_name="Anne Shirley")
+    b = Character(project_id=project.id, canonical_name="Diana Barry")
+    session.add_all([a, b])
+    await session.commit()
+
+    chunk = DocumentChunk(
+        book_id=book.id,
+        text="Anne and Diana are bosom friends.",
+        pages=[1],
+        page_start=1,
+        page_end=1,
+    )
+    session.add(chunk)
+    await session.commit()
+    await session.refresh(chunk)
+
+    fact = aggregation.Fact(
+        subject_id=a.id,
+        predicate="friend_of",
+        object_id=b.id,
+        chunk_id=chunk.id,
+        book_id=book.id,
+        book_order=1,
+        chapter=1,
+        page_start=1,
+        page_end=1,
+        quote="Anne and Diana are bosom friends.",
+        assertion_type=AssertionType.NARRATED,
+        asserted_by_id=None,
+        confidence=0.9,
+    )
+
+    await replace_project_relations(
+        session, project.id, aggregation.aggregate([fact]).relations
+    )
+    first_run = (
+        (
+            await session.execute(
+                select(Relation).where(Relation.project_id == project.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(first_run) == 1
+    original_id = first_run[0].id
+
+    # An idempotent rerun over the same fact — nothing about the edge changed.
+    await replace_project_relations(
+        session, project.id, aggregation.aggregate([fact]).relations
+    )
+    second_run = (
+        (
+            await session.execute(
+                select(Relation).where(Relation.project_id == project.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    assert len(second_run) == 1
+    assert second_run[0].id == original_id
