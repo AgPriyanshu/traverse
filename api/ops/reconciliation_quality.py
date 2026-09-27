@@ -39,7 +39,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
 from ..db.models import Book, Character, CharacterAppearance, Project, Relation
 
-MANIFEST_PATH = Path(__file__).resolve().parent.parent.parent / "corpus" / "manifest.json"
+MANIFEST_PATH = (
+    Path(__file__).resolve().parent.parent.parent / "corpus" / "manifest.json"
+)
 
 
 def _slugify_title(title: str) -> str:
@@ -134,14 +136,14 @@ async def compute_reconciliation_quality(
         .all()
     )
     name_by_character_id = {c.id: c.canonical_name for c in characters}
+
+    def _name(character_id: UUID | None) -> str:
+        return name_by_character_id.get(character_id, str(character_id))
+
     checksum = canonical_graph_checksum(
         [(c.canonical_name, str(c.importance_tier)) for c in characters],
         [
-            (
-                name_by_character_id.get(r.subject_character_id, str(r.subject_character_id)),
-                r.predicate,
-                name_by_character_id.get(r.object_character_id, str(r.object_character_id)),
-            )
+            (_name(r.subject_character_id), r.predicate, _name(r.object_character_id))
             for r in relations
         ],
     )
