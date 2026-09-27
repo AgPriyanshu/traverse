@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from .enums import (
     AssertionType,
     BookStatus,
+    CandidateKind,
     DetectionMethod,
     ImportanceTier,
     ProjectKind,
@@ -396,6 +397,80 @@ class ClarifyResponse(BaseModel):
 
 
 # ── Review ──────────────────────────────────────────────────────────────────
+#
+# Sprint 7 (S7.2): one payload shape per ``ReviewTaskType`` so a renderer never
+# reads an untyped dict. ``merge_characters`` and ``merge_across_books`` share
+# a field set — the same side-by-side comparison, scoped to one book or the
+# whole project — so they share a base and differ only in ``task_type``, which
+# doubles as the discriminator. That is five renderers (S7.9) over six types.
+
+
+class ReviewMergeBase(BaseModel):
+    candidates: list[CharacterOut] = Field(min_length=2)
+    contexts: dict[str, list[MentionOut]] = Field(default_factory=dict)
+    similarity_score: float | None = None
+
+
+class MergeCharactersPayload(ReviewMergeBase):
+    task_type: Literal[ReviewTaskType.MERGE_CHARACTERS] = (
+        ReviewTaskType.MERGE_CHARACTERS
+    )
+
+
+class MergeAcrossBooksPayload(ReviewMergeBase):
+    task_type: Literal[ReviewTaskType.MERGE_ACROSS_BOOKS] = (
+        ReviewTaskType.MERGE_ACROSS_BOOKS
+    )
+
+
+class ConfirmRelationPayload(BaseModel):
+    task_type: Literal[ReviewTaskType.CONFIRM_RELATION] = (
+        ReviewTaskType.CONFIRM_RELATION
+    )
+    relation: RelationOut
+    evidence: list[EvidenceOut] = Field(default_factory=list)
+    reason: str
+
+
+class ResolveConflictPayload(BaseModel):
+    task_type: Literal[ReviewTaskType.RESOLVE_CONFLICT] = (
+        ReviewTaskType.RESOLVE_CONFLICT
+    )
+    conflicting: list[RelationOut] = Field(min_length=2)
+    evidence: dict[str, list[EvidenceOut]] = Field(default_factory=dict)
+    reason: str
+
+
+class ClassifyCandidatePayload(BaseModel):
+    task_type: Literal[ReviewTaskType.CLASSIFY_CANDIDATE] = (
+        ReviewTaskType.CLASSIFY_CANDIDATE
+    )
+    surface_form: str
+    book_id: UUID
+    kind_guess: CandidateKind | None = None
+    mention_count: int = 0
+    contexts: list[MentionOut] = Field(default_factory=list)
+
+
+class ConfirmChapterSplitPayload(BaseModel):
+    task_type: Literal[ReviewTaskType.CONFIRM_CHAPTER_SPLIT] = (
+        ReviewTaskType.CONFIRM_CHAPTER_SPLIT
+    )
+    chapter: ChapterOut
+    preceding_text: str
+    following_text: str
+    confidence: float | None = None
+
+
+ReviewTaskPayload = Annotated[
+    MergeCharactersPayload
+    | MergeAcrossBooksPayload
+    | ConfirmRelationPayload
+    | ResolveConflictPayload
+    | ClassifyCandidatePayload
+    | ConfirmChapterSplitPayload,
+    Field(discriminator="task_type"),
+]
 
 
 class ReviewTaskOut(BaseModel):
@@ -405,7 +480,7 @@ class ReviewTaskOut(BaseModel):
     task_type: ReviewTaskType
     status: ReviewStatus
     priority: int
-    payload: dict[str, Any] = Field(default_factory=dict)
+    payload: ReviewTaskPayload
     created_at: datetime
 
 
