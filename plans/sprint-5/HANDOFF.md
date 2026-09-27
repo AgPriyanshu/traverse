@@ -1,0 +1,76 @@
+# Sprint 5 — Handoff
+
+## fe1 — S5.9 through S5.12
+
+**Routing refactor (one pass, Day 2 per the brief).** Characters and the
+graph moved from `/books/:id/characters` / `/books/:id/graph` (S3/S4) to
+`/projects/:id/characters` / `/projects/:id/graph`. `/books/:id/...` now
+holds only book-local views: overview, chapters, pages, ask, review. A book's
+own nav (`bookNav` in `nav-items.ts`) links "Characters" to the project
+roster and "Graph" to the project graph pre-filtered to that book
+(`?book=<series_order>`), so arriving from a specific book still lands
+somewhere relevant. If anything else in the repo (do1's nginx config, an E2E
+script, a demo doc) hardcodes `/books/:id/characters` or `/books/:id/graph`,
+it needs updating to the project-scoped path — I did not find any outside
+`web/src` and `web/tests`, but I did not grep `docker/`, `scripts/`, or
+`.github/workflows/`.
+
+**What's built:**
+
+- `/projects`, `/projects/new`, `/projects/:id` (S5.9) — project list, create
+  (standalone kind is a one-book project, same code path as series), and the
+  book list with drag-to-reorder (native DnD + an up/down-button keyboard
+  equivalent), a "recomputing" banner while the reorder mutation and its
+  cache invalidation are in flight, and an add-book form with `series_order`
+  prefilled to the next open slot.
+- `/projects/:id/characters` (S5.10) — one row per character,
+  `<AppearanceStrip>` (a per-book presence band with a visible text caption),
+  a "new in book N" filter, and a character-detail Appearances section
+  (per-book first page, tier, mention count, surface forms, each linking into
+  that book).
+- `/projects/:id/graph` (S5.11) — a client-side book filter that slices the
+  standing graph and animates (same mechanism S4 already used for
+  family/tier/confidence), a server-side spoiler-safe series-position control
+  (`limit_book_order`/`limit_chapter` — a hard re-fetch, never a client
+  filter), appearance-aware node size, and a "first appears in this book"
+  badge.
+- The relationship arc (S5.12, `<RelationArc>`) now spans volumes: every
+  book's chapters laid end to end on one axis, book-boundary ticks, and a
+  per-transition citation naming its own book and page. A standalone's
+  one-book arc runs through the identical code path (`boundaries.length ===
+  1`) as a three-book one.
+
+**Consumed from the backend, as built (not yet verified against a live
+be1/be2 API — built against the frozen contracts with realistic mocks, same
+pattern as Sprint 4's graph explorer):**
+
+- `GET /projects`, `POST /projects`, `GET /projects/{id}`,
+  `PATCH /projects/{id}/order` (be1, `api/routes/books.py`)
+- `GET /projects/{id}/characters` (`book_id`, `limit_book_order`,
+  `limit_chapter` query params), `GET /characters/{id}`
+  (`CharacterDetailOut.appearances`) (be2, `api/routes/characters.py`)
+- `GET /projects/{id}/graph` (`limit_book_order`, `limit_chapter`;
+  `GraphNodeOut.appears_in_books`, `.first_book_order`;
+  `GraphEdgeOut.page_refs[].book_order`), `GET /relations/arc`
+  (`RelationOut.first_book_order`/`last_book_order`) (be2, `api/routes/graph.py`)
+
+If any of these shapes differ once be1/be2 land their real implementations,
+the two SCRs below are the known, already-worked-around gaps — everything
+else should verify cleanly, the same way S4's graph explorer did against the
+real backend once it existed.
+
+**Filed:** `plans/sprint-5/SCR.md` SCR-1 (roster-list per-book mention
+intensity — degrades to uniform, non-blocking), SCR-2
+(`mentions_per_chapter` cross-book ambiguity — worked around client-side,
+non-blocking), SCR-3 (the brief's `api/contracts/series.py` doesn't exist;
+the five named symbols are real but split across `extraction.py`/
+`pipeline.py`/`api.py`), DCR-1 (no canvas artboard or `DESIGN.md` §4 spec for
+`project-overview`/`series-roster`/`series-arc` — built from §2's settled
+direction and the existing component vocabulary instead).
+
+**Verification (final pass, 2026-09-27):** `docker compose --profile test
+build test-web` then `run --rm test-web` — 180 Vitest tests passing across
+13 files, oxlint clean (106 files, 116 rules), inside the containerized
+runner that matches CI. `pnpm lint`, `pnpm typecheck` (`tsc -b --noEmit`),
+and `pnpm build` all clean on the host too. Five commits on
+`ai/fe1/sprint-5-series`, pushed.

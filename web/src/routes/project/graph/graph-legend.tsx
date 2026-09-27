@@ -28,8 +28,10 @@ export const GraphLegend = () => {
         ))}
       </HStack>
       <Text textStyle="small" color="fg.muted">
-        Heavier lines carry more citations. Larger nodes are more important characters.
-        An arrowhead points at the object of the relation.
+        Heavier lines carry more citations. Larger nodes are more important
+        characters, and grow further with every book they appear in. An
+        arrowhead points at the object of the relation. A dashed ring marks a
+        character&rsquo;s first appearance when a book filter is active.
       </Text>
     </Stack>
   );

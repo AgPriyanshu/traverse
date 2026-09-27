@@ -37,21 +37,25 @@ export const AssertionBadge = ({ type }: { type: AssertionType }) => {
 
 export type EvidenceItemProps = {
   evidence: Evidence;
-  bookTitle?: string | null;
 };
 
-export const EvidenceItem = ({ evidence, bookTitle }: EvidenceItemProps) => {
+export const EvidenceItem = ({ evidence }: EvidenceItemProps) => {
   return (
     <Box as="li" borderTopWidth="1px" borderColor="border" paddingBlock="3.5">
       <Text as="blockquote" textStyle="quote" fontStyle="italic" margin="0">
         {evidence.quote}
       </Text>
       <HStack gap="2.5" wrap="wrap" marginBlockStart="2">
+        {evidence.series_order !== null && evidence.series_order !== undefined ? (
+          <Text textStyle="small" color="fg.subtle" fontWeight="600">
+            bk. {evidence.series_order}
+          </Text>
+        ) : null}
         <PageRef
           page={evidence.page_start}
           pageEnd={evidence.page_end}
           bookId={evidence.book_id}
-          bookTitle={evidence.book_title ?? bookTitle}
+          bookTitle={evidence.book_title}
         />
         {evidence.chapter_no !== null && evidence.chapter_no !== undefined ? (
           <Text textStyle="small" color="fg.muted">

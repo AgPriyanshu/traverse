@@ -66,10 +66,18 @@ export const useReorderBooks = (projectId: string) => {
           body,
         }),
       ),
+    // Reordering recomputes every derived character/relation field
+    // (`BookOrderUpdate`'s own doc comment) — the roster and the graph are
+    // stale the moment this resolves, not just the project's book list.
+    // `invalidateQueries` matches by key prefix, so this reaches every
+    // params-suffixed variant these factories produce without enumerating
+    // them.
     onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.project(projectId) });
       void queryClient.invalidateQueries({
-        queryKey: queryKeys.project(projectId),
+        queryKey: ["projects", projectId, "characters"],
       });
+      void queryClient.invalidateQueries({ queryKey: ["projects", projectId, "graph"] });
     },
   });
 };

@@ -1,5 +1,5 @@
 import { Box, Button, HStack, Stack, Text, chakra } from "@chakra-ui/react";
-import type { Chapter, ImportanceTier, RelationFamily } from "@/lib/api";
+import type { Book, ImportanceTier, RelationFamily } from "@/lib/api";
 import { TIER_LABEL, TIER_ORDER } from "../character-labels";
 import { hasEdgeFilter } from "./graph-filters";
 import type { GraphFilters } from "./graph-filters";
@@ -14,51 +14,14 @@ const toggle = <T,>(list: T[], item: T): T[] => {
 
 export type GraphFilterBarProps = {
   filters: GraphFilters;
-  chapters: readonly Chapter[];
+  books: readonly Book[];
   onChange: (next: GraphFilters) => void;
 };
 
-export const GraphFilterBar = ({ filters, chapters, onChange }: GraphFilterBarProps) => {
+/** A book filter slices the standing graph to one volume's view — animated in place, never a fresh graph (S5.11). */
+export const GraphFilterBar = ({ filters, books, onChange }: GraphFilterBarProps) => {
   // Variables.
-  const numbered = chapters
-    .filter((chapter) => chapter.number !== null && chapter.number !== undefined)
-    .map((chapter) => chapter.number as number)
-    .sort((a, b) => a - b);
-  const isFiltered =
-    hasEdgeFilter(filters) || filters.tiers.length > 0;
-
-  const chapterSelect = (
-    label: string,
-    value: number | null,
-    onPick: (value: number | null) => void,
-  ) => (
-    <Box as="label" display="flex" alignItems="center" gap="2">
-      <Text as="span" textStyle="small" color="fg.muted">
-        {label}
-      </Text>
-      <Select
-        value={value === null ? "" : String(value)}
-        onChange={(event) => {
-          onPick(event.target.value === "" ? null : Number(event.target.value));
-        }}
-        textStyle="data"
-        bg="bg.sunken"
-        color="fg"
-        borderWidth="1px"
-        borderColor="border.control"
-        borderRadius="md"
-        paddingInline="2"
-        paddingBlock="1"
-      >
-        <option value="">any</option>
-        {numbered.map((number) => (
-          <option key={number} value={number}>
-            {number}
-          </option>
-        ))}
-      </Select>
-    </Box>
-  );
+  const isFiltered = hasEdgeFilter(filters) || filters.tiers.length > 0;
 
   return (
     <Stack as="section" aria-label="Filters" gap="3">
@@ -124,25 +87,46 @@ export const GraphFilterBar = ({ filters, chapters, onChange }: GraphFilterBarPr
             {Math.round(filters.minConfidence * 100)}%
           </Text>
         </Box>
-        {chapterSelect("Chapters from", filters.chapterFrom, (value) => {
-          onChange({ ...filters, chapterFrom: value });
-        })}
-        {chapterSelect("to", filters.chapterTo, (value) => {
-          onChange({ ...filters, chapterTo: value });
-        })}
+
+        {books.length > 1 ? (
+          <Box as="label" display="flex" alignItems="center" gap="2">
+            <Text as="span" textStyle="small" color="fg.muted">
+              Book
+            </Text>
+            <Select
+              value={filters.bookFilter === null ? "" : String(filters.bookFilter)}
+              onChange={(event) => {
+                onChange({
+                  ...filters,
+                  bookFilter: event.target.value === "" ? null : Number(event.target.value),
+                });
+              }}
+              textStyle="data"
+              bg="bg.sunken"
+              color="fg"
+              borderWidth="1px"
+              borderColor="border.control"
+              borderRadius="md"
+              paddingInline="2"
+              paddingBlock="1"
+            >
+              <option value="">every book</option>
+              {books.map((book) => (
+                <option key={book.id} value={book.series_order ?? ""}>
+                  {book.series_order ?? "?"}. {book.title}
+                </option>
+              ))}
+            </Select>
+          </Box>
+        ) : null}
+
         {isFiltered ? (
           <Button
             size="xs"
             variant="ghost"
             color="accent.fg"
             onClick={() => {
-              onChange({
-                families: [],
-                tiers: [],
-                minConfidence: 0,
-                chapterFrom: null,
-                chapterTo: null,
-              });
+              onChange({ families: [], tiers: [], minConfidence: 0, bookFilter: null });
             }}
           >
             Clear filters

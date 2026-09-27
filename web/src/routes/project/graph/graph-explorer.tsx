@@ -2,14 +2,10 @@ import { Box, Button, HStack, Heading, Stack, Text } from "@chakra-ui/react";
 import { useCallback, useMemo } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { EmptyState, ErrorState, LoadingSkeleton } from "@/components/ui";
-import type { Chapter } from "@/lib/api";
-import {
-  useBook,
-  useChapters,
-  useOntology,
-  useProjectGraph,
-} from "@/lib/api";
+import type { Book } from "@/lib/api";
+import { useOntology, useProject, useProjectGraph } from "@/lib/api";
 import { formatCount } from "@/lib/format";
+import { sortedBooks } from "../project-lookup";
 import { buildNodeIndex, contextFor } from "./edge-context";
 import { EvidencePanel } from "./evidence-panel";
 import { GraphCanvas } from "./graph-canvas";
@@ -18,8 +14,10 @@ import { filterGraph, parseFilters, writeFilters } from "./graph-filters";
 import type { GraphFilters } from "./graph-filters";
 import { GraphLegend } from "./graph-legend";
 import { GraphListView } from "./graph-list-view";
+import { SeriesPositionControl } from "./series-position-control";
+import type { SeriesPosition } from "./series-position-control";
 
-const EMPTY_CHAPTERS: Chapter[] = [];
+const EMPTY_BOOKS: Book[] = [];
 const NARROW_QUERY = "(max-width: 47.99em)";
 
 const defaultView = (): "graph" | "list" => {
@@ -29,23 +27,38 @@ const defaultView = (): "graph" | "list" => {
   return window.matchMedia(NARROW_QUERY).matches ? "list" : "graph";
 };
 
+const parsePosition = (params: URLSearchParams): SeriesPosition => {
+  const bookRaw = params.get("limit_book_order");
+  const chapterRaw = params.get("limit_chapter");
+  const bookOrder = bookRaw === null || bookRaw === "" ? null : Number(bookRaw);
+  const chapter = chapterRaw === null || chapterRaw === "" ? null : Number(chapterRaw);
+  return { bookOrder: Number.isFinite(bookOrder) ? bookOrder : null, chapter: Number.isFinite(chapter) ? chapter : null };
+};
+
+/**
+ * The series graph: one standing graph across every ingested book, sliced by
+ * a client-side book filter (animated, S5.11) and hard-cut by the reading
+ * position (server-side `limit_book_order`/`limit_chapter`, spoiler-safe).
+ */
 export const GraphExplorer = () => {
   // Hooks.
-  const { bookId = "" } = useParams();
+  const { projectId = "" } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
 
   // Apis.
-  const book = useBook(bookId);
-  const chapters = useChapters(bookId);
+  const project = useProject(projectId);
   const ontology = useOntology();
-  const graph = useProjectGraph(book.data?.project_id, { book_id: bookId });
+  const position = useMemo(() => parsePosition(searchParams), [searchParams]);
+  const graph = useProjectGraph(projectId, {
+    limit_book_order: position.bookOrder ?? undefined,
+    limit_chapter: position.chapter ?? undefined,
+  });
 
   // Variables.
-  const chapterList = chapters.data ?? EMPTY_CHAPTERS;
+  const books = useMemo(() => sortedBooks(project.data?.books ?? EMPTY_BOOKS), [project.data]);
   const view = searchParams.get("view") ?? defaultView();
   const selectedEdgeId = searchParams.get("edge");
-  const chapterCount = book.data?.chapter_count ?? 0;
 
   // useMemos.
   const filters = useMemo(() => parseFilters(searchParams), [searchParams]);
@@ -53,8 +66,8 @@ export const GraphExplorer = () => {
   const allNodes = useMemo(() => graph.data?.nodes ?? [], [graph.data]);
   const allEdges = useMemo(() => graph.data?.edges ?? [], [graph.data]);
   const filtered = useMemo(
-    () => (graph.data ? filterGraph(graph.data, filters, chapterList) : { nodes: [], edges: [] }),
-    [graph.data, filters, chapterList],
+    () => (graph.data ? filterGraph(graph.data, filters) : { nodes: [], edges: [] }),
+    [graph.data, filters],
   );
   const visibleNodeIds = useMemo(() => new Set(filtered.nodes.map((node) => node.id)), [filtered.nodes]);
   const visibleEdgeIds = useMemo(() => new Set(filtered.edges.map((edge) => edge.id)), [filtered.edges]);
@@ -86,6 +99,18 @@ export const GraphExplorer = () => {
     setSearchParams(writeFilters(searchParams, next), { replace: true });
   };
 
+  const handlePosition = (next: SeriesPosition) => {
+    updateParams((params) => {
+      if (next.bookOrder === null) {
+        params.delete("limit_book_order");
+        params.delete("limit_chapter");
+      } else {
+        params.set("limit_book_order", String(next.bookOrder));
+        params.set("limit_chapter", String(next.chapter ?? 1));
+      }
+    });
+  };
+
   const handleSelectEdgeId = useCallback(
     (edgeId: string) => {
       updateParams((next) => { next.set("edge", edgeId); });
@@ -95,9 +120,9 @@ export const GraphExplorer = () => {
 
   const handleSelectNode = useCallback(
     (nodeId: string) => {
-      void navigate(`/books/${bookId}/characters/${nodeId}`);
+      void navigate(`/projects/${projectId}/characters/${nodeId}`);
     },
-    [navigate, bookId],
+    [navigate, projectId],
   );
 
   const handleView = (next: "graph" | "list") => {
@@ -109,13 +134,13 @@ export const GraphExplorer = () => {
   };
 
   // Early returns.
-  if (book.isPending || graph.isPending) {
+  if (project.isPending || graph.isPending) {
     return <LoadingSkeleton variant="text" count={6} label="Loading the relationship graph" />;
   }
-  if (book.error || graph.error) {
+  if (project.error || graph.error) {
     return (
       <ErrorState
-        error={(book.error ?? graph.error) as Error}
+        error={(project.error ?? graph.error) as Error}
         onRetry={() => { void graph.refetch(); }}
       />
     );
@@ -124,7 +149,7 @@ export const GraphExplorer = () => {
     return (
       <EmptyState
         title="No relationships extracted yet"
-        description="The relationship graph fills in once pass-2 relation extraction has run for this book."
+        description="The relationship graph fills in once pass-2 relation extraction has run for at least one book."
       />
     );
   }
@@ -160,7 +185,11 @@ export const GraphExplorer = () => {
         </HStack>
       </HStack>
 
-      <GraphFilterBar filters={filters} chapters={chapterList} onChange={handleFilters} />
+      {books.length > 1 ? (
+        <SeriesPositionControl books={books} value={position} onChange={handlePosition} />
+      ) : null}
+
+      <GraphFilterBar filters={filters} books={books} onChange={handleFilters} />
 
       <GraphLegend />
 
@@ -168,8 +197,8 @@ export const GraphExplorer = () => {
         <GraphListView
           nodes={filtered.nodes}
           edges={filtered.edges}
-          chapters={chapterList}
-          bookId={bookId}
+          projectId={projectId}
+          firstInBookFilter={filters.bookFilter}
           onSelectEdge={(edge) => { handleSelectEdgeId(edge.id); }}
         />
       ) : (
@@ -181,6 +210,7 @@ export const GraphExplorer = () => {
             visibleEdgeIds={visibleEdgeIds}
             symmetricPredicates={symmetric}
             selectedEdgeId={selectedEdgeId}
+            firstInBookFilter={filters.bookFilter}
             onSelectEdge={handleSelectEdgeId}
             onSelectNode={handleSelectNode}
             ariaLabel="Character relationship graph. The list view has the same information as text."
@@ -192,13 +222,7 @@ export const GraphExplorer = () => {
         </Box>
       )}
 
-      <EvidencePanel
-        target={selected}
-        bookId={bookId}
-        bookTitle={book.data.title}
-        chapterCount={chapterCount}
-        onClose={handleClosePanel}
-      />
+      <EvidencePanel target={selected} books={books} onClose={handleClosePanel} />
     </Stack>
   );
 };

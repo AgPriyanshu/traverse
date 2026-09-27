@@ -1,19 +1,20 @@
 import { Box, Button, HStack, Heading, Link, Stack, Text } from "@chakra-ui/react";
 import { useMemo } from "react";
 import { Link as RouterLink } from "react-router";
-import type { Chapter, GraphEdge, GraphNode } from "@/lib/api";
-import { formatCount } from "@/lib/format";
+import type { GraphEdge, GraphNode } from "@/lib/api";
+import { formatCount, formatSeriesOrderRun } from "@/lib/format";
 import { TIER_ORDER } from "../character-labels";
 import { CharacterTierBadge } from "../character-tier-badge";
 import { FamilyBadge } from "./family-stroke";
-import { edgeChapterSpan } from "./graph-filters";
+import { edgeBookOrders } from "./graph-filters";
 import { predicateLabel } from "./relation-style";
 
 export type GraphListViewProps = {
   nodes: readonly GraphNode[];
   edges: readonly GraphEdge[];
-  chapters: readonly Chapter[];
-  bookId: string;
+  projectId: string;
+  /** The active book slice, for the "first appears here" badge — `null` shows none. */
+  firstInBookFilter?: number | null;
   onSelectEdge: (edge: GraphEdge) => void;
 };
 
@@ -21,8 +22,8 @@ export type GraphListViewProps = {
 export const GraphListView = ({
   nodes,
   edges,
-  chapters,
-  bookId,
+  projectId,
+  firstInBookFilter = null,
   onSelectEdge,
 }: GraphListViewProps) => {
   // useMemos.
@@ -78,19 +79,34 @@ export const GraphListView = ({
           <HStack gap="3" wrap="wrap" marginBlockEnd="2">
             <Heading as="h3" textStyle="subheading">
               <Link asChild>
-                <RouterLink to={`/books/${bookId}/characters/${node.id}`}>
+                <RouterLink to={`/projects/${projectId}/characters/${node.id}`}>
                   {node.canonical_name}
                 </RouterLink>
               </Link>
             </Heading>
             <CharacterTierBadge tier={node.importance_tier} />
+            {firstInBookFilter !== null && node.first_book_order === firstInBookFilter ? (
+              <Text
+                as="span"
+                textStyle="small"
+                color="accent.fg"
+                fontWeight="600"
+                borderWidth="1px"
+                borderStyle="dashed"
+                borderColor="accent.solid"
+                borderRadius="sm"
+                paddingInline="1.5"
+              >
+                first appears in this book
+              </Text>
+            ) : null}
             <Text textStyle="data" color="fg.subtle">
               {formatCount(items.length, "relationship")}
             </Text>
           </HStack>
           <Stack as="ul" gap="0" listStyleType="none" margin="0" padding="0">
             {items.map(({ edge, outgoing, other }) => {
-              const span = edgeChapterSpan(edge, chapters);
+              const bookOrders = edgeBookOrders(edge);
               return (
                 <Box
                   as="li"
@@ -107,14 +123,16 @@ export const GraphListView = ({
                     {outgoing ? `${predicateLabel(edge.predicate)} →` : `← ${predicateLabel(edge.predicate)}`}
                   </Text>
                   <Link asChild flex="1 1 8rem" minWidth="0">
-                    <RouterLink to={`/books/${bookId}/characters/${other?.id ?? ""}`}>
+                    <RouterLink to={`/projects/${projectId}/characters/${other?.id ?? ""}`}>
                       {other?.canonical_name ?? "Unknown character"}
                     </RouterLink>
                   </Link>
                   <FamilyBadge family={edge.family} />
                   <Text textStyle="data" color="fg.muted">
                     {formatCount(edge.evidence_count, "citation")}
-                    {span ? ` · ch. ${span.first}–${span.last}` : ""}
+                    {bookOrders.length > 0
+                      ? ` · bk. ${formatSeriesOrderRun(bookOrders)}`
+                      : ""}
                     {edge.hearsay ? " · hearsay" : ""}
                   </Text>
                   <Button
