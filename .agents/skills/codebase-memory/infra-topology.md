@@ -129,7 +129,24 @@ superlinear pass-2-cost-vs-roster-size growth). `--reverse` uploads books in
 reverse sequence while keeping each book's true `series_order`, feeding the
 order-independence checksum check.
 
-**Not built:** anything else in Sprint 5+.
+**Built (S7.11, do1):** `api/ops/review_metrics.py` behind `GET /ops/review-metrics`
+(queue depth by task type, open-task age p50/p90/max, median time-to-resolve,
+resolution outcome mix, correction rate grouped by pipeline stage — not raw
+task type, since `confirm_relation`/`resolve_conflict` are both pass 2) and
+`GET /ops/review-alerts` (queue-depth threshold, tasks open >48h, orphaned
+graph threads). Accepted-vs-corrected is derived from `CorrectionFeedback.
+model_value != human_value`, not `ReviewResolution.decision` — that field is a
+freeform string with no fixed vocabulary yet (S7.4/be2 hadn't landed a resolve
+handler as of this writing). Orphaned-thread detection reads LangGraph's own
+`checkpoint_writes` table directly for the reserved `__interrupt__`/`__resume__`
+channels (`langgraph._internal._constants`) rather than compiling a graph, so
+it works without importing be2's ingestion graph. Two new routes bumped
+`api/tests/pipeline/test_books_routes.py`'s frozen path count 43→45 — see
+`plans/sprint-7/SCR.md` SCR-1 (be1-owned test file, do1 cannot fix directly,
+same class as S3.14/S3.15's SCR-2/SCR-3).
+
+**Not built:** S7.12's automated chaos scenarios (`scripts/chaos_test.py`) —
+see the sprint-7 do1 handoff for status. Anything else in Sprint 5+.
 
 ## Services
 
