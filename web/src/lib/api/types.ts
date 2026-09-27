@@ -65,6 +65,19 @@ export type Citation = Schemas["CitationOut"];
 export type SearchResult = Schemas["SearchResultOut"];
 export type QueryRequest = Schemas["QueryRequest"];
 export type QueryEvent = Schemas["QueryEventEnvelope"]["event"];
+export type QueryRoute = Schemas["QueryRoute"];
+export type ClarifyResponse = Schemas["ClarifyResponse"];
+
+/**
+ * Individual members of the `QueryEvent` union, named for the `switch (event.type)`
+ * call sites that need to narrow to one of them directly (S6.10).
+ */
+export type TokenEvent = Extract<QueryEvent, { type: "token" }>;
+export type CitationEvent = Extract<QueryEvent, { type: "citation" }>;
+export type RouteEvent = Extract<QueryEvent, { type: "route" }>;
+export type InterruptEvent = Extract<QueryEvent, { type: "interrupt" }>;
+export type DoneEvent = Extract<QueryEvent, { type: "done" }>;
+export type ErrorEvent = Extract<QueryEvent, { type: "error" }>;
 
 export type ReviewTask = Schemas["ReviewTaskOut"];
 export type ReviewTaskType = Schemas["ReviewTaskType"];

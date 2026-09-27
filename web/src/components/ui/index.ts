@@ -1,6 +1,8 @@
 export { AsyncBoundary, ErrorBoundary } from "./async-boundary";
 export { EmptyState } from "./empty-state";
 export { ErrorState } from "./error-state";
+export { InterruptCard } from "./interrupt-card";
+export type { InterruptCardProps } from "./interrupt-card";
 export { LoadingSkeleton } from "./loading-skeleton";
 export { NotYetBuilt } from "./not-yet-built";
 export { PageRef } from "./page-ref";
