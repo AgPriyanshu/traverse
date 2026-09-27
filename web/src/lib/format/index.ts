@@ -134,3 +134,30 @@ export const formatBytes = (bytes: number): string => {
 export const formatAliasRun = (aliases: readonly string[]): string => {
   return aliases.join(" · ");
 };
+
+/**
+ * "1–3, 5, 8" — the visible text equivalent for an appearance strip. A
+ * coloured band alone is not an answer (design/DESIGN.md §2's accessibility
+ * bar), so every strip prints this alongside the graphic.
+ */
+export const formatSeriesOrderRun = (seriesOrders: readonly number[]): string => {
+  const sorted = [...new Set(seriesOrders)].sort((a, b) => a - b);
+  if (sorted.length === 0) { return "no books"; }
+
+  const runs: string[] = [];
+  let start = sorted[0] as number;
+  let previous = start;
+  for (let index = 1; index <= sorted.length; index += 1) {
+    const current = sorted[index];
+    if (current !== undefined && current === previous + 1) {
+      previous = current;
+      continue;
+    }
+    runs.push(start === previous ? `${start}` : `${start}–${previous}`);
+    if (current !== undefined) {
+      start = current;
+      previous = current;
+    }
+  }
+  return runs.join(", ");
+};

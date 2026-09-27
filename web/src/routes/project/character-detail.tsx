@@ -1,35 +1,39 @@
-import { Box, Button, Flex, HStack, Heading, Link, Span, Stack, Text } from "@chakra-ui/react";
+import { Box, Button, Flex, HStack, Heading, Link, Span, Stack, Text, chakra } from "@chakra-ui/react";
 import { useMemo, useState } from "react";
 import { Link as RouterLink, useParams, useSearchParams } from "react-router";
 import { ErrorState, LoadingSkeleton, PageRef } from "@/components/ui";
-import type { Chapter } from "@/lib/api";
-import { useBook, useCharacter, useChapters } from "@/lib/api";
+import type { Book, Chapter } from "@/lib/api";
+import { useCharacter, useChapters, useProject } from "@/lib/api";
 import { formatCount } from "@/lib/format";
+import { AppearanceStrip } from "./appearance-strip";
+import type { AppearanceSlot } from "./appearance-strip";
 import { chapterKeyForPage } from "./chapter-lookup";
 import { CharacterTierBadge } from "./character-tier-badge";
 import { RESOLUTION_METHOD_LABEL } from "./character-labels";
 import { CharacterRelationships } from "./graph/character-relationships";
 import { MentionInspectorDrawer } from "./mention-inspector-drawer";
 import { MentionsTimeline } from "./mentions-timeline";
+import { bookById, sortedBooks } from "./project-lookup";
 import { usePagedMentions } from "./use-paged-mentions";
 
+const Select = chakra("select");
 const MENTION_PAGE_SIZE = 100;
 
-// See characters.tsx's `EMPTY_ROSTER` — same reason.
+const EMPTY_BOOKS: Book[] = [];
 const EMPTY_CHAPTERS: Chapter[] = [];
 
 export const CharacterDetail = () => {
   // States.
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [selectedBookId, setSelectedBookId] = useState<string | null>(null);
 
   // Hooks.
-  const { bookId = "", characterId = "" } = useParams();
+  const { projectId = "", characterId = "" } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Apis.
-  const book = useBook(bookId);
+  const project = useProject(projectId);
   const character = useCharacter(characterId);
-  const chapters = useChapters(bookId);
   const mentions = usePagedMentions(characterId, {
     pageSize: MENTION_PAGE_SIZE,
     expectedTotal: character.data?.mention_count,
@@ -37,26 +41,49 @@ export const CharacterDetail = () => {
 
   // Variables.
   const selectedChapter = searchParams.get("chapter");
-  const chapterList = chapters.data ?? EMPTY_CHAPTERS;
+  const books = useMemo(() => sortedBooks(project.data?.books ?? EMPTY_BOOKS), [project.data]);
+  const byId = useMemo(() => bookById(books), [books]);
+  const appearances = useMemo(
+    () => [...(character.data?.appearances ?? [])].sort((a, b) => (a.series_order ?? Infinity) - (b.series_order ?? Infinity)),
+    [character.data?.appearances],
+  );
+  const activeBookId =
+    selectedBookId ?? character.data?.first_book_id ?? appearances[0]?.book_id ?? undefined;
+  const chapters = useChapters(activeBookId);
 
   // useMemos.
-  const chapterNumbers = useMemo(() => {
-    const histogram = character.data?.mentions_per_chapter ?? {};
-    return Object.keys(histogram)
-      .map(Number)
-      .filter((value) => Number.isFinite(value));
-  }, [character.data?.mentions_per_chapter]);
-  const chapterSpanLabel =
-    chapterNumbers.length > 0
-      ? `chapters ${Math.min(...chapterNumbers)}–${Math.max(...chapterNumbers)}`
-      : null;
+  const chapterList = chapters.data ?? EMPTY_CHAPTERS;
+  const firstBook = character.data?.first_book_id ? byId.get(character.data.first_book_id) : undefined;
+  const maxAppearanceMentions = Math.max(1, ...appearances.map((a) => a.mention_count));
+  const strips: AppearanceSlot[] = appearances.map((appearance) => ({
+    seriesOrder: appearance.series_order ?? 0,
+    intensity: appearance.mention_count / maxAppearanceMentions,
+    isFirst: firstBook?.series_order === appearance.series_order,
+  }));
+  const bookMentions = useMemo(
+    () => mentions.mentions.filter((mention) => mention.book_id === activeBookId),
+    [mentions.mentions, activeBookId],
+  );
+  // `CharacterDetailOut.mentions_per_chapter` is aggregated across every book
+  // a multi-book character appears in, and chapter numbers reset per book —
+  // trusting it here would silently merge book 1's chapter 3 with book 2's
+  // chapter 3. Derived client-side, per the selected book's own chapters,
+  // instead (SCR-1, plans/sprint-5/SCR.md).
+  const histogram = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const mention of bookMentions) {
+      const key = chapterKeyForPage(chapterList, mention.page);
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
+    return counts;
+  }, [bookMentions, chapterList]);
   const visibleMentions = useMemo(() => {
-    if (selectedChapter === null) { return mentions.mentions; }
-    if (chapterList.length === 0) { return mentions.mentions; }
-    return mentions.mentions.filter(
+    if (selectedChapter === null) { return bookMentions; }
+    if (chapterList.length === 0) { return bookMentions; }
+    return bookMentions.filter(
       (mention) => chapterKeyForPage(chapterList, mention.page) === selectedChapter,
     );
-  }, [mentions.mentions, selectedChapter, chapterList]);
+  }, [bookMentions, selectedChapter, chapterList]);
 
   // Handlers.
   const handleSelectChapter = (chapter: string | null) => {
@@ -67,6 +94,11 @@ export const CharacterDetail = () => {
       next.set("chapter", chapter);
     }
     setSearchParams(next, { replace: true });
+  };
+
+  const handleSelectBook = (bookId: string) => {
+    setSelectedBookId(bookId);
+    handleSelectChapter(null);
   };
 
   // Early returns.
@@ -81,13 +113,14 @@ export const CharacterDetail = () => {
   }
 
   const data = character.data;
+  const activeBook = activeBookId ? byId.get(activeBookId) : undefined;
 
   return (
     <Stack gap="7">
       <Stack gap="3" borderBottomWidth="1px" borderColor="border" paddingBlockEnd="6">
         <HStack gap="2" textStyle="small" color="fg.subtle">
           <Link asChild>
-            <RouterLink to={`/books/${bookId}/characters`}>Characters</RouterLink>
+            <RouterLink to={`/projects/${projectId}/characters`}>Characters</RouterLink>
           </Link>
           <Span>/</Span>
           <Span>{data.canonical_name}</Span>
@@ -101,7 +134,6 @@ export const CharacterDetail = () => {
           <CharacterTierBadge tier={data.importance_tier} />
           <Text textStyle="data" color="fg.muted">
             {formatCount(data.mention_count, "mention")}
-            {chapterSpanLabel ? ` · ${chapterSpanLabel}` : ""}
           </Text>
           {data.first_page !== null && data.first_page !== undefined ? (
             <>
@@ -109,14 +141,96 @@ export const CharacterDetail = () => {
               <Text textStyle="small" color="fg.muted">
                 first seen
               </Text>
-              <PageRef page={data.first_page} bookId={bookId} bookTitle={book.data?.title} />
+              <PageRef page={data.first_page} bookId={firstBook?.id} bookTitle={firstBook?.title} />
             </>
           ) : null}
         </HStack>
+
+        {books.length > 1 ? (
+          <Box maxW="24rem">
+            <AppearanceStrip
+              totalSlots={books.length}
+              slots={strips}
+              characterName={data.canonical_name}
+              size="md"
+            />
+          </Box>
+        ) : null}
       </Stack>
 
       <Flex gap="8" align="flex-start" direction={{ base: "column", lg: "row" }}>
         <Stack gap="6" flex="1" minWidth="0">
+          {books.length > 1 ? (
+            <Stack
+              as="section"
+              gap="3"
+              borderWidth="1px"
+              borderColor="border"
+              borderRadius="lg"
+              bg="bg.surface"
+              padding="6"
+            >
+              <Heading as="h2" textStyle="subheading">
+                Appearances
+              </Heading>
+              <Stack gap="0">
+                {appearances.map((appearance) => (
+                  <Stack
+                    key={appearance.book_id}
+                    gap="1.5"
+                    borderTopWidth="1px"
+                    borderColor="border"
+                    paddingBlock="3"
+                  >
+                    <HStack gap="3" wrap="wrap" justify="space-between">
+                      <HStack gap="2.5" wrap="wrap">
+                        <Link asChild fontWeight="600">
+                          <RouterLink to={`/books/${appearance.book_id}`}>
+                            {appearance.series_order !== null ? `${appearance.series_order}. ` : ""}
+                            {appearance.book_title}
+                          </RouterLink>
+                        </Link>
+                        {appearances.length === 1 ? (
+                          <Text
+                            as="span"
+                            textStyle="small"
+                            color="accent.fg"
+                            fontWeight="600"
+                            borderWidth="1px"
+                            borderStyle="dashed"
+                            borderColor="accent.solid"
+                            borderRadius="sm"
+                            paddingInline="1.5"
+                          >
+                            new in this book
+                          </Text>
+                        ) : null}
+                      </HStack>
+                      <CharacterTierBadge tier={appearance.importance_tier} />
+                    </HStack>
+                    <HStack gap="3" wrap="wrap" align="baseline">
+                      <Text textStyle="data" color="fg.muted">
+                        {formatCount(appearance.mention_count, "mention")}
+                      </Text>
+                      {appearance.first_page !== null && appearance.first_page !== undefined ? (
+                        <PageRef
+                          page={appearance.first_page}
+                          bookId={appearance.book_id}
+                          bookTitle={appearance.book_title}
+                        />
+                      ) : null}
+                    </HStack>
+                    {(appearance.surface_forms ?? []).length > 0 ? (
+                      <Text textStyle="quote" fontStyle="italic" color="fg.muted">
+                        {(appearance.surface_forms ?? []).join(" · ")}
+                      </Text>
+                    ) : null}
+                  </Stack>
+                ))}
+              </Stack>
+            </Stack>
+          ) : null}
+
           <Stack
             as="section"
             gap="3"
@@ -217,7 +331,11 @@ export const CharacterDetail = () => {
                     <Text textStyle="body" flex="1">
                       {attribute.value}
                     </Text>
-                    <PageRef page={attribute.page} bookId={bookId} bookTitle={book.data?.title} />
+                    <PageRef
+                      page={attribute.page}
+                      bookId={attribute.book_id ?? activeBookId}
+                      bookTitle={attribute.book_id ? byId.get(attribute.book_id)?.title : activeBook?.title}
+                    />
                   </HStack>
                 ))}
               </Stack>
@@ -237,16 +355,42 @@ export const CharacterDetail = () => {
             bg="bg.surface"
             padding="6"
           >
-            <HStack justify="space-between" align="baseline">
+            <HStack justify="space-between" align="baseline" wrap="wrap">
               <Heading as="h2" textStyle="subheading">
                 Where she appears
               </Heading>
-              <Text textStyle="small" color="fg.subtle">
-                mentions per chapter
-              </Text>
+              {appearances.length > 1 ? (
+                <HStack gap="2" as="label" alignItems="center">
+                  <Text as="span" textStyle="small" color="fg.muted">
+                    book
+                  </Text>
+                  <Select
+                    value={activeBookId ?? ""}
+                    onChange={(event) => { handleSelectBook(event.target.value); }}
+                    textStyle="data"
+                    bg="bg.sunken"
+                    color="fg"
+                    borderWidth="1px"
+                    borderColor="border.control"
+                    borderRadius="md"
+                    paddingInline="2"
+                    paddingBlock="1"
+                  >
+                    {appearances.map((appearance) => (
+                      <option key={appearance.book_id} value={appearance.book_id}>
+                        {appearance.series_order}. {appearance.book_title}
+                      </option>
+                    ))}
+                  </Select>
+                </HStack>
+              ) : (
+                <Text textStyle="small" color="fg.subtle">
+                  mentions per chapter
+                </Text>
+              )}
             </HStack>
             <MentionsTimeline
-              histogram={data.mentions_per_chapter ?? {}}
+              histogram={histogram}
               selectedChapter={selectedChapter}
               onSelectChapter={handleSelectChapter}
             />
@@ -287,7 +431,7 @@ export const CharacterDetail = () => {
               <Text textStyle="body" color="fg.muted">
                 {selectedChapter !== null
                   ? "No mentions loaded yet for this chapter — try loading more."
-                  : "No mentions recorded yet."}
+                  : "No mentions recorded yet for this book."}
               </Text>
             ) : null}
 
@@ -302,7 +446,7 @@ export const CharacterDetail = () => {
                 >
                   <HStack justify="space-between" wrap="wrap" gap="2">
                     <Text textStyle="quote">{mention.surface_form}</Text>
-                    <PageRef page={mention.page} bookId={bookId} bookTitle={book.data?.title} />
+                    <PageRef page={mention.page} bookId={mention.book_id} bookTitle={activeBook?.title} />
                   </HStack>
                   {mention.context ? (
                     <Text textStyle="small" color="fg.muted" lineClamp={2}>
@@ -344,21 +488,14 @@ export const CharacterDetail = () => {
             <Heading as="h2" textStyle="subheading">
               Relationships
             </Heading>
-            <CharacterRelationships
-              characterId={characterId}
-              bookId={bookId}
-              bookTitle={book.data?.title}
-              chapters={chapterList}
-              chapterCount={book.data?.chapter_count ?? 0}
-            />
+            <CharacterRelationships characterId={characterId} projectId={projectId} books={books} />
           </Stack>
         </Box>
       </Flex>
 
       <MentionInspectorDrawer
         characterId={characterId}
-        bookId={bookId}
-        bookTitle={book.data?.title}
+        books={books}
         character={data}
         open={drawerOpen}
         onClose={() => { setDrawerOpen(false); }}

@@ -2,18 +2,17 @@ import { Box, Button, Heading, HStack, Input, Stack, Text } from "@chakra-ui/rea
 import { useMemo } from "react";
 import { useParams, useSearchParams } from "react-router";
 import { EmptyState, ErrorState, LoadingSkeleton } from "@/components/ui";
-import type { Character, ImportanceTier } from "@/lib/api";
-import { useBook, useCharacters } from "@/lib/api";
+import type { Book, Character, ImportanceTier } from "@/lib/api";
+import { useCharacters, useProject } from "@/lib/api";
 import { formatCount } from "@/lib/format";
 import { CharacterRow } from "./character-row";
 import { TIER_LABEL, TIER_ORDER } from "./character-labels";
+import { bookById, sortedBooks } from "./project-lookup";
 
 type SortKey = "mentions" | "first" | "name";
 
-// A stable empty-array reference — `characters.data ?? []` would otherwise
-// create a new array every render while pending, defeating the `useMemo`s
-// below.
 const EMPTY_ROSTER: Character[] = [];
+const EMPTY_BOOKS: Book[] = [];
 
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: "mentions", label: "Most mentioned" },
@@ -35,29 +34,42 @@ const sortCharacters = (characters: Character[], sort: SortKey): Character[] => 
     return sorted;
   }
   if (sort === "first") {
-    sorted.sort((a, b) => (a.first_page ?? Infinity) - (b.first_page ?? Infinity));
+    sorted.sort(
+      (a, b) =>
+        (a.first_book_id === b.first_book_id ? 0 : 1) ||
+        (a.first_page ?? Infinity) - (b.first_page ?? Infinity),
+    );
     return sorted;
   }
   sorted.sort((a, b) => b.mention_count - a.mention_count);
   return sorted;
 };
 
+/**
+ * The series roster: one row per character, not one per book (S5.10). A
+ * returning character's appearance strip is the answer to "which books is
+ * this person in" — the reason this screen exists rather than a per-book
+ * copy of Sprint 3's roster.
+ */
 export const Characters = () => {
   // Hooks.
-  const { bookId = "" } = useParams();
+  const { projectId = "" } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Apis.
-  const book = useBook(bookId);
-  const projectId = book.data?.project_id;
-  const characters = useCharacters(projectId, { book_id: bookId });
+  const project = useProject(projectId);
+  const characters = useCharacters(projectId);
 
   // Variables.
   const query = searchParams.get("q") ?? "";
   const tierFilter = (searchParams.get("tier") as ImportanceTier | null) ?? null;
   const sort = (searchParams.get("sort") as SortKey | null) ?? "mentions";
+  const newInBook = searchParams.get("new");
+  const newInBookOrder = newInBook === null ? null : Number(newInBook);
 
   // useMemos.
+  const books = useMemo(() => sortedBooks(project.data?.books ?? EMPTY_BOOKS), [project.data]);
+  const byId = useMemo(() => bookById(books), [books]);
   const roster = characters.data ?? EMPTY_ROSTER;
   const totalMentions = useMemo(
     () => roster.reduce((sum, character) => sum + character.mention_count, 0),
@@ -71,13 +83,17 @@ export const Characters = () => {
     return counts;
   }, [roster]);
   const visible = useMemo(() => {
-    const filtered = roster.filter(
-      (character) =>
-        matchesQuery(character, query) &&
-        (tierFilter === null || character.importance_tier === tierFilter),
-    );
+    const filtered = roster.filter((character) => {
+      if (!matchesQuery(character, query)) { return false; }
+      if (tierFilter !== null && character.importance_tier !== tierFilter) { return false; }
+      if (newInBookOrder !== null) {
+        const firstBook = character.first_book_id ? byId.get(character.first_book_id) : undefined;
+        if (firstBook?.series_order !== newInBookOrder) { return false; }
+      }
+      return true;
+    });
     return sortCharacters(filtered, sort);
-  }, [roster, query, tierFilter, sort]);
+  }, [roster, query, tierFilter, newInBookOrder, byId, sort]);
   const grouped = useMemo(() => {
     const groups = new Map<ImportanceTier, Character[]>();
     for (const character of visible) {
@@ -102,29 +118,23 @@ export const Characters = () => {
   };
 
   // Early returns.
-  // `useCharacters` depends on `book.data.project_id`, so a failed book fetch
-  // (e.g. the route's own contract not built yet) would otherwise leave the
-  // characters query permanently disabled — spinning forever rather than
-  // surfacing the real error.
-  if (book.error) {
-    return <ErrorState error={book.error} onRetry={() => void book.refetch()} />;
+  if (project.error) {
+    return <ErrorState error={project.error} onRetry={() => void project.refetch()} />;
   }
 
   return (
     <Stack gap="7">
       <Stack gap="2">
         <Heading as="h2" textStyle="heading">
-          Everyone in this book
+          Everyone in {project.data?.name ?? "this series"}
         </Heading>
         {roster.length > 0 ? (
           <Text textStyle="body" color="fg.muted" maxW="measure">
             {formatCount(roster.length, "person", "people")}, gathered from{" "}
             {formatCount(totalMentions, "mention")}
-            {book.data?.chapter_count
-              ? ` across ${formatCount(book.data.chapter_count, "chapter")}`
-              : ""}
-            . Names that turned out to be the same person have been folded
-            together — open anyone to see why.
+            {books.length > 1 ? ` across ${formatCount(books.length, "book")}` : ""}.
+            A returning character keeps one row — open anyone to see which
+            volumes they appear in and where they first turn up in each.
           </Text>
         ) : null}
       </Stack>
@@ -134,7 +144,7 @@ export const Characters = () => {
           <Input
             value={query}
             onChange={(event) => { updateParam("q", event.target.value); }}
-            placeholder='Try "Lizzy"'
+            placeholder='Try "Anne"'
             aria-label="Search characters by name or alias"
             borderColor="border.control"
             borderRadius="md"
@@ -144,13 +154,13 @@ export const Characters = () => {
           />
 
           <HStack gap="1.5" wrap="wrap" role="group" aria-label="Filter by tier">
-            <TierFilterButton
+            <FilterButton
               label="All"
               active={tierFilter === null}
               onClick={() => { updateParam("tier", null); }}
             />
             {TIER_ORDER.filter((tier) => (tierCounts.get(tier) ?? 0) > 0).map((tier) => (
-              <TierFilterButton
+              <FilterButton
                 key={tier}
                 label={`${TIER_LABEL[tier]} (${tierCounts.get(tier) ?? 0})`}
                 active={tierFilter === tier}
@@ -159,9 +169,32 @@ export const Characters = () => {
             ))}
           </HStack>
 
+          {books.length > 1 ? (
+            <HStack gap="1.5" wrap="wrap" role="group" aria-label="New in book">
+              <FilterButton
+                label="Any book"
+                active={newInBookOrder === null}
+                onClick={() => { updateParam("new", null); }}
+              />
+              {books.map((book) => (
+                <FilterButton
+                  key={book.id}
+                  label={`New in bk. ${book.series_order ?? "?"}`}
+                  active={newInBookOrder === book.series_order}
+                  onClick={() => {
+                    updateParam(
+                      "new",
+                      newInBookOrder === book.series_order ? null : String(book.series_order ?? ""),
+                    );
+                  }}
+                />
+              ))}
+            </HStack>
+          ) : null}
+
           <HStack gap="1.5" wrap="wrap" role="group" aria-label="Sort by">
             {SORT_OPTIONS.map((option) => (
-              <TierFilterButton
+              <FilterButton
                 key={option.key}
                 label={option.label}
                 active={sort === option.key}
@@ -172,7 +205,7 @@ export const Characters = () => {
         </HStack>
       </Stack>
 
-      {characters.isPending ? (
+      {characters.isPending || project.isPending ? (
         <LoadingSkeleton variant="cards" count={6} label="Loading the roster" />
       ) : null}
 
@@ -183,14 +216,14 @@ export const Characters = () => {
       {!characters.isPending && !characters.error && roster.length === 0 ? (
         <EmptyState
           title="No characters yet"
-          description="Character extraction runs after ingestion finishes — check the overview tab for where this book's run stands."
+          description="Character extraction runs after ingestion finishes — check a book's overview tab for where its run stands."
         />
       ) : null}
 
       {!characters.isPending && !characters.error && roster.length > 0 && visible.length === 0 ? (
         <EmptyState
           title="No one matches"
-          description="Try a different name, alias, or tier filter."
+          description="Try a different name, alias, tier, or 'new in book' filter."
         />
       ) : null}
 
@@ -219,8 +252,8 @@ export const Characters = () => {
               <CharacterRow
                 key={character.id}
                 character={character}
-                bookId={bookId}
-                bookTitle={book.data?.title}
+                projectId={projectId}
+                books={books}
               />
             ))}
           </Box>
@@ -230,7 +263,7 @@ export const Characters = () => {
   );
 };
 
-const TierFilterButton = ({
+const FilterButton = ({
   label,
   active,
   onClick,

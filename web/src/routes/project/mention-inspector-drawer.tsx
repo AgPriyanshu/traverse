@@ -1,16 +1,16 @@
 import { Box, Button, Drawer, HStack, Portal, Span, Stack, Text } from "@chakra-ui/react";
 import { useMemo, useState } from "react";
 import { ErrorState, LoadingSkeleton, PageRef } from "@/components/ui";
-import type { CharacterDetail, Mention } from "@/lib/api";
+import type { Book, CharacterDetail, Mention } from "@/lib/api";
 import { RESOLUTION_METHOD_LABEL } from "./character-labels";
+import { bookById } from "./project-lookup";
 import { usePagedMentions } from "./use-paged-mentions";
 
 const DRAWER_PAGE_SIZE = 200;
 
 export type MentionInspectorDrawerProps = {
   characterId: string;
-  bookId: string;
-  bookTitle?: string | null;
+  books: readonly Book[];
   character: CharacterDetail;
   open: boolean;
   onClose: () => void;
@@ -23,14 +23,16 @@ export type MentionInspectorDrawerProps = {
  */
 export const MentionInspectorDrawer = ({
   characterId,
-  bookId,
-  bookTitle,
+  books,
   character,
   open,
   onClose,
 }: MentionInspectorDrawerProps) => {
   // States.
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+
+  // Variables.
+  const byId = bookById(books);
 
   // Apis.
   const mentions = usePagedMentions(open ? characterId : undefined, {
@@ -160,7 +162,11 @@ export const MentionInspectorDrawer = ({
                               align="baseline"
                               wrap="wrap"
                             >
-                              <PageRef page={mention.page} bookId={bookId} bookTitle={bookTitle} />
+                              <PageRef
+                                page={mention.page}
+                                bookId={mention.book_id}
+                                bookTitle={byId.get(mention.book_id)?.title}
+                              />
                               {mention.context ? (
                                 <Text textStyle="small" color="fg.muted" flex="1" lineClamp={2}>
                                   {mention.context}
