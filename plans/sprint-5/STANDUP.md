@@ -34,3 +34,23 @@ lint) requested at the end of today's session, then push.
 **Blocked:** SCR-2 (per-project reconcile lock) blocks a live proof of
 S5.15's concurrency DoD line, not the code itself — see SCR.md and
 HANDOFF.md. Everything else in this sprint's do1 scope is unblocked.
+
+## 2026-09-27
+
+**Final verification pass done:** `docker compose --profile test build test`
+clean; `pytest api/tests -q` → 434 passed, 1 skipped, 1 known failure
+(SCR-1's frozen route count, not a regression); `ruff check`/`ruff format
+--check` clean; `pnpm lint` (oxlint) clean. Fixed a lint nit found along the
+way (line length in `api/ops/reconciliation_quality.py`).
+
+**New finding:** the shared `traverse_test` Postgres database has no
+per-worktree isolation (unlike `traverse_be1`/`be2`/`int`) — two concurrent
+`docker compose --profile test run` invocations from different worktrees
+deadlocked each other on it. Documented in HANDOFF.md and
+`.agents/skills/codebase-memory/infra-topology.md`; recommend a
+`TEST_POSTGRES_DB` per-worktree suffix as a Sprint 6 action item. Did not fix
+in this branch (out of scope for S5.13-S5.15, found only during the final
+verification pass).
+
+All three stories (S5.13, S5.14, S5.15) are implemented, committed, and
+verified. Pushing `ai/do1/sprint-5-series-corpus`.

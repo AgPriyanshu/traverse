@@ -136,6 +136,40 @@ and `make ingest-series PROJECT=anne-of-green-gables` once be1/be2's Sprint 5
 work lands on `ai-master` — no code change should be needed here for real
 numbers to start appearing.
 
+## Final verification pass (2026-09-27)
+
+`docker compose --profile test build test` (clean build, no credentials
+workaround needed this time), `run --rm --no-deps test pytest api/tests -q`:
+**434 passed, 1 skipped, 1 known failure** (`TestStillFrozen::
+test_the_openapi_document_still_lists_every_frozen_path`, `40 == 38` — SCR-1,
+not a regression). `ruff check`/`ruff format --check` clean; `pnpm lint`
+(oxlint) clean, 0 warnings/errors on 96 files (no `web/**` touched this
+sprint, ran anyway per the verification pass).
+
+**New finding, not a regression in this branch's own code:** two concurrent
+`docker compose --profile test run` invocations from different worktrees
+(this one tagged `do1`, another tagged `dev`) deadlocked each other against
+the shared `traverse_test` Postgres database — one run's fixture connection
+sat `idle in transaction` holding a lock the other run's `TRUNCATE
+ingestionstage, ingestionrun, ...` teardown needed, and vice versa via lock
+queueing, and both suites hung at the same ~46-49% mark until one container
+was removed. Confirmed by inspecting `pg_stat_activity` mid-hang. Separately,
+the shared `db`/`rabbitmq` containers were restarted by another agent's
+action while a test run was mid-flight, producing `AdminShutdown`/
+"database system is starting up" connection errors — again not code, just
+timing. Unlike `traverse_be1`/`traverse_be2`/`traverse_int`
+(BRANCH.md §4), **`traverse_test` has no per-worktree isolation** — every
+worktree's `test` service points at the same database, unlike the live-stack
+databases. This is the same class of gap Sprint 4's retro flagged for the
+MinIO bucket (A-4.2: "any shared test/live resource needs isolation from day
+one"), just on the Postgres side and for concurrent *test* runs rather than
+test-vs-live. Not fixed here (out of scope for this sprint's three stories,
+and a `docker-compose.yml`/`.env.example` change needs care); recommend a
+`TEST_POSTGRES_DB` override keyed the same way `TEST_IMAGE_TAG` already is
+(`${TEST_IMAGE_TAG}` suffix) as a Sprint 6 action item. Waiting for a clear
+window (`docker ps --filter name=traverse-test-run-` empty) and retrying
+worked reliably.
+
 ## Known carried infra items (spot-checked, not re-investigated)
 
 - **Test/live MinIO bucket isolation** (SCR-19, Sprint 4): `docker-compose.yml`'s

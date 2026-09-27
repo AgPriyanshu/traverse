@@ -229,6 +229,20 @@ make revision m="…"               ORCHESTRATOR ONLY — typed confirmation
   Bare `docker compose` without it falls back to `dev`, shared across worktrees.
 - **`docker compose run` from a worktree can recreate the shared db/rabbitmq**
   when the compose config differs from the running stack. Volumes survive.
+- **`traverse_test` (the `test` service's Postgres database) has no
+  per-worktree isolation, unlike `traverse_be1`/`traverse_be2`/`traverse_int`**
+  (S5, do1's final verification pass). Two concurrent `docker compose
+  --profile test run --rm test` invocations from different worktrees
+  deadlocked each other: one run's fixture connection sat idle-in-transaction
+  holding a lock the other's `TRUNCATE` teardown needed, and vice versa —
+  confirmed live in `pg_stat_activity`, both suites hung at the same ~46-49%
+  mark until one container was removed. Same class of gap as SCR-19's MinIO
+  bucket finding (Sprint 4 retro A-4.2), just on Postgres and for
+  test-vs-test rather than test-vs-live. Workaround: check
+  `docker ps --filter name=traverse-test-run-` is empty before starting a
+  run, and retry in a clear window. Not yet fixed; a `TEST_POSTGRES_DB`
+  suffixed by `TEST_IMAGE_TAG` the same way the image tag already is would
+  close it — recommended as a Sprint 6 action item.
 
 - **`eval/` is a repo-root package, not under `api/`, and `api/ops/
   extraction_quality.py`/`extraction_cost.py` import it anyway.** Works via
