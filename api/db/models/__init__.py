@@ -6,6 +6,7 @@ from .character_model import (
     RejectedCandidate,
 )
 from .chunk_model import DocumentChunk
+from .conversation_model import Conversation, ConversationTurn
 from .ops_model import EvalRun, IngestionRun, IngestionStage, QueryLog
 from .project_model import Book, Chapter, Project
 from .reconciliation_model import CharacterDeath, ReconciliationDecision
@@ -19,6 +20,8 @@ __all__ = [
     "BookCharacterCandidate",
     "Chapter",
     "Character",
+    "Conversation",
+    "ConversationTurn",
     "CharacterAppearance",
     "CharacterMention",
     "CorrectionFeedback",
