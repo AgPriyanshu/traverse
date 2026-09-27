@@ -29,3 +29,19 @@ on `character.id` handles the interaction), so no sequencing coordination
 needed beyond both existing before `delete_book` is wired up.
 
 ---
+
+## be2 — 2026-09-27
+
+**Also fixed:** `relations.repository.replace_project_relations` was
+regenerating every `Relation`'s id on every aggregate run (delete + reinsert),
+not just on book removal — the same identity-stability bug Sprint 4 fixed for
+`Character`. Found via the S5.8 cascade test asserting a surviving relation
+kept its id. Now upserts by `(subject, predicate, object)`; regression test
+added. See `HANDOFF.md`.
+
+**Verified:** full suite green via `docker compose --profile test build test`
++ `run --rm --no-deps test pytest api/tests -q` (counts in this commit's
+message / final report), `ruff check .` and `ruff format --check .` clean
+across the whole repo. Branch pushed.
+
+---

@@ -58,6 +58,21 @@ already on every evidence row. Added `relations.repository.load_project_facts`
 existing call site) as the shared "all standing evidence, optionally minus one
 book" primitive S5.8's cascade also needs.
 
+**Found while writing S5.8's cascade test, fixed here since it is the same
+bug class**: `relations.repository.replace_project_relations` deleted and
+reinserted every non-human-verified `Relation` row on *every* aggregate run
+(an ordinary pass-2 rerun, not just a book removal), which regenerated every
+edge's id and cascade-deleted-then-recreated its evidence each time — the
+exact bug class Sprint 4 fixed for `Character` via `persist_characters`'s
+upsert-by-natural-key, just not yet applied to `Relation`. Now upserts by
+`(subject_character_id, predicate, object_character_id)`: an existing row's
+id and its evidence are kept for an edge aggregation still produces, updated
+in place; only a relation aggregation no longer produces is deleted. This is
+the identity-stability guarantee the orchestrator specifically asked to be
+checked for book removal — it turned out to already be broken for an
+ordinary rerun, not just removal. Regression test:
+`test_cross_book_aggregation.py::test_relation_id_is_stable_across_reaggregation_reruns`.
+
 ### S5.8 — project graph APIs and book removal
 
 - `GET /projects/{id}/graph`, `GET /relations/arc`, `GET
