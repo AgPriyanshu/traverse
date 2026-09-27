@@ -331,7 +331,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Appearances */
+        /**
+         * List Appearances
+         * @description Return one character's per-book appearances, series-ordered.
+         *
+         *     Raises:
+         *         HTTPException: 404 when no such character exists, or it exists but is
+         *             not yet visible at the given reading position — the same gate
+         *             ``get_character`` applies.
+         */
         get: operations["list_appearances_api_characters__character_id__appearances_get"];
         put?: never;
         post?: never;
@@ -445,25 +453,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Neighbourhood */
+        /**
+         * Get Neighbourhood
+         * @description Return the subgraph within ``depth`` hops of a character.
+         *
+         *     Raises:
+         *         HTTPException: 404 when the character is not in the graph.
+         */
         get: operations["get_neighbourhood_api_characters__character_id__neighbourhood_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/relations/{relation_id}/evidence": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Evidence */
-        get: operations["get_evidence_api_relations__relation_id__evidence_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -479,8 +476,34 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Arc */
+        /**
+         * Get Arc
+         * @description Return the ordered states of one pair, a single element if unchanged.
+         */
         get: operations["get_arc_api_relations_arc_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/relations/{relation_id}/evidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Evidence
+         * @description Return a relation's quotes and pages, chapter-ordered and paginated.
+         *
+         *     Raises:
+         *         HTTPException: 404 when the relation does not exist.
+         */
+        get: operations["get_evidence_api_relations__relation_id__evidence_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -496,7 +519,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Path */
+        /**
+         * Get Path
+         * @description Return the shortest relation chain between two characters, capped at 4 hops.
+         */
         get: operations["get_path_api_graph_path_get"];
         put?: never;
         post?: never;
@@ -535,7 +561,15 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Respond To Clarification */
+        /**
+         * Respond To Clarification
+         * @description Resume a paused thread with the user's answer to a clarifying question.
+         *
+         *     The clarification itself just becomes the next question on the same
+         *     thread — ``answer_question`` already resolves names against the
+         *     conversation's carried context (S6.6), so a one-word reply like "the
+         *     younger one" resolves the same way "and her sister?" would.
+         */
         post: operations["respond_to_clarification_api_query__thread_id__respond_post"];
         delete?: never;
         options?: never;
@@ -694,6 +728,178 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/ops/relation-quality": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Relation Quality
+         * @description Per-predicate P/R/F1, spurious and direction rates, temporal arcs (S4.14).
+         *
+         *     Also reports the evidence-free edge count, which must be 0 whether or not
+         *     the book has gold relations. ``gold_available=False`` for an unlabelled book.
+         */
+        get: operations["relation_quality_api_ops_relation_quality_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ops/relation-cost": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Relation Cost
+         * @description Pass-2 tokens, chunks skipped, wall clock, USD and cache hit rate (S4.15).
+         *
+         *     ``prefix_cache_alert`` is set when a measured hit rate is below 80%.
+         */
+        get: operations["relation_cost_api_ops_relation_cost_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ops/answer-quality": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Answer Quality
+         * @description Accuracy, citation precision, abstention rate, aggregation exact-match (S6.14).
+         *
+         *     Reads no live table -- scores whatever ``scripts/eval_answers.py`` last
+         *     wrote to ``eval/gold/<book>/answer_judgements.json`` against the gold
+         *     question set. ``gold_available=False`` for a book with no labelled
+         *     question set; ``answered=0`` (not an error) for one that has never been
+         *     run, e.g. because be2's query pipeline (S6.1-S6.5) has not merged yet.
+         */
+        get: operations["answer_quality_api_ops_answer_quality_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ops/judge-answer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Judge Answer Route
+         * @description Frontier-model judge for one answered question (S6.14).
+         *
+         *     Never the model under test — ``LLMPurpose.JUDGE`` always routes to
+         *     ``settings.frontier_model`` (``api/llm/routing.py``), refusing outright
+         *     under ``INFERENCE_MODE=local`` rather than grading with the local model.
+         */
+        post: operations["judge_answer_route_api_ops_judge_answer_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ops/query-latency": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Query Latency
+         * @description p50/p95/p99 latency and TTFT against the NFR-perf budget (S6.15).
+         *
+         *     ``sample_count=0`` until be2's query pipeline (S6.1-S6.5) starts writing
+         *     ``QueryLog`` rows -- not an error, and not a passing gate either
+         *     (``p95_within_budget=None``). Judge only from the integration host
+         *     (BRANCH.md §9); vLLM is a single-GPU host singleton every worktree
+         *     shares.
+         */
+        get: operations["query_latency_api_ops_query_latency_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ops/reconciliation-quality": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Reconciliation Quality
+         * @description Cross-book link P/R, false-merge rate and duplicate rate (S5.14).
+         *
+         *     Also reports a deterministic ``graph_checksum`` of the project's
+         *     character/relation set, independent of the gold set's availability --
+         *     the order-independence check (`eval/runners/reconciliation.py
+         *     --compare-project-id`) only needs two projects' checksums to compare.
+         *     ``gold_available=False`` for a project whose books don't match a known
+         *     series, or a series without a labelled gold set yet.
+         */
+        get: operations["reconciliation_quality_api_ops_reconciliation_quality_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ops/reconciliation-order-check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Reconciliation Order Check
+         * @description Hard pass/fail: do two projects' graphs hash identically (S5.14)?
+         *
+         *     Intended for a forward-order project and a reverse-order project ingesting
+         *     the same series -- the Sprint 5 DoD's "reverse-order upload produces a
+         *     checksum-identical graph" claim, made checkable rather than eyeballed.
+         */
+        get: operations["reconciliation_order_check_api_ops_reconciliation_order_check_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/ops/pipeline/runs": {
         parameters: {
             query?: never;
@@ -776,6 +982,19 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AggregationMissOut */
+        AggregationMissOut: {
+            /** Question Id */
+            question_id: string;
+            /** Expected */
+            expected: string[];
+            /** Predicted */
+            predicted: string[];
+            /** Missing */
+            missing: string[];
+            /** Extra */
+            extra: string[];
+        };
         /** AliasOut */
         AliasOut: {
             /** Surface Form */
@@ -788,6 +1007,56 @@ export interface components {
              * @default false
              */
             ambiguous: boolean;
+        };
+        /** AnswerJudgment */
+        AnswerJudgment: {
+            /**
+             * Correct
+             * @description True only if the system's answer conveys the same facts as the reference answer. A hedge that avoids being wrong without actually answering is not correct.
+             */
+            correct: boolean;
+            /**
+             * Citation Supported
+             * @description One entry per citation quote given, in order: does that quote, read in isolation, actually support the corresponding claim in the system's answer?
+             */
+            citation_supported?: boolean[];
+            /**
+             * Reasoning
+             * @description One or two sentences explaining the verdict.
+             */
+            reasoning: string;
+        };
+        /** AnswerQualityOut */
+        AnswerQualityOut: {
+            /** Book Key */
+            book_key: string;
+            /** Gold Available */
+            gold_available: boolean;
+            /** Error */
+            error?: string | null;
+            /**
+             * Total Gold
+             * @default 0
+             */
+            total_gold: number;
+            /**
+             * Answered
+             * @default 0
+             */
+            answered: number;
+            /**
+             * Unanswered
+             * @default 0
+             */
+            unanswered: number;
+            accuracy?: components["schemas"]["RateOut"] | null;
+            /** Per Class */
+            per_class?: components["schemas"]["ClassScoreOut"][];
+            citation_precision?: components["schemas"]["RateOut"] | null;
+            abstention?: components["schemas"]["RateOut"] | null;
+            aggregation_exact_match?: components["schemas"]["RateOut"] | null;
+            /** Aggregation Misses */
+            aggregation_misses?: components["schemas"]["AggregationMissOut"][];
         };
         /** AppearanceOut */
         AppearanceOut: {
@@ -894,6 +1163,11 @@ export interface components {
             /** Trace Url */
             trace_url?: string | null;
         };
+        /**
+         * CandidateKind
+         * @enum {string}
+         */
+        CandidateKind: "person" | "place" | "organisation" | "unknown";
         /** ChapterOut */
         ChapterOut: {
             /**
@@ -1105,6 +1379,68 @@ export interface components {
             /** Answer */
             answer: string;
         };
+        /** ClassScoreOut */
+        ClassScoreOut: {
+            /** Qclass */
+            qclass: string;
+            /** Judged */
+            judged: number;
+            /** Correct */
+            correct: number;
+            /** Accuracy */
+            accuracy: number | null;
+        };
+        /** ClassifyCandidatePayload */
+        ClassifyCandidatePayload: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            task_type: "classify_candidate";
+            /** Surface Form */
+            surface_form: string;
+            /**
+             * Book Id
+             * Format: uuid
+             */
+            book_id: string;
+            kind_guess?: components["schemas"]["CandidateKind"] | null;
+            /**
+             * Mention Count
+             * @default 0
+             */
+            mention_count: number;
+            /** Contexts */
+            contexts?: components["schemas"]["MentionOut"][];
+        };
+        /** ConfirmChapterSplitPayload */
+        ConfirmChapterSplitPayload: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            task_type: "confirm_chapter_split";
+            chapter: components["schemas"]["ChapterOut"];
+            /** Preceding Text */
+            preceding_text: string;
+            /** Following Text */
+            following_text: string;
+            /** Confidence */
+            confidence?: number | null;
+        };
+        /** ConfirmRelationPayload */
+        ConfirmRelationPayload: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            task_type: "confirm_relation";
+            relation: components["schemas"]["RelationOut"];
+            /** Evidence */
+            evidence?: components["schemas"]["EvidenceOut"][];
+            /** Reason */
+            reason: string;
+        };
         /** DeadLetterOut */
         DeadLetterOut: {
             /**
@@ -1287,6 +1623,18 @@ export interface components {
             roster_false_positives?: number | null;
             /** Roster False Negatives */
             roster_false_negatives?: number | null;
+            /** Roster Named Precision */
+            roster_named_precision?: number | null;
+            /** Roster Named Recall */
+            roster_named_recall?: number | null;
+            /** Roster Named F1 */
+            roster_named_f1?: number | null;
+            /** Roster Named True Positives */
+            roster_named_true_positives?: number | null;
+            /** Roster Named False Positives */
+            roster_named_false_positives?: number | null;
+            /** Roster Named False Negatives */
+            roster_named_false_negatives?: number | null;
             /** B3 Precision */
             b3_precision?: number | null;
             /** B3 Recall */
@@ -1464,6 +1812,31 @@ export interface components {
             /** Options */
             options?: string[];
         };
+        /** JudgeAnswerRequest */
+        JudgeAnswerRequest: {
+            /** Question Id */
+            question_id: string;
+            /** Question */
+            question: string;
+            /** Expected Answer */
+            expected_answer?: string | null;
+            /**
+             * Expect Abstain
+             * @default false
+             */
+            expect_abstain: boolean;
+            /** System Answer */
+            system_answer?: string | null;
+            /**
+             * Abstained
+             * @default false
+             */
+            abstained: boolean;
+            /** Citations */
+            citations?: {
+                [key: string]: unknown;
+            }[];
+        };
         /** MentionOut */
         MentionOut: {
             /**
@@ -1488,6 +1861,38 @@ export interface components {
             /** Context */
             context?: string | null;
             resolution_method: components["schemas"]["ResolutionMethod"];
+        };
+        /** MergeAcrossBooksPayload */
+        MergeAcrossBooksPayload: {
+            /** Candidates */
+            candidates: components["schemas"]["CharacterOut"][];
+            /** Contexts */
+            contexts?: {
+                [key: string]: components["schemas"]["MentionOut"][];
+            };
+            /** Similarity Score */
+            similarity_score?: number | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            task_type: "merge_across_books";
+        };
+        /** MergeCharactersPayload */
+        MergeCharactersPayload: {
+            /** Candidates */
+            candidates: components["schemas"]["CharacterOut"][];
+            /** Contexts */
+            contexts?: {
+                [key: string]: components["schemas"]["MentionOut"][];
+            };
+            /** Similarity Score */
+            similarity_score?: number | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            task_type: "merge_characters";
         };
         /** MetricsOut */
         MetricsOut: {
@@ -1556,6 +1961,34 @@ export interface components {
             height: number;
             /** Spans */
             spans?: components["schemas"]["SpanBox"][];
+        };
+        /** PercentileSetOut */
+        PercentileSetOut: {
+            /** P50 */
+            p50: number | null;
+            /** P95 */
+            p95: number | null;
+            /** P99 */
+            p99: number | null;
+            /** N */
+            n: number;
+        };
+        /** PredicateScoreOut */
+        PredicateScoreOut: {
+            /** Predicate */
+            predicate: string;
+            /** True Positives */
+            true_positives: number;
+            /** False Positives */
+            false_positives: number;
+            /** False Negatives */
+            false_negatives: number;
+            /** Precision */
+            precision: number | null;
+            /** Recall */
+            recall: number | null;
+            /** F1 */
+            f1: number | null;
         };
         /** ProjectCreate */
         ProjectCreate: {
@@ -1642,6 +2075,43 @@ export interface components {
             /** Event */
             event: components["schemas"]["TokenEvent"] | components["schemas"]["CitationEvent"] | components["schemas"]["RouteEvent"] | components["schemas"]["InterruptEvent"] | components["schemas"]["DoneEvent"] | components["schemas"]["ErrorEvent"];
         };
+        /**
+         * QueryLatencyOut
+         * @description ``GET /ops/query-latency`` response -- S6.15.
+         */
+        QueryLatencyOut: {
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /** Sample Count */
+            sample_count: number;
+            total_ms: components["schemas"]["PercentileSetOut"];
+            ttft_ms: components["schemas"]["PercentileSetOut"];
+            /** Per Stage Ms */
+            per_stage_ms: {
+                [key: string]: components["schemas"]["PercentileSetOut"];
+            };
+            /** Avg Cost Usd */
+            avg_cost_usd: number | null;
+            /** P95 Within Budget */
+            p95_within_budget: boolean | null;
+            /** Ttft P95 Within Budget */
+            ttft_p95_within_budget: boolean | null;
+            /**
+             * P95 Budget Ms
+             * @default 6000
+             */
+            p95_budget_ms: number;
+            /**
+             * Ttft Budget Ms
+             * @default 1500
+             */
+            ttft_budget_ms: number;
+            /** Violations */
+            violations: string[];
+        };
         /** QueryRequest */
         QueryRequest: {
             /**
@@ -1663,6 +2133,88 @@ export interface components {
          * @enum {string}
          */
         QueryRoute: "character_lookup" | "relationship_lookup" | "path" | "aggregation" | "series_arc" | "narrative" | "ambiguous";
+        /** RateOut */
+        RateOut: {
+            /** Hit */
+            hit: number;
+            /** Total */
+            total: number;
+            /** Rate */
+            rate: number | null;
+            /** Meets Target */
+            meets_target: boolean;
+            /** Target */
+            target: number;
+        };
+        /** ReconciliationQualityOut */
+        ReconciliationQualityOut: {
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /** Series Key */
+            series_key?: string | null;
+            /** Gold Available */
+            gold_available: boolean;
+            /** Error */
+            error?: string | null;
+            /** Link Precision */
+            link_precision?: number | null;
+            /** Link Recall */
+            link_recall?: number | null;
+            /** False Merge Rate */
+            false_merge_rate?: number | null;
+            /** Duplicate Rate */
+            duplicate_rate?: number | null;
+            /**
+             * Linked Pairs
+             * @default 0
+             */
+            linked_pairs: number;
+            /**
+             * Correctly Linked Pairs
+             * @default 0
+             */
+            correctly_linked_pairs: number;
+            /**
+             * False Merge Pairs
+             * @default 0
+             */
+            false_merge_pairs: number;
+            /**
+             * Gold Linked Pairs
+             * @default 0
+             */
+            gold_linked_pairs: number;
+            /**
+             * Missed Link Pairs
+             * @default 0
+             */
+            missed_link_pairs: number;
+            /**
+             * Duplicate Characters
+             * @default 0
+             */
+            duplicate_characters: number;
+            /**
+             * Gold Multi Book Characters
+             * @default 0
+             */
+            gold_multi_book_characters: number;
+            /**
+             * Character Count
+             * @default 0
+             */
+            character_count: number;
+            /**
+             * Book Count
+             * @default 0
+             */
+            book_count: number;
+            /** Graph Checksum */
+            graph_checksum?: string | null;
+        };
         /**
          * RelationArcOut
          * @description The ordered sequence of states for one pair.
@@ -1683,6 +2235,62 @@ export interface components {
             object_character_id: string;
             /** States */
             states?: components["schemas"]["RelationOut"][];
+        };
+        /** RelationCostOut */
+        RelationCostOut: {
+            /**
+             * Book Id
+             * Format: uuid
+             */
+            book_id: string;
+            /** Page Count */
+            page_count?: number | null;
+            /** Stages */
+            stages?: components["schemas"]["RelationStageCost"][];
+            /**
+             * Input Tokens
+             * @default 0
+             */
+            input_tokens: number;
+            /**
+             * Output Tokens
+             * @default 0
+             */
+            output_tokens: number;
+            /**
+             * Total Cost Usd Local
+             * @default 0
+             */
+            total_cost_usd_local: number;
+            /** Total Cost Usd Api Equivalent */
+            total_cost_usd_api_equivalent?: number | null;
+            /**
+             * Wall Clock Ms
+             * @default 0
+             */
+            wall_clock_ms: number;
+            /** Wall Clock Ms Per 100 Pages */
+            wall_clock_ms_per_100_pages?: number | null;
+            /** Chunks Total */
+            chunks_total?: number | null;
+            /** Chunks Processed */
+            chunks_processed?: number | null;
+            /** Chunks Skipped */
+            chunks_skipped?: number | null;
+            /** Prefilter Skip Ratio */
+            prefilter_skip_ratio?: number | null;
+            /** Prefix Cache Hit Rate */
+            prefix_cache_hit_rate?: number | null;
+            /**
+             * Prefix Cache Alert Threshold
+             * @default 0.8
+             */
+            prefix_cache_alert_threshold: number;
+            /**
+             * Prefix Cache Alert
+             * @default false
+             */
+            prefix_cache_alert: boolean;
         };
         /**
          * RelationFamily
@@ -1741,6 +2349,115 @@ export interface components {
             /** Page Refs */
             page_refs?: components["schemas"]["PageRefOut"][];
         };
+        /** RelationQualityOut */
+        RelationQualityOut: {
+            /**
+             * Book Id
+             * Format: uuid
+             */
+            book_id: string;
+            /** Book Key */
+            book_key?: string | null;
+            /** Gold Available */
+            gold_available: boolean;
+            /** Error */
+            error?: string | null;
+            /** Precision */
+            precision?: number | null;
+            /** Recall */
+            recall?: number | null;
+            /** F1 */
+            f1?: number | null;
+            /** Per Predicate */
+            per_predicate?: components["schemas"]["PredicateScoreOut"][];
+            /** Spurious Edge Rate */
+            spurious_edge_rate?: number | null;
+            /** Spurious Edges */
+            spurious_edges?: string[];
+            /** Direction Accuracy */
+            direction_accuracy?: number | null;
+            /** Direction Errors */
+            direction_errors?: string[];
+            /** Temporal Arc Accuracy */
+            temporal_arc_accuracy?: number | null;
+            /**
+             * Temporal Transitions
+             * @default 0
+             */
+            temporal_transitions: number;
+            /**
+             * Temporal Correct
+             * @default 0
+             */
+            temporal_correct: number;
+            /**
+             * Arcs Fully Correct
+             * @default 0
+             */
+            arcs_fully_correct: number;
+            /**
+             * Arcs Total
+             * @default 0
+             */
+            arcs_total: number;
+            /** Missed Gold */
+            missed_gold?: string[];
+            /**
+             * Scored Edges
+             * @default 0
+             */
+            scored_edges: number;
+            /**
+             * Unmapped Edges
+             * @default 0
+             */
+            unmapped_edges: number;
+            /** Evidence Free Edges */
+            evidence_free_edges?: number | null;
+            /** Evidence Free Edges Graph */
+            evidence_free_edges_graph?: number | null;
+            /** Evidence Invariant Holds */
+            evidence_invariant_holds?: boolean | null;
+            /**
+             * Citation Judged
+             * @default 0
+             */
+            citation_judged: number;
+            /** Citation Accuracy */
+            citation_accuracy?: number | null;
+            /**
+             * Citation Meets Target
+             * @default false
+             */
+            citation_meets_target: boolean;
+        };
+        /** RelationStageCost */
+        RelationStageCost: {
+            /** Stage */
+            stage: string;
+            /**
+             * Input Tokens
+             * @default 0
+             */
+            input_tokens: number;
+            /**
+             * Output Tokens
+             * @default 0
+             */
+            output_tokens: number;
+            /**
+             * Cost Usd Local
+             * @default 0
+             */
+            cost_usd_local: number;
+            /** Cost Usd Api Equivalent */
+            cost_usd_api_equivalent?: number | null;
+            /**
+             * Duration Ms
+             * @default 0
+             */
+            duration_ms: number;
+        };
         /**
          * RelationStatus
          * @enum {string}
@@ -1752,6 +2469,22 @@ export interface components {
          * @enum {string}
          */
         ResolutionMethod: "exact" | "normalised" | "honorific" | "nickname" | "embedding" | "llm" | "human";
+        /** ResolveConflictPayload */
+        ResolveConflictPayload: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            task_type: "resolve_conflict";
+            /** Conflicting */
+            conflicting: components["schemas"]["RelationOut"][];
+            /** Evidence */
+            evidence?: {
+                [key: string]: components["schemas"]["EvidenceOut"][];
+            };
+            /** Reason */
+            reason: string;
+        };
         /** ReviewResolution */
         ReviewResolution: {
             /** Decision */
@@ -1785,9 +2518,7 @@ export interface components {
             /** Priority */
             priority: number;
             /** Payload */
-            payload?: {
-                [key: string]: unknown;
-            };
+            payload: components["schemas"]["MergeCharactersPayload"] | components["schemas"]["MergeAcrossBooksPayload"] | components["schemas"]["ConfirmRelationPayload"] | components["schemas"]["ResolveConflictPayload"] | components["schemas"]["ClassifyCandidatePayload"] | components["schemas"]["ConfirmChapterSplitPayload"];
             /**
              * Created At
              * Format: date-time
@@ -2735,7 +3466,10 @@ export interface operations {
     };
     list_appearances_api_characters__character_id__appearances_get: {
         parameters: {
-            query?: never;
+            query?: {
+                limit_book_order?: number | null;
+                limit_chapter?: number | null;
+            };
             header?: never;
             path: {
                 character_id: string;
@@ -3040,16 +3774,14 @@ export interface operations {
             };
         };
     };
-    get_evidence_api_relations__relation_id__evidence_get: {
+    get_arc_api_relations_arc_get: {
         parameters: {
-            query?: {
-                limit?: number;
-                offset?: number;
+            query: {
+                a: string;
+                b: string;
             };
             header?: never;
-            path: {
-                relation_id: string;
-            };
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
@@ -3060,7 +3792,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["EvidenceOut"][];
+                    "application/json": components["schemas"]["RelationArcOut"];
                 };
             };
             /** @description Not Found */
@@ -3092,14 +3824,16 @@ export interface operations {
             };
         };
     };
-    get_arc_api_relations_arc_get: {
+    get_evidence_api_relations__relation_id__evidence_get: {
         parameters: {
-            query: {
-                a: string;
-                b: string;
+            query?: {
+                limit?: number;
+                offset?: number;
             };
             header?: never;
-            path?: never;
+            path: {
+                relation_id: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
@@ -3110,7 +3844,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RelationArcOut"];
+                    "application/json": components["schemas"]["EvidenceOut"][];
                 };
             };
             /** @description Not Found */
@@ -3620,6 +4354,354 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ExtractionCostOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    relation_quality_api_ops_relation_quality_get: {
+        parameters: {
+            query: {
+                book_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelationQualityOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    relation_cost_api_ops_relation_cost_get: {
+        parameters: {
+            query: {
+                book_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelationCostOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    answer_quality_api_ops_answer_quality_get: {
+        parameters: {
+            query: {
+                book_key: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnswerQualityOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    judge_answer_route_api_ops_judge_answer_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JudgeAnswerRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnswerJudgment"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    query_latency_api_ops_query_latency_get: {
+        parameters: {
+            query: {
+                project_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QueryLatencyOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    reconciliation_quality_api_ops_reconciliation_quality_get: {
+        parameters: {
+            query: {
+                project_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReconciliationQualityOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    reconciliation_order_check_api_ops_reconciliation_order_check_get: {
+        parameters: {
+            query: {
+                project_id: string;
+                compare_project_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Not Found */
