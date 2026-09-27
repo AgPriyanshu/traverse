@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://traverse.internal/eval/schema/identity.schema.json",
+  "title": "Gold cross-book character identity",
+  "description": "Hand-verified ground truth for which surface forms across a series' books refer to the same character (S5.14). Pinned per-book to corpus/manifest.json's pdf_sha256/page_count exactly like roster.schema.json/relations.schema.json, so a repaginated corpus fails loudly rather than silently invalidating a page-level label.",
+  "type": "object",
+  "required": ["series_key", "books", "characters"],
+  "additionalProperties": false,
+  "properties": {
+    "series_key": {
+      "type": "string",
+      "description": "Must match a series_key under corpus/manifest.json's per-book series metadata."
+    },
+    "labelled_by": { "type": "string" },
+    "labelled_at": { "type": "string", "format": "date-time" },
+    "source_notes": { "type": "string" },
+    "books": {
+      "type": "array",
+      "minItems": 1,
+      "description": "The books this gold set spans, in series order. book_order is the key surface_forms and appears_in refer to.",
+      "items": { "$ref": "#/$defs/book" }
+    },
+    "characters": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/identity" }
+    }
+  },
+  "$defs": {
+    "book": {
+      "type": "object",
+      "required": ["book_order", "book_key", "pdf_sha256", "page_count"],
+      "additionalProperties": false,
+      "properties": {
+        "book_order": { "type": "integer", "minimum": 1 },
+        "book_key": {
+          "type": "string",
+          "description": "Must match a key under corpus/manifest.json's books."
+        },
+        "pdf_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "corpus/manifest.json books[book_key].pdf_sha256 at label time."
+        },
+        "page_count": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "identity": {
+      "type": "object",
+      "required": ["canonical", "appears_in", "surface_forms"],
+      "additionalProperties": false,
+      "properties": {
+        "canonical": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The one name this character is scored under project-wide."
+        },
+        "appears_in": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "integer", "minimum": 1 },
+          "description": "book_order values this character genuinely appears in -- not just is mentioned or remembered in."
+        },
+        "surface_forms": {
+          "type": "object",
+          "description": "book_order (as a string key, e.g. \"1\") -> surface forms this character is called by in that book.",
+          "propertyNames": { "pattern": "^[0-9]+$" },
+          "additionalProperties": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "minLength": 1 }
+          }
+        },
+        "dies_in_book": {
+          "type": ["integer", "null"],
+          "description": "book_order this character's death is established in, or null. The primary cross-book blocking signal (character_death) -- a later book's same-name mention is a namesake, flashback or memory, never an automatic link, once this is set."
+        },
+        "namesake_risk": {
+          "type": "boolean",
+          "default": false,
+          "description": "True when another character in this same gold set shares a first name or surname, so a system merging them purely on string similarity is the specific failure this entry exists to catch."
+        },
+        "note": { "type": "string" }
+      }
+    }
+  }
+}

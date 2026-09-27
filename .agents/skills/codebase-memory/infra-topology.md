@@ -94,7 +94,42 @@ roster:chunk ratio, not purely a config problem. Also wired
 `prefix_cache_hit_rate` field is vLLM's lifetime-cumulative average since
 last boot, not scoped to a book or run.
 
-**Not built:** anything Sprint 5+.
+**Built (S5, do1):** `scripts/seed_corpus.py`'s `CorpusBook` gained series
+fields (`series_key`, `project_name`, `project_kind`, `series_order`,
+`canonical_series_number`) and a `SERIES_CORPUS` list (S5.13) — Anne of Green
+Gables (6 of its 8 books; books 4 and 6 are still under US copyright and are
+not on gutenberg.org, verified against the live catalog rather than assumed —
+see `corpus/LICENSES.md`) and the four Sherlock Holmes novels. `--only` now
+matches across both lists; a bare `make seed` is unchanged (still just the
+standalone five) and `--all` builds everything. `scripts/seed_series.py` +
+`make seed-series` creates both projects (`kind=SERIES`, straight to Postgres
+like `scripts/ingest_book.py` — `POST /projects` is still S5.9) and uploads
+each series' books through the real API in `series_order`, sequentially and
+idempotently.
+
+**Built (S5, do1):** `eval/identity_metrics.py` (cross-book link P/R,
+false-merge rate, duplicate rate, block precision, `canonical_graph_checksum`
+for order independence — all pure, unit-tested against hand-worked toy
+examples), `eval/schema/identity.schema.json` +
+`eval/gold/anne_of_green_gables/identity.yaml` (13 characters, books 1-3,
+per-book checksum pins), `api/ops/reconciliation_quality.py` behind
+`GET /ops/reconciliation-quality` and `GET /ops/reconciliation-order-check`,
+`eval/runners/reconciliation.py` + `make eval-reconciliation PROJECT=<slug>`,
+`.github/workflows/reconciliation-quality.yml`. **Unverified against real
+reconcile output** — `pipeline.reconcile_characters` (be1, S5.1/S5.2) is
+still a stub in this branch's history; see plans/sprint-5/HANDOFF.md.
+
+**Built (S5, do1):** `scripts/ingest_series.py` + `make ingest-series
+PROJECT=<series key>` — queues a whole series in order, sequential by
+default (always race-free) or `--concurrent` (a deliberate stress test, see
+SCR-2: the real per-project reconcile lock lives in be1's
+`api/pipeline/tasks.py`, not reachable from a script). Reports per-book wall
+clock/cost/prefix-cache hit rate and a roster-growth cost curve (flags
+superlinear pass-2-cost-vs-roster-size growth). `--reverse` uploads books in
+reverse sequence while keeping each book's true `series_order`, feeding the
+order-independence checksum check.
+
+**Not built:** anything else in Sprint 5+.
 
 ## Services
 
@@ -194,6 +229,20 @@ make revision m="…"               ORCHESTRATOR ONLY — typed confirmation
   Bare `docker compose` without it falls back to `dev`, shared across worktrees.
 - **`docker compose run` from a worktree can recreate the shared db/rabbitmq**
   when the compose config differs from the running stack. Volumes survive.
+- **`traverse_test` (the `test` service's Postgres database) has no
+  per-worktree isolation, unlike `traverse_be1`/`traverse_be2`/`traverse_int`**
+  (S5, do1's final verification pass). Two concurrent `docker compose
+  --profile test run --rm test` invocations from different worktrees
+  deadlocked each other: one run's fixture connection sat idle-in-transaction
+  holding a lock the other's `TRUNCATE` teardown needed, and vice versa —
+  confirmed live in `pg_stat_activity`, both suites hung at the same ~46-49%
+  mark until one container was removed. Same class of gap as SCR-19's MinIO
+  bucket finding (Sprint 4 retro A-4.2), just on Postgres and for
+  test-vs-test rather than test-vs-live. Workaround: check
+  `docker ps --filter name=traverse-test-run-` is empty before starting a
+  run, and retry in a clear window. Not yet fixed; a `TEST_POSTGRES_DB`
+  suffixed by `TEST_IMAGE_TAG` the same way the image tag already is would
+  close it — recommended as a Sprint 6 action item.
 
 - **`eval/` is a repo-root package, not under `api/`, and `api/ops/
   extraction_quality.py`/`extraction_cost.py` import it anyway.** Works via

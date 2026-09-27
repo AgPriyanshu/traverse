@@ -1,0 +1,103 @@
+name: Reconciliation quality (PR)
+
+# S5.14: PRs touching cross-book reconciliation get the reduced Anne of Green
+# Gables 1-3 table as a comment. The false-merge rate is a hard gate (devops-
+# 1.md: never fold it into an F1 -- a merge is silent and destructive, a
+# duplicate is visible and recoverable); everything else stays informational.
+# Order independence is a separate hard gate, run nightly (a reverse-order
+# ingestion doubles the runtime, too slow for every PR).
+on:
+  pull_request:
+    paths:
+      - "api/reconcile/**"
+      - "api/pipeline/reconcile*.py"
+      - "api/graph/**"
+  push:
+    branches: ["ai-master"]
+    paths:
+      - "api/reconcile/**"
+      - "api/pipeline/reconcile*.py"
+      - "api/graph/**"
+  schedule:
+    - cron: "0 9 * * *" # 09:00 UTC nightly -- runs the order-independence gate too.
+  workflow_dispatch:
+
+concurrency:
+  group: reconciliation-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  MODELS_OFFLINE: "1"
+  HF_HUB_OFFLINE: "1"
+  TRANSFORMERS_OFFLINE: "1"
+  INFERENCE_MODE: api
+
+jobs:
+  quality:
+    name: Link P/R, false-merge rate, Anne of Green Gables 1-3
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - run: make env
+      - name: Fetch, license and paginate books 1-3 (reduced scope)
+        run: |
+          python3 scripts/seed_corpus.py \
+            --only anne-of-green-gables,anne-of-avonlea,anne-of-the-island
+      - name: Bring up the stack
+        run: docker compose up -d --build && ./scripts/wait_for_healthy.sh --timeout 600
+      - name: Create the project and ingest books 1-3 in order
+        run: python3 scripts/seed_series.py --only anne-of-green-gables --limit-books 3
+      - name: Score against eval/gold/anne_of_green_gables/identity.yaml
+        id: score
+        run: |
+          python3 -m eval.runners.reconciliation \
+            --project-slug anne-of-green-gables \
+            --save-json reconciliation-quality-current.json \
+            --out reconciliation-quality-comment.md
+      - name: Comment on the PR
+        if: always() && github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: reconciliation-quality
+          path: reconciliation-quality-comment.md
+      - if: always()
+        run: docker compose down --remove-orphans
+
+  order-independence:
+    name: Order independence -- forward vs reverse ingestion (nightly only)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - run: make env
+      - run: |
+          python3 scripts/seed_corpus.py \
+            --only anne-of-green-gables,anne-of-avonlea,anne-of-the-island
+      - name: Bring up the stack
+        run: docker compose up -d --build && ./scripts/wait_for_healthy.sh --timeout 600
+      - name: Ingest forward (1, 2, 3) into one project
+        run: |
+          python3 scripts/seed_series.py --only anne-of-green-gables --limit-books 3
+      - name: Ingest reverse (3, 2, 1) into a second project
+        env:
+          REVERSE_PROJECT_SLUG: anne-of-green-gables-reverse
+        run: python3 scripts/ingest_series.py anne-of-green-gables --reverse \
+          --project-slug "$REVERSE_PROJECT_SLUG" --limit-books 3
+      - name: Compare checksums
+        run: |
+          python3 -m eval.runners.reconciliation \
+            --project-slug anne-of-green-gables \
+            --compare-project-id "$(python3 - <<'PY'
+          import json, urllib.request
+          projects = json.load(urllib.request.urlopen('http://localhost:8000/api/projects'))
+          print(next(p['id'] for p in projects if p['slug'] == 'anne-of-green-gables-reverse'))
+          PY
+          )"
+      - if: always()
+        run: docker compose down --remove-orphans

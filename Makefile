@@ -32,9 +32,9 @@ endif
 .PHONY: help env up up-dev up-gpu up-obs down down-hard logs ps build health \
         migrate revision shell-api shell-db shell-neo4j shell-worker \
         test test-api test-web test-integration lint fmt openapi \
-        seed reset-db bootstrap worktrees warm-models ci-up ci-smoke ci-down \
+        seed seed-series reset-db bootstrap worktrees warm-models ci-up ci-smoke ci-down \
         ci-up-extraction docker-nocreds ingest graph-rebuild graph-rebuild-drill eval-relations \
-        judge-citations
+        judge-citations ingest-series eval-reconciliation
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_-]+:.*?## /{printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -128,6 +128,9 @@ reset-db: ## Drop, recreate, migrate and seed the integration database
 seed: ## Fetch, license and paginate the public-domain demo corpus (S2.16)
 	python3 scripts/seed_corpus.py
 
+seed-series: ## Create the Anne of Green Gables and Sherlock Holmes series projects and queue their books (S5.13)
+	python3 scripts/seed_series.py
+
 # ── Demo, graph and relation quality (Sprint 4) ───────────────────────────────
 
 ingest: ## Ingest corpus/downloads/<BOOK>.pdf through the API and wait (make ingest BOOK=pride_and_prejudice)
@@ -149,6 +152,16 @@ eval-relations: ## Relation quality table + pass-2 cost for a book (make eval-re
 judge-citations: ## Human-judge 50 sampled citations (make judge-citations BOOK=pride-and-prejudice)
 	@test -n "$(BOOK)" || { echo "usage: make judge-citations BOOK=<corpus key>"; exit 2; }
 	python3 scripts/judge_citations.py --book-key "$(BOOK)" \
+		--api-base-url http://localhost:$${API_PORT:-8000}
+
+eval-reconciliation: ## Reconciliation link P/R + false-merge rate for a project (make eval-reconciliation PROJECT=anne-of-green-gables)
+	@test -n "$(PROJECT)" || { echo "usage: make eval-reconciliation PROJECT=<project slug>"; exit 2; }
+	python3 -m eval.runners.reconciliation --project-slug "$(PROJECT)" \
+		--api-base-url http://localhost:$${API_PORT:-8000}
+
+ingest-series: ## Queue a whole series through the pipeline in order, with per-book cost/time reporting (make ingest-series PROJECT=anne-of-green-gables)
+	@test -n "$(PROJECT)" || { echo "usage: make ingest-series PROJECT=<series key>"; exit 2; }
+	python3 scripts/ingest_series.py "$(PROJECT)" \
 		--api-base-url http://localhost:$${API_PORT:-8000}
 
 # ── Shells ────────────────────────────────────────────────────────────────────

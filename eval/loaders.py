@@ -21,6 +21,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 GOLD_DIR = REPO_ROOT / "eval" / "gold"
 SCHEMA_PATH = REPO_ROOT / "eval" / "schema" / "roster.schema.json"
 RELATIONS_SCHEMA_PATH = REPO_ROOT / "eval" / "schema" / "relations.schema.json"
+IDENTITY_SCHEMA_PATH = REPO_ROOT / "eval" / "schema" / "identity.schema.json"
 MANIFEST_PATH = REPO_ROOT / "corpus" / "manifest.json"
 
 
@@ -178,3 +179,73 @@ def load_gold_relations(
         _verify_corpus_checksum(book_key, document)
 
     return document
+
+
+def gold_identity_path(series_key: str) -> Path:
+    slug = series_key.replace("-", "_")
+    return GOLD_DIR / slug / "identity.yaml"
+
+
+def load_gold_identity(series_key: str, *, verify_checksum: bool = True) -> dict[str, Any]:
+    """Load and schema-validate one series' cross-book identity gold set (S5.14).
+
+    Unlike the single-book roster/relations gold sets, an identity document
+    pins a checksum per *book* it spans (its own ``books`` list) rather than
+    one book's manifest entry -- a series gold set is only valid against the
+    exact set of paginated PDFs it was labelled from.
+
+    Raises:
+        FileNotFoundError: If no gold identity exists for ``series_key`` yet.
+        RosterSchemaError: If the document does not match the schema.
+        CorpusChecksumMismatch: If ``verify_checksum`` and any listed book has
+            been repaginated since labelling.
+    """
+    path = gold_identity_path(series_key)
+    if not path.exists():
+        raise FileNotFoundError(
+            f"no gold identity for {series_key!r} at {path.relative_to(REPO_ROOT)}"
+        )
+
+    document = yaml.safe_load(path.read_text())
+    schema = json.loads(IDENTITY_SCHEMA_PATH.read_text())
+    errors = sorted(
+        Draft202012Validator(schema).iter_errors(document), key=lambda e: list(e.path)
+    )
+    if errors:
+        detail = "; ".join(f"{list(e.path)}: {e.message}" for e in errors)
+
+        raise RosterSchemaError(f"{IDENTITY_SCHEMA_PATH.name} violations: {detail}")
+
+    if verify_checksum:
+        manifest = json.loads(MANIFEST_PATH.read_text())
+        for book in document["books"]:
+            live = manifest.get("books", {}).get(book["book_key"])
+            if live is None:
+                raise CorpusChecksumMismatch(
+                    f"{book['book_key']!r} is not in "
+                    f"{MANIFEST_PATH.relative_to(REPO_ROOT)} -- run "
+                    "`make seed-series` before scoring."
+                )
+            if (
+                live["pdf_sha256"] != book["pdf_sha256"]
+                or live["page_count"] != book["page_count"]
+            ):
+                raise CorpusChecksumMismatch(
+                    f"{book['book_key']!r} gold identity pinned to "
+                    f"pdf_sha256={book['pdf_sha256'][:12]}... but the corpus "
+                    f"manifest now has {live['pdf_sha256'][:12]}... -- the corpus "
+                    "was regenerated (repaginated) since this identity set was "
+                    "labelled."
+                )
+
+    return document
+
+
+def available_gold_identity_series() -> list[str]:
+    """List series keys with a gold identity set on disk, without validating them."""
+    if not GOLD_DIR.exists():
+        return []
+
+    return sorted(
+        p.parent.name.replace("_", "-") for p in GOLD_DIR.glob("*/identity.yaml")
+    )

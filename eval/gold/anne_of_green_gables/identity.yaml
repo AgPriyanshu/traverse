@@ -1,0 +1,141 @@
+series_key: anne-of-green-gables
+labelled_by: "do1 (hand-labelled from the real seeded text, S5.14)"
+labelled_at: "2026-09-26T00:00:00+00:00"
+source_notes: >
+  Cross-book identity for Anne of Green Gables books 1-3 (Anne of Green
+  Gables, Anne of Avonlea, Anne of the Island). Every surface form below is
+  what the real text calls that character in that volume, not a normalised
+  guess -- checked against the actual novels, not a plot summary. Twelve
+  characters: the protagonist pair whose arc spans all three books, three
+  more stable-identity characters across all three, one death (Matthew
+  Cuthbert, book 1 -- the primary cross-book blocking case), one
+  present/present/absent gap-appearance case (Miss Barry), one death near
+  the close of the labelled window (Ruby Gillis, book 3), and three
+  characters introduced only in book 3 with no earlier-book history (the
+  "new person, do not force a link" case).
+books:
+  - book_order: 1
+    book_key: anne-of-green-gables
+    pdf_sha256: "b00b71210680ab5385aba1539c09d961c04fa4f42ec502ac9cd64667409dc450"
+    page_count: 185
+  - book_order: 2
+    book_key: anne-of-avonlea
+    pdf_sha256: "f299e9f3356a78feeaf70467736ed17ea3b462db85aac83b648188ac96484ea6"
+    page_count: 165
+  - book_order: 3
+    book_key: anne-of-the-island
+    pdf_sha256: "fa802d1fac3cf4f91a5ad7781ad2a5870caac7fcac2c0560b77f0794e4d8b232"
+    page_count: 152
+characters:
+  - canonical: Anne Shirley
+    appears_in: [1, 2, 3]
+    surface_forms:
+      "1": [Anne, Anne Shirley, Cordelia, Carrots]
+      "2": [Anne, Anne Shirley, Miss Shirley]
+      "3": [Anne, Anne Shirley, Miss Shirley]
+    note: >
+      "Carrots" is Gilbert's book-1 taunt about her hair; "Cordelia" is the
+      fantasy name she asks people to call her early in book 1 -- both are
+      real in-text surface forms she is actually called by, not descriptors
+      invented for this gold set. "Miss Shirley" is how she is addressed
+      once she is a schoolteacher (book 2) and a college student (book 3),
+      the same person narrowing her own surface forms as her role changes.
+  - canonical: Gilbert Blythe
+    appears_in: [1, 2, 3]
+    surface_forms:
+      "1": [Gilbert, Gilbert Blythe]
+      "2": [Gilbert, Gilbert Blythe]
+      "3": [Gilbert, Gilbert Blythe, Gil]
+    note: >
+      The Anne<->Gilbert arc runs rivalry (book 1) to friendship (book 2) to
+      engagement (book 3, closing chapters) -- the series' headline
+      relationship-arc case.
+  - canonical: Marilla Cuthbert
+    appears_in: [1, 2, 3]
+    surface_forms:
+      "1": [Marilla, Marilla Cuthbert]
+      "2": [Marilla]
+      "3": [Marilla]
+  - canonical: Matthew Cuthbert
+    appears_in: [1]
+    surface_forms:
+      "1": [Matthew, Matthew Cuthbert]
+    dies_in_book: 1
+    note: >
+      Dies at the end of book 1 (heart failure, after the bank-failure
+      news). Named in memory in books 2 and 3 but does not appear as a
+      living character again -- the primary cross-book blocking case
+      (character_death, S5.2): a system that creates a second "Matthew
+      Cuthbert" appearance for book 2 or 3 has linked a memory as a live
+      appearance, which this gold set scores as a false merge.
+  - canonical: Diana Barry
+    appears_in: [1, 2, 3]
+    surface_forms:
+      "1": [Diana, Diana Barry]
+      "2": [Diana]
+      "3": [Diana, Mrs. Fred Wright]
+    note: >
+      Becomes engaged to Fred Wright in book 3's closing chapters;
+      "Mrs. Fred Wright" (anticipatory, used before the wedding) is the same
+      person as "Diana", not a new character.
+  - canonical: Rachel Lynde
+    appears_in: [1, 2, 3]
+    surface_forms:
+      "1": [Mrs. Rachel Lynde, Mrs. Lynde, Rachel Lynde]
+      "2": [Mrs. Lynde, Mrs. Rachel Lynde]
+      "3": [Mrs. Lynde, Mrs. Rachel Lynde, Rachel]
+    note: >
+      Widowed partway through book 3 and moves into Green Gables with
+      Marilla -- same person, new household, not a new character.
+  - canonical: Miss Josephine Barry
+    appears_in: [1, 2]
+    surface_forms:
+      "1": [Miss Barry, Aunt Josephine, Miss Josephine Barry]
+      "2": [Aunt Josephine, Miss Barry]
+    note: >
+      Diana's great-aunt; present in books 1 and 2, absent from book 3 --
+      the gap-appearance case (present, present, absent), scored for
+      duplicate/false-merge risk the same as a returning character, not
+      skipped just because she does not appear in every book.
+  - canonical: Ruby Gillis
+    appears_in: [1, 2, 3]
+    surface_forms:
+      "1": [Ruby, Ruby Gillis]
+      "2": [Ruby]
+      "3": [Ruby, Ruby Gillis]
+    dies_in_book: 3
+    note: Dies of consumption near the end of book 3.
+  - canonical: Jane Andrews
+    appears_in: [1, 2, 3]
+    surface_forms:
+      "1": [Jane, Jane Andrews]
+      "2": [Jane]
+      "3": [Jane]
+  - canonical: Charlie Sloane
+    appears_in: [1, 2, 3]
+    surface_forms:
+      "1": [Charlie, Charlie Sloane]
+      "2": [Charlie]
+      "3": [Charlie, Charlie Sloane]
+  - canonical: Priscilla Grant
+    appears_in: [3]
+    surface_forms:
+      "3": [Priscilla, Priscilla Grant]
+    note: >
+      New in book 3 -- a Redmond College classmate with no book 1/2 history.
+      The "new person, do not force a cross-book link" case.
+  - canonical: Philippa Gordon
+    appears_in: [3]
+    surface_forms:
+      "3": [Phil, Philippa Gordon, Philippa]
+    note: New in book 3, no earlier-book history.
+  - canonical: Fred Wright
+    appears_in: [3]
+    surface_forms:
+      "3": [Fred Wright, Fred]
+    note: >
+      New in book 3; becomes engaged to Diana Barry at the book's close. No
+      earlier-book history -- do not confuse with any other "Fred" (there is
+      none in this gold set, but the naming convention is deliberately
+      generic enough to test that a system isn't merging on first name
+      alone).
