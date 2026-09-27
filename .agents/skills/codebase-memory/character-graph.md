@@ -24,11 +24,15 @@ Symbols over line numbers.
 | Cross-book blocking gate (death, kinship contradiction, generational namesake, tier implausibility) | `api/reconcile/blocking.py` | **Built** (S5.2) — every stage's positive match still passes this gate before a merge is recorded, including the deterministic ones; `character_death` is the hard block, checked by series `book_order` (an appearance at or before the death's book is normal, only a later one blocks); generational/lifespan reuses `api.extraction.collision.check(..., ignore_kinship=True)` directly rather than duplicating it, kinship contradiction is its own relation-aware check (`api/db/models::Relation`, family=kinship) |
 | Appearance recompute, order independence | `api/reconcile/repository.py::recompute_derived_fields` | **Built** (S5.3/S5.4) — `first_book_id`/`last_*`/`mention_count`/`importance_tier`/`aliases`/`canonical_name` are all recomputed from a character's **full** `CharacterAppearance` set after every reconcile, ordered by `(book.series_order, first_chapter, first_page)` rather than ingestion order. `canonical_name` is re-chosen with `api.extraction.aliases.choose_canonical` (renamed public so this can reuse it) — a pure function of the character's full alias set, which is what makes the chosen name identical however the series was ingested. Guarded against renaming onto a name a **different**, deliberately-separate character already owns in the same project (would violate `uq_character_project_name`, and would be a silent false merge by relabelling if it didn't) — skips the rename, keeps the current name, in that one case |
 | `BookCharacterCandidate.resolved_character_id` | `api/extraction/repository.py::set_resolved_character_ids`, written by `pipeline.resolve_aliases` | **Built** (S5.1) — reconcile's reader groups a book's candidates by this to recover each cluster's raw contexts (matching/blocking both need context sentences, not just mention rows); also how cross-book context lookback works (`api/reconcile/repository.py::context_map_for` reads every *other* book's candidates in the project by the same column) |
-| Series-position validity, `/relations/arc` | `api/graph/` | S5 |
+| Series-position validity, `/relations/arc` (`repository.relation_arc`, wired at `GET /relations/arc`) | `api/graph/` | **Built** (S5.6) — `aggregate.py` and `Relation` were already `(book_order, chapter)`-shaped from S4; S5.6's own work was closing a real gap, not building the mechanism: `ontology.yaml` was missing the `enemy_of -> rival_of` transition the Sprint 5 demo's Anne/Gilbert arc names explicitly (it reported as a conflict instead of a supersession) |
+| `replace_project_relations` (relation upsert by identity) | `api/relations/repository.py` | **Built** (S5.7 fix) — used to delete+reinsert every `Relation` row on *every* aggregate rerun, regenerating its id; now upserts by `(subject_id, predicate, object_id)` so an unchanged edge keeps its id across a rerun — same bug class, same fix shape, as `persist_characters` above, this time on the relation side |
 | Off-roster validator, quote-substring check | `api/relations/` | **Built** (S4; `extract.py`, `validator.py`, `aggregate.py`, `graph/upsert.py`, reads in `graph/queries.py`) |
 | `relations.aggregate` | `api/relations/` | **Built** (S4; `extract.py`, `validator.py`, `aggregate.py`, `graph/upsert.py`, reads in `graph/queries.py`) |
 | `graph.upsert` | `api/graph/` | **Built** (S4; `extract.py`, `validator.py`, `aggregate.py`, `graph/upsert.py`, reads in `graph/queries.py`) |
 | `build_reading_chunks`, `candidate_reading_chunks` — scene-level pass-2 reading units | `api/relations/scenes.py`, `api/relations/inputs.py` | **Built** (S4.16) — see "Recall audit" below |
+| `load_project_roster` — project-wide, per-book tier-filtered pass-2 roster | `api/relations/repository.py` | **Built** (S5.5) — protagonist/major always, minor/mentioned only if this book has an appearance or a mention for them; `load_book_roster` (book-local) still exists for other callers |
+| `cascade.remove_book`, `cascade.reaggregate_project` — book-removal cascade, relations/graph half | `api/graph/cascade.py` | **Built** (S5.8) — deletes this book's `RelationEvidence`, reaggregates every edge from what remains (an edge with no evidence left does not come back), re-projects Neo4j via `upsert.upsert_project`. Character-side cleanup (mentions, appearances, orphan sweep, derived-field recompute) is be1's S5.3; the two halves are order-independent (`Relation` FKs `ON DELETE CASCADE` on `character.id`) — see `plans/sprint-5/HANDOFF.md` |
+| `list_appearances` — one character's per-book appearances, reading-position gated | `api/graph/repository.py`, wired at `GET /characters/{id}/appearances` | **Built** (S5.8) — factored out of `get_character`, same visibility gate |
 
 ## Alias resolution cascade (S3)
 
@@ -140,12 +144,18 @@ for a book** or vLLM's prefix cache misses and cost roughly doubles with no erro
 Sort the roster deterministically. A dict-ordering change breaks this silently.
 Target ≥80% cache hit rate; it is alerted on in the ops dashboard.
 
-**In a series the roster is the project's, not the book's** (S5) — that is what
-lets book 5 state a fact about a book-1 character. The roster therefore grows with
-the series, and the tier-filtered roster (protagonist + major always; minor only
-when present in this book or chapter) stops being an optimisation. The prefix
-must be byte-identical per **book**, not per project, since each book's tier
-filter differs.
+**In a series the roster is the project's, not the book's** (`load_project_roster`,
+`api/relations/repository.py`, S5.5 — **Built**) — that is what lets book 5 state
+a fact about a book-1 character. Protagonist and major characters are always
+included, project-wide; minor and mentioned characters are included only when
+*this* book itself has produced an appearance or a mention for them (checked
+directly against `CharacterAppearance`/`CharacterMention`, not a chunk- or
+chapter-scoped check — the roster is computed once per book, which is what keeps
+the prefix byte-identical for every call within that book). The roster therefore
+grows with the series rather than the book, and the tier filter stops being an
+optimisation. The prefix must be byte-identical per **book**, not per project,
+since each book's tier filter differs — `load_book_roster` still exists for the
+book-local view (review UIs, etc.); pass 2 itself no longer calls it.
 
 ## Edge rules
 

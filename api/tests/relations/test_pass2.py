@@ -47,6 +47,26 @@ def fact(s, p, o, chapter, quote, kind=AssertionType.NARRATED, by=None) -> Fact:
     )
 
 
+def fact_at(
+    s, p, o, book_order, chapter, quote, kind=AssertionType.NARRATED, by=None
+) -> Fact:
+    return Fact(
+        s,
+        p,
+        o,
+        uuid.uuid4(),
+        uuid.uuid4(),
+        book_order,
+        chapter,
+        chapter,
+        chapter,
+        quote,
+        kind,
+        by,
+        0.9,
+    )
+
+
 def test_prefix_is_byte_identical_regardless_of_roster_input_order():
     one = prompts.build_prefix(roster([0, 1, 2]).prompt_block())
     two = prompts.build_prefix(roster([2, 0, 1]).prompt_block())
@@ -163,6 +183,48 @@ def test_transition_closes_the_earlier_edge_and_keeps_it():
     assert by_pred["enemy_of"].last.chapter == 40
     assert by_pred["engaged_to"].last.chapter == 60
     assert by_pred["married_to"].status == "active"
+
+
+def test_transition_chains_across_books_enemy_rival_friend():
+    """S5.6: Anne/Gilbert — enemies (bk1) -> rivals (bk1-2) -> friends (bk3).
+
+    Three edges chained by supersession, not one edge rewritten three times
+    (backend-2.md S5.6), ordered by series position rather than a bare
+    chapter number.
+    """
+    facts = [
+        fact_at(A, "enemy_of", B, 1, 4, "slate over the head"),
+        fact_at(A, "rival_of", B, 1, 15, "top of the class, again"),
+        fact_at(A, "friend_of", B, 3, 8, "saved her from the pond"),
+    ]
+    by_pred = {r.predicate: r for r in aggregate(facts).relations}
+
+    assert by_pred["enemy_of"].status == "superseded"
+    assert by_pred["enemy_of"].first.as_tuple() == (1, 4)
+    assert by_pred["enemy_of"].last.as_tuple() == (1, 15)
+    assert by_pred["rival_of"].status == "superseded"
+    assert by_pred["rival_of"].last.as_tuple() == (3, 8)
+    assert by_pred["friend_of"].status == "active"
+    assert by_pred["friend_of"].first.as_tuple() == (3, 8)
+    assert by_pred["friend_of"].evidence[0].book_order == 3
+
+
+def test_reassertion_in_a_later_book_extends_evidence_not_a_supersession():
+    """S5.7: the same predicate reasserted later extends the evidence set —
+    it is not a transition, so it never touches ``_apply_transitions`` at all.
+    """
+    facts = [
+        fact_at(A, "friend_of", B, 5, 10, "still close, book five"),
+        fact_at(A, "friend_of", B, 3, 40, "grew close, later in book three"),
+        fact_at(A, "friend_of", B, 3, 2, "became friends, book three"),
+    ]
+    result = aggregate(facts)
+
+    assert len(result.relations) == 1
+    edge = result.relations[0]
+    assert edge.status == "active"
+    assert [item.book_order for item in edge.evidence] == [3, 3, 5]
+    assert edge.first.as_tuple() == (3, 2)
 
 
 def test_dialogue_only_edge_is_hearsay_with_speaker():

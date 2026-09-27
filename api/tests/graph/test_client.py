@@ -24,6 +24,32 @@ async def test_concurrent_callers_share_one_driver():
     assert len({id(driver) for driver in drivers}) == 1
 
 
+def test_driver_survives_a_new_event_loop_per_call(monkeypatch):
+    """Each Celery task wraps its body in its own ``asyncio.run(...)``
+    (``api/AGENTS.md``), so a worker child process runs a fresh event loop per
+    task while staying the same process. A driver kept as a single
+    process-wide singleton binds to whichever loop first awaited it and raises
+    ``RuntimeError: ... attached to a different loop`` on the next task's loop
+    (the same class of bug as ``api.llm.client``'s semaphore); ``get_driver()``
+    must rebuild instead.
+    """
+    monkeypatch.setattr(client, "_driver", None)
+    monkeypatch.setattr(client, "_driver_loop", None)
+    monkeypatch.setattr(client, "_driver_lock", None)
+    monkeypatch.setattr(client, "_driver_lock_loop", None)
+
+    async def touch_once() -> int:
+        driver = await client.get_driver()
+        await driver.verify_connectivity()
+
+        return id(driver)
+
+    first = asyncio.run(touch_once())
+    second = asyncio.run(touch_once())
+
+    assert first != second
+
+
 async def test_healthcheck_reports_connectivity():
     ok, detail = await client.healthcheck()
 

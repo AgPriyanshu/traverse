@@ -12,7 +12,9 @@ from ..config import settings
 logger = logging.getLogger(__name__)
 
 _driver: AsyncDriver | None = None
-_driver_lock = asyncio.Lock()
+_driver_loop: asyncio.AbstractEventLoop | None = None
+_driver_lock: asyncio.Lock | None = None
+_driver_lock_loop: asyncio.AbstractEventLoop | None = None
 
 # Neo4j accepts Bolt connections roughly 20s after the container starts, and
 # every agent hits that window at least once. Back off rather than fail the
@@ -31,6 +33,26 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
     "CREATE INDEX rel_predicate IF NOT EXISTS FOR ()-[r:RELATED]-() ON (r.predicate)",
     "CREATE INDEX rel_chapter IF NOT EXISTS FOR ()-[r:RELATED]-() ON (r.first_chapter)",
 )
+
+
+def _lock() -> asyncio.Lock:
+    """Return the driver-construction lock for the running event loop.
+
+    Same rationale as ``api.llm.client.semaphore``: a Celery task is a fresh
+    ``asyncio.run(...)`` per task (``api/AGENTS.md``), so a worker child
+    process runs a fresh event loop per task while staying the same process.
+    A lock built on one task's loop raises ``RuntimeError`` the moment a later
+    task awaits it, so it is rebuilt whenever the running loop differs from
+    the one it was last built on, exactly like the driver it guards.
+    """
+    global _driver_lock, _driver_lock_loop
+
+    loop = asyncio.get_running_loop()
+    if _driver_lock is None or _driver_lock_loop is not loop:
+        _driver_lock = asyncio.Lock()
+        _driver_lock_loop = loop
+
+    return _driver_lock
 
 
 def _build_driver() -> AsyncDriver:
@@ -75,29 +97,55 @@ async def _verify_with_backoff(driver: AsyncDriver) -> None:
 
 
 async def get_driver() -> AsyncDriver:
-    """Return the process-wide Neo4j driver, opening it on first use.
+    """Return the event-loop-scoped Neo4j driver, opening it on first use.
 
-    One driver per process, not per call: the driver owns a connection pool and
-    constructing one per query opens a fresh pool each time, which collapses
-    under upsert load.
+    One driver per event loop, not per call: the driver owns a connection pool
+    and constructing one per query opens a fresh pool each time, which
+    collapses under upsert load. It is rebuilt, not merely reused, whenever the
+    running loop differs from the one it was built on: a Celery task is a sync
+    entry point wrapping ``asyncio.run(...)`` (``api/AGENTS.md``), so a worker
+    child process runs a fresh event loop per task while staying the same
+    process. A driver built on an earlier task's loop raises
+    ``RuntimeError: ... attached to a different loop`` the moment a later task
+    calls ``graph.upsert`` — the driver's connections and internal
+    synchronisation primitives are bound to the loop that created them, the
+    same class of bug as ``api.llm.client.semaphore``'s stale-loop semaphore.
 
     Returns:
-        The shared ``AsyncDriver``.
+        The ``AsyncDriver`` for the running event loop.
     """
-    global _driver
+    global _driver, _driver_loop
 
-    if _driver is not None:
+    loop = asyncio.get_running_loop()
+    if _driver is not None and _driver_loop is loop:
         return _driver
 
-    async with _driver_lock:
-        if _driver is None:
-            driver = _build_driver()
+    async with _lock():
+        if _driver is not None and _driver_loop is loop:
+            return _driver
+
+        stale = _driver
+        if stale is not None:
+            # The loop that owned this driver's connections has already
+            # finished and closed (``asyncio.run()`` tears its loop down on
+            # return), so a graceful close here has nothing live to shut down
+            # cleanly and may itself raise the same cross-loop error. Best
+            # effort only — it must never block building the replacement.
             try:
-                await _verify_with_backoff(driver)
-            except BaseException:
-                await driver.close()
-                raise
-            _driver = driver
+                await stale.close()
+            except Exception:
+                logger.warning(
+                    "failed to close a stale-loop neo4j driver", exc_info=True
+                )
+
+        driver = _build_driver()
+        try:
+            await _verify_with_backoff(driver)
+        except BaseException:
+            await driver.close()
+            raise
+        _driver = driver
+        _driver_loop = loop
 
     return _driver
 
@@ -117,13 +165,19 @@ async def connect() -> AsyncDriver:
 
 
 async def close() -> None:
-    """Close the process-wide driver. Call on API shutdown and worker teardown."""
-    global _driver
+    """Close the current loop's driver. Call on API shutdown and worker teardown."""
+    global _driver, _driver_loop
 
-    async with _driver_lock:
+    async with _lock():
         if _driver is not None:
-            await _driver.close()
+            try:
+                await _driver.close()
+            except Exception:
+                logger.warning(
+                    "failed to close the neo4j driver during shutdown", exc_info=True
+                )
             _driver = None
+            _driver_loop = None
 
 
 @asynccontextmanager

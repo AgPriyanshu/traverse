@@ -80,6 +80,10 @@ transitions:
   - {from: rival_of, to: friend_of}
   - {from: enemy_of, to: friend_of}
   - {from: rival_of, to: enemy_of}
+  # Enemies who come to grudgingly respect each other before becoming friends
+  # is the Anne/Gilbert arc the Sprint 5 demo script names explicitly — without
+  # this, that exact transition reports as a conflict instead of a supersession.
+  - {from: enemy_of, to: rival_of}
   - {from: colleague_of, to: friend_of}
   - {from: student_of, to: colleague_of}
   - {from: ward_of, to: adopted_by}
