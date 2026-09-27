@@ -19,8 +19,13 @@ DATABASE="${TEST_POSTGRES_DB:-traverse_test}"
 
 export PGPASSWORD="${POSTGRES_PASSWORD:-postgres}"
 
-psql -v ON_ERROR_STOP=1 -h "$HOST" -U "$USER" -d postgres -tAc \
-  "SELECT 'CREATE DATABASE \"$DATABASE\"' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '$DATABASE')\gexec"
+# \gexec is only recognised when psql reads a script (stdin/heredoc here) --
+# passed through -c it is literal text after the query and is a syntax error,
+# not a silent no-op, so this must never be collapsed back onto one -c line.
+psql -v ON_ERROR_STOP=1 -h "$HOST" -U "$USER" -d postgres <<-SQL
+	SELECT 'CREATE DATABASE "$DATABASE"'
+	WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '$DATABASE')\gexec
+	SQL
 psql -v ON_ERROR_STOP=1 -h "$HOST" -U "$USER" -d "$DATABASE" \
   -c "CREATE EXTENSION IF NOT EXISTS vector;"
 

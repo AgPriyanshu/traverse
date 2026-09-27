@@ -20,9 +20,13 @@ POSTGRES_USER="${POSTGRES_USER:-postgres}"
 echo "==> Postgres databases"
 for agent in $AGENTS; do
   database="traverse_${agent}"
-  $COMPOSE exec -T db psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d postgres \
-    -tAc "SELECT 'CREATE DATABASE $database' \
-          WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname='$database')\gexec"
+  # \gexec is only recognised when psql reads a script, not through -c (there
+  # it is literal text after the query and a syntax error) -- `exec -T` keeps
+  # stdin a plain pipe so the heredoc reaches psql as a script.
+  $COMPOSE exec -T db psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d postgres <<-SQL
+	SELECT 'CREATE DATABASE $database'
+	WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname='$database')\gexec
+	SQL
   $COMPOSE exec -T db psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$database" \
     -c "CREATE EXTENSION IF NOT EXISTS vector;" >/dev/null
   echo "    $database ready with pgvector"
@@ -39,9 +43,10 @@ echo "==> Postgres test databases (per worktree)"
 # the first test run in a fresh worktree isn't the one paying for it.
 for worktree in $WORKTREES; do
   database="traverse_test_${worktree}"
-  $COMPOSE exec -T db psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d postgres \
-    -tAc "SELECT 'CREATE DATABASE $database' \
-          WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname='$database')\gexec"
+  $COMPOSE exec -T db psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d postgres <<-SQL
+	SELECT 'CREATE DATABASE $database'
+	WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname='$database')\gexec
+	SQL
   $COMPOSE exec -T db psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$database" \
     -c "CREATE EXTENSION IF NOT EXISTS vector;" >/dev/null
   echo "    $database ready with pgvector"
