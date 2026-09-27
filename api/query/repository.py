@@ -1,0 +1,226 @@
+"""Postgres access for the query path: conversations, turns, the query log.
+
+Views and the pipeline call this module; they do not build statements inline
+(``api/AGENTS.md``).
+"""
+
+from uuid import UUID
+
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
+
+from ..contracts.enums import QueryRoute
+from ..db.models.character_model import Character
+from ..db.models.conversation_model import Conversation, ConversationTurn
+from ..db.models.ops_model import QueryLog
+from ..db.models.project_model import Book
+from ..db.models.relation_model import Relation, RelationEvidence
+
+
+async def get_conversation(
+    session: SQLModelAsyncSession, conversation_id: UUID
+) -> Conversation | None:
+    """Return a conversation, or ``None`` if it does not exist."""
+    return await session.get(Conversation, conversation_id)
+
+
+async def create_conversation(
+    session: SQLModelAsyncSession, project_id: UUID
+) -> Conversation:
+    """Start a new, empty conversation thread for a project."""
+    conversation = Conversation(project_id=project_id)
+    session.add(conversation)
+    await session.commit()
+    await session.refresh(conversation)
+
+    return conversation
+
+
+async def list_turns(
+    session: SQLModelAsyncSession, conversation_id: UUID
+) -> list[ConversationTurn]:
+    """Return a conversation's turns, oldest first."""
+    result = await session.exec(
+        select(ConversationTurn)
+        .where(ConversationTurn.conversation_id == conversation_id)
+        .order_by(ConversationTurn.position)
+    )
+
+    return list(result.all())
+
+
+async def append_turn(
+    session: SQLModelAsyncSession,
+    *,
+    conversation_id: UUID,
+    question: str,
+    answer: str | None,
+    resolved_character_ids: list[UUID],
+    context: dict,
+    query_log_id: UUID | None,
+) -> ConversationTurn:
+    """Append the next turn to a conversation, in position order.
+
+    Position is computed from the current row count rather than tracked on
+    ``Conversation`` itself — one fewer piece of mutable state to keep in
+    sync, and a conversation's own turn count is cheap to read (thread depth
+    is turns, not chunks).
+    """
+    existing = await list_turns(session, conversation_id)
+    turn = ConversationTurn(
+        conversation_id=conversation_id,
+        position=len(existing),
+        question=question,
+        answer=answer,
+        resolved_character_ids=[str(cid) for cid in resolved_character_ids],
+        context=context,
+        query_log_id=query_log_id,
+    )
+    session.add(turn)
+    await session.commit()
+    await session.refresh(turn)
+
+    return turn
+
+
+async def write_query_log(
+    session: SQLModelAsyncSession,
+    *,
+    project_id: UUID,
+    question: str,
+    route: QueryRoute | None,
+    cypher_template: str | None,
+    retrieved_ids: dict | None,
+    answer: str | None,
+    citations: dict | None,
+    latency_ms: dict | None,
+    limit_book_order: int | None,
+    limit_chapter: int | None,
+) -> QueryLog:
+    """Persist one query for the ops dashboard and the answer-quality harness."""
+    row = QueryLog(
+        project_id=project_id,
+        question=question,
+        route=route,
+        cypher_template=cypher_template,
+        retrieved_ids=retrieved_ids,
+        answer=answer,
+        citations=citations,
+        latency_ms=latency_ms,
+        limit_book_order=limit_book_order,
+        limit_chapter=limit_chapter,
+    )
+    session.add(row)
+    await session.commit()
+    await session.refresh(row)
+
+    return row
+
+
+async def book_id_for_series_order(
+    session: SQLModelAsyncSession, project_id: UUID, series_order: int
+) -> UUID | None:
+    """Resolve a reading-position book order to its book id, within one project."""
+    result = await session.exec(
+        select(Book.id)
+        .where(Book.project_id == project_id)
+        .where(Book.series_order == series_order)
+    )
+
+    return result.first()
+
+
+class EvidenceRow:
+    """One relation-evidence row with the fields citation-building needs.
+
+    ``graph.repository.EvidenceOut`` (the API contract) deliberately drops
+    ``chunk_id`` — the web client never needs it — but the query path needs it
+    to run ``locate_quote`` (be1, S6.8), so this reads the ORM row directly
+    rather than going through that contract type.
+    """
+
+    __slots__ = (
+        "chunk_id",
+        "book_id",
+        "book_title",
+        "series_order",
+        "chapter_no",
+        "page_start",
+        "page_end",
+        "quote",
+        "confidence",
+    )
+
+    def __init__(self, **kwargs: object) -> None:
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
+
+async def top_evidence_for_relation(
+    session: SQLModelAsyncSession, relation_id: UUID, *, limit: int = 5
+) -> list[EvidenceRow]:
+    """Return a relation's best evidence, chunk id included, for citations."""
+    rows = (
+        await session.exec(
+            select(RelationEvidence, Book.title, Book.series_order)
+            .join(Book, Book.id == RelationEvidence.book_id)
+            .where(RelationEvidence.relation_id == relation_id)
+            .order_by(RelationEvidence.confidence.desc().nulls_last())
+            .limit(limit)
+        )
+    ).all()
+
+    return [
+        EvidenceRow(
+            chunk_id=evidence.chunk_id,
+            book_id=evidence.book_id,
+            book_title=title,
+            series_order=series_order,
+            chapter_no=evidence.chapter_no,
+            page_start=evidence.page_start,
+            page_end=evidence.page_end,
+            quote=evidence.quote,
+            confidence=evidence.confidence,
+        )
+        for evidence, title, series_order in rows
+    ]
+
+
+async def characters_by_id(
+    session: SQLModelAsyncSession, character_ids: list[UUID]
+) -> dict[UUID, Character]:
+    """Return full character rows for a set of ids, keyed by id.
+
+    Full rows, not just names: aggregation rendering also needs ``aliases``
+    to infer gender for a gendered hint (``gender.infer_gender``).
+    """
+    if not character_ids:
+        return {}
+
+    result = await session.exec(
+        select(Character).where(Character.id.in_(character_ids))
+    )
+
+    return {character.id: character for character in result.all()}
+
+
+async def relation_speaker(
+    session: SQLModelAsyncSession, relation_id: UUID
+) -> str | None:
+    """Return the name a hearsay relation is attributed to, or ``None``.
+
+    ``Relation.asserted_by_character_id`` is only ever set for ``dialogue``
+    assertions; a narrated fact has nobody to attribute, and rendering must
+    not invent an "According to..." prefix for one.
+    """
+    relation = await session.get(Relation, relation_id)
+    if relation is None or relation.asserted_by_character_id is None:
+        return None
+
+    result = await session.exec(
+        select(Character.canonical_name).where(
+            Character.id == relation.asserted_by_character_id
+        )
+    )
+
+    return result.first()

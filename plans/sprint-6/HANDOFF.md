@@ -334,3 +334,187 @@ by be2, S6.5"), recorded it as skipped, exited 0.
 **Next:** none outstanding for do1 in Sprint 6. Everything is implemented,
 tested, and verified against real (if currently dependency-limited) live
 infrastructure. Pushing `ai/do1/sprint-6-answers`.
+
+## be2 — S6.1 through S6.6
+
+All six stories landed. Router → resolve → graph-or-retrieve → grounding →
+SSE → conversation memory, end to end in `api/query/`. Built against be1's
+S6.7-S6.9 exactly as documented above.
+
+**S6.1 Router (`api/query/router.py::classify_question`).** One structured
+call, `RouterOutput = {route, subject_phrase, object_phrase, predicate_hint}`.
+Targets the frozen 7-value `QueryRoute` enum (PRD F4.1 names 6;
+`series_arc` was added on top when Sprint 5 built series-arc support). Uses
+`LLMPurpose.ADJUDICATE` as an interim stand-in for a call purpose that
+doesn't exist yet — **SCR-4** filed, non-blocking.
+
+Router confusion matrix, 61 hand-labelled questions
+(`api/tests/fixtures/query/routing_questions.jsonl`), measured against the
+live shared vLLM (`Qwen/Qwen3-8B-AWQ`), not a stub — per BRANCH.md §9 this
+is a worktree run, not an integration one, so treat it as directional:
+
+```
+accuracy: 86.9% (61 questions)
+errors (call failed, not merely misrouted): 4
+
+class                  precision    recall  support
+aggregation               100.0%    100.0%        8
+ambiguous                 100.0%     87.5%        8
+character_lookup          100.0%    100.0%       10
+narrative                  81.8%    100.0%        9
+path                      100.0%     66.7%        6
+relationship_lookup        81.8%    100.0%        9
+series_arc                100.0%     85.7%        7
+
+confusion (expected -> predicted): count
+  aggregation -> aggregation: 8
+  ambiguous -> ambiguous: 7
+  ambiguous -> narrative: 1  <-- MISROUTE
+  character_lookup -> character_lookup: 10
+  narrative -> narrative: 9
+  path -> path: 4
+  path -> relationship_lookup: 2  <-- MISROUTE
+  relationship_lookup -> relationship_lookup: 9
+  series_arc -> narrative: 1  <-- MISROUTE
+  series_arc -> series_arc: 6
+```
+
+The headline number for this sprint's demo — **`aggregation` recall is
+100%** (8/8) — holds: a misrouted aggregation question is the failure mode
+that turns into a hallucinated list, and it did not happen once in this run.
+Two real weaknesses, reported as measured, not rounded up:
+
+- **`path` recall is 66.7%** (4/6) — two of the seven labelled `path`
+  questions were classified as `relationship_lookup` instead.
+  `eval_router.py` only aggregates the confusion matrix, not a per-question
+  log, so which two is not something this run can name — worth adding
+  before the next labelling round, rather than guessing at a pattern from
+  the fixture text alone. Consequence in the pipeline either way:
+  `relationship_lookup`'s template only matches a direct edge, so a
+  misroute here doesn't hallucinate — it abstains or returns nothing where
+  a real multi-hop path exists, rather than fabricating a wrong answer — but
+  it does under-serve the question.
+- **4 outright call errors** (schema/JSON failures, not misroutes) out of 61 —
+  suspected to be the same runaway-generation failure mode `api/llm/client.py`
+  documents (`max_tokens` cuts off a reasoning-shaped completion before valid
+  JSON closes it), not something specific to routing. Worth a retry-with-
+  shorter-budget policy at the next hardening pass, not filed as a blocking
+  SCR since `classify_question`'s caller (`pipeline.answer_question`) already
+  treats a router exception as a recoverable `ErrorEvent`, never a crash.
+- `narrative` and `relationship_lookup` precision (81.8% each) is arithmetic
+  fallout from the two `path` misses and one `series_arc` miss landing there,
+  not an independent failure mode.
+
+**S6.2 Templated Cypher (`api/query/templates.py`).** One declared,
+parameterised statement for `relationship_lookup` and `aggregation` (the two
+classes that need a real Neo4j traversal beyond what an existing repository
+read covers); `character_lookup`/`series_arc` reuse existing Postgres reads,
+`path` reuses `graph.queries.shortest_path`. `run_template` rejects any slot
+set not matching the template's declared params exactly. No `inverse: false`
+filtering in these templates — unlike `graph/queries.py`'s whole-graph
+render, a directional aggregation needs *both* materialised copies of a fact
+to be direction-agnostic (see the module docstring). Structural proof (AST
+scan of every `.run()`/`.execute_query()` call in `api/query/**` and
+`api/routes/query.py`, failing on anything but a bare name/attribute/literal
+argument): `api/tests/query/test_no_freeform_cypher.py`.
+
+**S6.3 Graph-constrained retrieval (`api/query/retrieval.py`).** Constrained
+hybrid search first (chunks mentioning a resolved character, via a new
+`CharacterMention` `EXISTS` filter actually wired into
+`api/retrieval/repository.py::dense_search`/`lexical_search` — previously
+accepted-and-ignored), whole-project fallback only when that's empty.
+`SearchResultOut.tier` now reports `"graph_constrained"` or `"unconstrained"`
+on every `hybrid_search` call (previously `None` always) —
+**`api/tests/query/test_search.py` updated** for the new contract.
+
+**S6.4 Grounding + abstention (`api/query/grounding.py`,
+`api/query/generation.py`).** The five graph-derived classes are grounded by
+construction — they render straight from a retrieved `CharacterDetailOut`/
+`RelationOut`, never free text, so there is nothing for a grounding check to
+catch. `narrative` alone free-generates and is checked by a deterministic
+content-word-overlap threshold (0.6) against its own retrieved chunks — a
+documented simplification, not semantic entailment; a paraphrase that flips
+a negation would still pass. Abstention: `grounding.abstain()`, used whenever
+resolution finds nobody, a template finds no edge, or nothing clears the
+overlap threshold.
+
+**Gendered aggregation (`api/query/gender.py`) — the demo's critical case.**
+The ontology has no gender attribute, so a naive `child_of`/`sibling_of`
+aggregation for "daughters" or "brother" returns every child/sibling
+regardless of gender. "What happens to Elizabeth's brother?" would otherwise
+come back with her sisters instead of abstaining — exactly the wrong kind of
+answer F4.4 forbids. Fixed by inferring gender from honorific-titled aliases
+only (`Mr`/`Miss`/etc., reusing `api.extraction.normalization.gendered_title`)
+and excluding — not defaulting to include — any candidate with no such
+signal. Pinned by
+`api/tests/query/test_pipeline.py::test_aggregation_abstains_for_a_gendered_hint_with_no_matching_gender`.
+**Known limitation:** a real character with no honorific alias on record is
+invisible to a gendered aggregation query — under-inclusive by design (see
+the module docstring), but worth knowing before trusting a "sons" or
+"daughters" count against a real corpus.
+
+**S6.5 Streaming (`api/routes/query.py`).** `POST /query` and
+`POST /query/{thread_id}/respond` both wrap
+`api/query/pipeline.py::answer_question` in an SSE `StreamingResponse`
+(`media_type="text/event-stream"`, one JSON-serialised `QueryEvent` per
+`data:` frame). Narrative tokens are **buffered until grounding completes**,
+not streamed live — TTFT is still measured against the raw model stream
+(`QueryTimer.mark_ttft()`), but nothing reaches the wire until it has passed
+the grounding check, because a sentence shown and then silently dropped is
+the "hedge instead of remove" failure F4.4 forbids, just staged over SSE
+instead of in the text. Every terminal branch (abstention, a graph-derived
+answer, a grounded narrative one) funnels through one function
+(`pipeline._finish`) that emits the `token`/`citation` events and then
+`done` — this replaced a real bug caught by
+`test_character_lookup_abstains_for_an_unknown_character` where an early
+abstention produced a `done` event with no visible answer text at all.
+
+**S6.6 Conversation memory (`api/query/conversation.py`).** `Conversation`/
+`ConversationTurn` persisted every turn. Context is **token-budgeted, not
+turn-count-capped** (`_CONTEXT_TOKEN_BUDGET`, chars/4 estimate): the most
+recent turns' `resolved_character_ids` feed straight into
+`resolve_names(..., conversation_characters=...)` for the next question, so
+"and her sister?" resolves against whoever the previous turn was about. A
+turn pushed out of the budget is summarised in one line built from its own
+`resolved_names` — no second LLM call. `set_scope` records the reading
+position each turn was answered at onto the `Conversation` row, but nothing
+in the SSE contract yet lets a client *see* which characters a turn
+resolved against (see the SCR-5 note below).
+
+**Known gap, found in review, not fixed here:** `ConversationContext.summary`
+(the one-line "Earlier in this conversation, also discussed: ..." built for
+turns the token budget pushed out) is computed and pinned by
+`test_carry_context_drops_turns_beyond_the_token_budget_and_summarises`, but
+nothing downstream reads it — `_resolve_phrase` only consumes
+`context.character_ids`, and neither `router.classify_question` nor
+`generation.stream_narrative_draft` takes a context-text parameter. In
+practice this only bites a conversation long enough to push a turn out of
+an 800-token budget (~4-8 turns discussing the same characters), at which
+point that turn's characters stop feeding name resolution and the summary
+that was supposed to compensate is inert. Not a DoD blocker (none of the
+five DoD lines depend on it) and not fixed here rather than widen this
+session's scope into prompt changes on an already-tuned grounding/generation
+path with no dedicated test for the wiring; flagging it plainly instead of
+leaving it silently unused.
+
+**Filed:** SCR-4 (`LLMPurpose.QUERY_ROUTE` doesn't exist yet — `ADJUDICATE`
+reused as an interim stand-in, non-blocking) and SCR-5 (confirming, not
+duplicating, do1's SCR-1 / fe1's `ScopeBanner` note — `DoneEvent` needs a
+`resolved_entities` field; the data is already computed, this is pure
+plumbing whenever one of those lands).
+
+**Not measured here, by design (BRANCH.md §9 — no worktree timing claims are
+valid):** p95/TTFT against a real book. Real citation precision, answer
+accuracy, and abstention rate against a gold question set are do1's S6.14
+harness to run against my pipeline once merged — everything above was
+verified with real Postgres + real Neo4j but synthetic, hand-built fixture
+data, not the shared corpus.
+
+**Verification:** targeted suite (`api/tests/query`, `api/tests/graph`,
+`api/tests/relations`, `api/tests/retrieval`) — 145 passed, 1 pre-existing
+skip; `ruff check`/`ruff format --check` clean across the touched paths.
+Re-verified against the full backend suite in a fresh session
+(`make test-api`, real Postgres + real Neo4j) — 474 passed, 1 pre-existing
+skip, no regressions; `ruff check api`/`ruff format --check api` both clean.
+The router accuracy numbers above are from that same session's live run
+against the shared vLLM. Final numbers also in `STANDUP.md`.

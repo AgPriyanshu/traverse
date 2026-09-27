@@ -27,7 +27,10 @@ async def test_search_on_empty_project_returns_no_chunks(
     )
 
     assert response.status_code == 200
-    assert response.json() == {"chunks": [], "tier": None}
+    # S6.3: `tier` now reports whether the search was graph-constrained, even
+    # when it found nothing — an unconstrained call (no `character_ids`) on
+    # an empty project reports `"unconstrained"`, not `None`.
+    assert response.json() == {"chunks": [], "tier": "unconstrained"}
 
 
 async def test_search_finds_a_seeded_chunk_with_both_scores(

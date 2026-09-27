@@ -208,19 +208,18 @@ async def test_ontology_endpoint_tracks_the_yaml():
     assert await get_ontology() == ontology.load().to_contract()
 
 
-async def test_query_and_review_are_still_501(client: AsyncClient, project: Project):
-    """Sprint 1 freezes these paths and their models; the handlers land later."""
-    ask = await client.post(
-        "/api/query",
-        json={"project_id": str(project.id), "question": "who is Darcy?"},
-    )
+async def test_review_is_still_501(client: AsyncClient):
+    """Sprint 1 freezes this path and its models; the handler lands in S7.
+
+    ``/api/query`` graduated out of this test at S6.5 — real SSE behaviour is
+    covered end to end in ``api/tests/query/test_pipeline.py`` instead.
+    """
     tasks = await client.get("/api/review/tasks")
     resolve = await client.post(
         f"/api/review/tasks/{uuid.uuid4()}/resolve",
         json={"decision": "accept", "payload": {}},
     )
 
-    assert ask.status_code == 501
     assert tasks.status_code == 501
     assert resolve.status_code == 501
 
