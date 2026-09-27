@@ -1,0 +1,61 @@
+{"question": "Who is Mr Collins?", "expected_route": "character_lookup"}
+{"question": "Who is Mrs Bennet?", "expected_route": "character_lookup"}
+{"question": "Tell me about Fumiko.", "expected_route": "character_lookup"}
+{"question": "What can you tell me about Heathcliff?", "expected_route": "character_lookup"}
+{"question": "Who is the waitress at the cafe?", "expected_route": "character_lookup"}
+{"question": "Give me a profile of Kazu.", "expected_route": "character_lookup"}
+{"question": "Who is Lady Catherine de Bourgh?", "expected_route": "character_lookup"}
+{"question": "Who is Kei in this story?", "expected_route": "character_lookup"}
+{"question": "What do we know about Georgiana Darcy?", "expected_route": "character_lookup"}
+{"question": "How does Elizabeth know Mr Darcy?", "expected_route": "relationship_lookup"}
+{"question": "What is the relationship between Kazu and Kei?", "expected_route": "relationship_lookup"}
+{"question": "How is Jane related to Mr Bingley?", "expected_route": "relationship_lookup"}
+{"question": "Are Elizabeth and Charlotte friends?", "expected_route": "relationship_lookup"}
+{"question": "How does Mr Wickham know Mr Darcy?", "expected_route": "relationship_lookup"}
+{"question": "What is Catherine Earnshaw to Heathcliff?", "expected_route": "relationship_lookup"}
+{"question": "Is Mr Collins related to the Bennet family?", "expected_route": "relationship_lookup"}
+{"question": "How are Heathcliff and young Cathy connected?", "expected_route": "path"}
+{"question": "What connects Elizabeth Bennet to Lady Catherine de Bourgh?", "expected_route": "path"}
+{"question": "Is there any link between Wickham and Georgiana Darcy?", "expected_route": "path"}
+{"question": "How is Fumiko connected to the cafe owner, through anyone?", "expected_route": "path"}
+{"question": "Trace the connection between Kazu and Kei's grandmother.", "expected_route": "path"}
+{"question": "What chain of relationships links Heathcliff to Edgar Linton?", "expected_route": "path"}
+{"question": "Who are all of Mr Bennet's daughters?", "expected_route": "aggregation"}
+{"question": "List every friend Elizabeth Bennet has.", "expected_route": "aggregation"}
+{"question": "Who are all the children of Mrs Earnshaw?", "expected_route": "aggregation"}
+{"question": "Name everyone who is an enemy of Heathcliff.", "expected_route": "aggregation"}
+{"question": "Who are Mr Bennet's sons?", "expected_route": "aggregation"}
+{"question": "List all the siblings of Kei.", "expected_route": "aggregation"}
+{"question": "Who are all of Lady Catherine's relatives mentioned in the book?", "expected_route": "aggregation"}
+{"question": "How did Anne and Gilbert's relationship change over the series?", "expected_route": "series_arc"}
+{"question": "How has Elizabeth's opinion of Darcy evolved across the books?", "expected_route": "series_arc"}
+{"question": "Trace how Heathcliff and Catherine's relationship changed over time.", "expected_route": "series_arc"}
+{"question": "How did Kazu and Kei's friendship develop across the volumes?", "expected_route": "series_arc"}
+{"question": "Did Wickham and Darcy's relationship change by the end of the series?", "expected_route": "series_arc"}
+{"question": "How did the relationship between the two families evolve across the trilogy?", "expected_route": "series_arc"}
+{"question": "Why did they fall out?", "expected_route": "narrative"}
+{"question": "Why did Elizabeth refuse Darcy's first proposal?", "expected_route": "narrative"}
+{"question": "What happened at Rosings that changed everything?", "expected_route": "narrative"}
+{"question": "Why is Mr Bennet so sarcastic with his wife?", "expected_route": "narrative"}
+{"question": "What motivated Wickham to elope with Lydia?", "expected_route": "narrative"}
+{"question": "What happens at the end of the book?", "expected_route": "narrative"}
+{"question": "Describe the events of the Netherfield ball.", "expected_route": "narrative"}
+{"question": "What happens to Elizabeth's brother?", "expected_route": "narrative"}
+{"question": "Why does Catherine choose Edgar over Heathcliff?", "expected_route": "narrative"}
+{"question": "What happens to her?", "expected_route": "ambiguous"}
+{"question": "What happens next?", "expected_route": "ambiguous"}
+{"question": "And him?", "expected_route": "ambiguous"}
+{"question": "Why did that happen?", "expected_route": "ambiguous"}
+{"question": "Tell me more.", "expected_route": "ambiguous"}
+{"question": "What about the other one?", "expected_route": "ambiguous"}
+{"question": "Is she still alive?", "expected_route": "ambiguous"}
+{"question": "Who is she?", "expected_route": "ambiguous"}
+{"question": "Who is Mr Darcy?", "expected_route": "character_lookup"}
+{"question": "How does Jane know Mr Bingley?", "expected_route": "relationship_lookup"}
+{"question": "What is the shortest chain of acquaintance between Wickham and Lady Catherine?", "expected_route": "path"}
+{"question": "Who are all of Mrs Bennet's daughters?", "expected_route": "aggregation"}
+{"question": "How did Mr and Mrs Bennet's marriage change over the years?", "expected_route": "series_arc"}
+{"question": "Why did Lydia run off with Wickham?", "expected_route": "narrative"}
+{"question": "What about her sister?", "expected_route": "ambiguous"}
+{"question": "Who is Anne Shirley?", "expected_route": "character_lookup"}
+{"question": "How do Anne and Marilla know each other?", "expected_route": "relationship_lookup"}

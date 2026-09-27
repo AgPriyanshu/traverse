@@ -13,6 +13,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
 from ..config.settings import settings
+from ..db.models.character_model import CharacterMention
 from ..db.models.chunk_model import DocumentChunk
 from ..db.models.project_model import Book, Chapter
 from ..pipeline.chunking import resolve_device
@@ -89,6 +90,28 @@ def _reading_position_filter(
     )
 
 
+def _character_filter(statement, *, character_ids: list[UUID] | None):
+    """Restrict a chunk query to chunks mentioning at least one character.
+
+    S6.3's graph-constrained retrieval: once names have resolved to
+    characters, the hybrid search arms run *within* the chunks those
+    characters were actually mentioned in, rather than across the whole
+    project. ``EXISTS`` rather than a join, so a chunk mentioning several of
+    the resolved characters is not returned once per mention.
+    """
+    if not character_ids:
+        return statement
+
+    exists = (
+        select(CharacterMention.id)
+        .where(CharacterMention.chunk_id == DocumentChunk.id)
+        .where(CharacterMention.character_id.in_(character_ids))
+        .exists()
+    )
+
+    return statement.where(exists)
+
+
 async def dense_search(
     session: SQLModelAsyncSession,
     *,
@@ -107,9 +130,9 @@ async def dense_search(
         project_id: Scopes the search to one project.
         query_embedding: A normalised BGE-M3 vector, from ``embed_query``.
         book_id: Restrict to one book.
-        character_ids: Present for the Sprint 6 graph-constrained retrieval
-            hook; not yet backed by a real filter (chunk-to-character linkage
-            lands in S4), so it is accepted and ignored rather than rejected.
+        character_ids: S6.3's graph-constrained retrieval — restrict to
+            chunks mentioning at least one of these characters. ``None`` or
+            empty searches every chunk in scope, unconstrained.
         limit_book_order: Reading position — book. ``None`` means no limit.
         limit_chapter: Reading position — chapter within that book.
         limit: Top-N to return.
@@ -119,8 +142,6 @@ async def dense_search(
         ``1 - cosine_distance``, in ``[-1, 1]`` but practically ``[0, 1]``
         for normalised text embeddings.
     """
-    del character_ids  # See docstring — accepted now, wired in S4.
-
     distance = DocumentChunk.text_embedding.cosine_distance(query_embedding)
     similarity = (1 - distance).label("similarity")
 
@@ -137,6 +158,7 @@ async def dense_search(
     statement = _reading_position_filter(
         statement, limit_book_order=limit_book_order, limit_chapter=limit_chapter
     )
+    statement = _character_filter(statement, character_ids=character_ids)
     statement = statement.order_by(distance).limit(limit)
 
     result = await session.exec(statement)
@@ -162,7 +184,7 @@ async def lexical_search(
         project_id: Scopes the search to one project.
         query: Free-text query, parsed with ``websearch_to_tsquery``.
         book_id: Restrict to one book.
-        character_ids: See ``dense_search`` — accepted, not yet wired.
+        character_ids: See ``dense_search``.
         limit_book_order: Reading position — book. ``None`` means no limit.
         limit_chapter: Reading position — chapter within that book.
         limit: Top-N to return.
@@ -173,8 +195,6 @@ async def lexical_search(
         a non-match is ``0``, not absent, so the query filters on the match
         rather than on the rank.
     """
-    del character_ids
-
     tsquery = func.websearch_to_tsquery("english", query)
     rank = func.ts_rank_cd(DocumentChunk.tsv, tsquery).label("rank")
 
@@ -191,6 +211,7 @@ async def lexical_search(
     statement = _reading_position_filter(
         statement, limit_book_order=limit_book_order, limit_chapter=limit_chapter
     )
+    statement = _character_filter(statement, character_ids=character_ids)
     statement = statement.order_by(rank.desc()).limit(limit)
 
     result = await session.exec(statement)

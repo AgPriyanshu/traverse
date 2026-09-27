@@ -8,17 +8,39 @@ from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
 from ..contracts.api import (
     ClarifyResponse,
+    ErrorEvent,
     QueryEventEnvelope,
     QueryRequest,
     SearchResultOut,
 )
 from ..db.engine import get_session
 from ..graph import repository as graph_repository
+from ..query import repository as query_repository
+from ..query.pipeline import answer_question
 from ..retrieval import hybrid_search
-from ._stub import not_implemented
 
 router = APIRouter(tags=["query"])
 OWNER = "be2"
+
+
+def _sse_frame(event) -> str:
+    """Serialise one ``QueryEvent`` as an SSE frame.
+
+    One JSON object per ``data:`` line, blank line terminated — the format
+    ``EventSource``/the frontend's SSE client expects. ``proxy_buffering off``
+    must stay set in nginx (Sprint 1) or these frames queue up server-side and
+    the stream appears to hang until it closes (query-path.md).
+    """
+    return f"data: {event.model_dump_json()}\n\n"
+
+
+async def _event_stream(session: SQLModelAsyncSession, request: QueryRequest):
+    try:
+        async for event in answer_question(session, request):
+            yield _sse_frame(event)
+    except Exception as exc:  # noqa: BLE001 - a stream must end with a frame, not a 500
+        error = ErrorEvent(type="error", message=str(exc), recoverable=False)
+        yield _sse_frame(error)
 
 
 @router.post(
@@ -30,15 +52,45 @@ OWNER = "be2"
         "token, citation, route, interrupt, done, error."
     ),
 )
-async def ask(body: QueryRequest) -> StreamingResponse:
-    not_implemented(OWNER, "S6.5")
+async def ask(
+    body: QueryRequest, session: SQLModelAsyncSession = Depends(get_session)
+) -> StreamingResponse:
+    if not await graph_repository.project_exists(session, body.project_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
+        )
+
+    return StreamingResponse(
+        _event_stream(session, body), media_type="text/event-stream"
+    )
 
 
 @router.post("/query/{thread_id}/respond", response_model=QueryEventEnvelope)
 async def respond_to_clarification(
-    thread_id: UUID, body: ClarifyResponse
+    thread_id: UUID,
+    body: ClarifyResponse,
+    session: SQLModelAsyncSession = Depends(get_session),
 ) -> StreamingResponse:
-    not_implemented(OWNER, "S6.5")
+    """Resume a paused thread with the user's answer to a clarifying question.
+
+    The clarification itself just becomes the next question on the same
+    thread — ``answer_question`` already resolves names against the
+    conversation's carried context (S6.6), so a one-word reply like "the
+    younger one" resolves the same way "and her sister?" would.
+    """
+    conversation = await query_repository.get_conversation(session, thread_id)
+    if conversation is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found"
+        )
+
+    request = QueryRequest(
+        project_id=conversation.project_id, question=body.answer, thread_id=thread_id
+    )
+
+    return StreamingResponse(
+        _event_stream(session, request), media_type="text/event-stream"
+    )
 
 
 @router.get("/search", response_model=SearchResultOut)

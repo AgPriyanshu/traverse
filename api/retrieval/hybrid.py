@@ -95,8 +95,9 @@ async def hybrid_search(
         project_id: Scopes the search to one project.
         query: Free-text search query.
         book_id: Restrict to one book. ``None`` searches the whole project.
-        character_ids: The Sprint 4 graph-constrained retrieval hook — plumbed
-            through now (query-path.md), not yet backed by a filter.
+        character_ids: S6.3's graph-constrained retrieval filter — restricts
+            both arms to chunks mentioning at least one of these characters.
+            ``None`` searches the whole project, unconstrained.
         limit: Chunks to return after fusion.
         limit_book_order: Reading position — book. ``None`` means no limit
             and must be an explicit choice at the call site (the Sprint 8
@@ -108,8 +109,11 @@ async def hybrid_search(
 
     Returns:
         Fused, ranked chunks with both component scores populated where the
-        arm that found them ran; ``tier`` is unset until the Sprint 6 router
-        assigns one.
+        arm that found them ran. ``tier`` is ``"graph_constrained"`` when
+        ``character_ids`` was given, else ``"unconstrained"`` — the caller
+        (``api/query/retrieval.py``) is what decides whether a constrained
+        search's empty result should fall back to an unconstrained one, and
+        logs which tier actually answered.
     """
     # Deferred: keeps the reranker's cross-encoder import (and model load)
     # out of every call that never uses it.
@@ -148,4 +152,6 @@ async def hybrid_search(
         for _chunk_id, _rrf_score, chunk, dense_score, lexical_score in top
     ]
 
-    return SearchResultOut(chunks=chunks)
+    tier = "graph_constrained" if character_ids else "unconstrained"
+
+    return SearchResultOut(chunks=chunks, tier=tier)
