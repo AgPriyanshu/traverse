@@ -386,5 +386,7 @@ class TestStillFrozen:
         # across all four branches was known, same as Sprint 2's SCR-6), +2 at
         # Sprint 4's for GET /ops/relation-quality and GET /ops/relation-cost
         # (do1's SCR-16), +2 at Sprint 5's for GET /ops/reconciliation-quality
-        # and GET /ops/reconciliation-order-check (do1's SCR-4).
-        assert len(response.json()["paths"]) == 40
+        # and GET /ops/reconciliation-order-check (do1's SCR-4), +3 at
+        # Sprint 6's for GET /ops/answer-quality, GET /ops/query-latency and
+        # POST /ops/judge-answer (do1's SCR-2/SCR-3).
+        assert len(response.json()["paths"]) == 43
