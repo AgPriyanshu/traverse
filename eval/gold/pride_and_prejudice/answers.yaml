@@ -1,0 +1,307 @@
+# Gold question set for the S6.14 answer-quality harness.
+#
+# 30 questions across the PRD's six query classes (devops-1.md S6.14):
+# single_fact, relationship, path, aggregation, temporal, unanswerable. Five
+# unanswerable items deliberately name something that does not exist in this
+# novel's graph (a sibling Elizabeth does not have, a marriage that never
+# happens) -- abstention there is the correct answer, not a gap in the gold
+# set.
+#
+# expected_answer is a short reference an LLM judge (api/ops/answer_judge.py,
+# a frontier model, never the same 8B that generated the answer under test)
+# compares the system's answer against; it is not graded by string match.
+# expected_entities is an exact-set match for aggregation questions --
+# F4.1's "exactly five daughters, not a plausible four assembled from prose."
+#
+# Sourced from this corpus's own gold relations (relations.yaml) and the
+# public-domain text (Gutenberg #1342) the corpus is built from, cross-checked
+# the same way roster.yaml and relations.yaml were.
+book_key: pride-and-prejudice
+corpus_pdf_sha256: 9d16f8644fb30853da423ea1797133a04fbc1be0064dc874093c213a38d86959
+page_count: 245
+labelled_by: do1 (from relations.yaml and the public-domain text, S6.14)
+labelled_at: "2026-09-27T00:00:00+00:00"
+judge_prompt_version: answer_judge_v1
+questions:
+  # ── single_fact ────────────────────────────────────────────────────────
+  - id: pp-001
+    question: "Who is Mr Collins?"
+    class: single_fact
+    expect_abstain: false
+    expected_answer: >
+      William Collins is Mr Bennet's cousin and the clergyman heir to
+      Longbourn under the entail; he holds a living granted by his patroness
+      Lady Catherine de Bourgh.
+
+  - id: pp-002
+    question: "Who is Charlotte Lucas?"
+    class: single_fact
+    expect_abstain: false
+    expected_answer: >
+      Charlotte Lucas is Elizabeth Bennet's close friend, the daughter of Sir
+      William and Lady Lucas, who later marries Mr Collins.
+
+  - id: pp-003
+    question: "What is Mr Darcy's first name?"
+    class: single_fact
+    expect_abstain: false
+    expected_answer: "Fitzwilliam."
+
+  - id: pp-004
+    question: "Who is Lady Catherine de Bourgh?"
+    class: single_fact
+    expect_abstain: false
+    expected_answer: >
+      Lady Catherine de Bourgh is Mr Darcy's wealthy, imperious aunt and Mr
+      Collins's patroness; she is also Anne de Bourgh's mother.
+
+  - id: pp-005
+    question: "Who is Mr Bennet's cousin and the heir to Longbourn?"
+    class: single_fact
+    expect_abstain: false
+    expected_answer: "William Collins."
+
+  # ── relationship ─────────────────────────────────────────────────────────
+  - id: pp-006
+    question: "How are Mr Bennet and Mrs Bennet related?"
+    class: relationship
+    expect_abstain: false
+    expected_answer: "They are married to each other."
+
+  - id: pp-007
+    question: "What is the relationship between Elizabeth Bennet and Jane Bennet?"
+    class: relationship
+    expect_abstain: false
+    expected_answer: "They are sisters."
+
+  - id: pp-008
+    question: "How does Charlotte Lucas know Elizabeth Bennet?"
+    class: relationship
+    expect_abstain: false
+    expected_answer: >
+      They are close friends and neighbours; Charlotte is the daughter of Sir
+      William Lucas, whose estate neighbours the Bennets' Longbourn.
+
+  - id: pp-009
+    question: "What is Colonel Fitzwilliam's relationship to Mr Darcy?"
+    class: relationship
+    expect_abstain: false
+    expected_answer: "Colonel Fitzwilliam is Mr Darcy's cousin."
+
+  - id: pp-010
+    question: "How is George Wickham related to Elizabeth Bennet by the end of the novel?"
+    class: relationship
+    expect_abstain: false
+    expected_answer: >
+      He becomes her brother-in-law once he marries her sister Lydia.
+
+  # ── path ───────────────────────────────────────────────────────────────
+  - id: pp-011
+    question: "How does Elizabeth Bennet know Mr Darcy?"
+    class: path
+    expect_abstain: false
+    expected_answer: >
+      They meet through the Bingleys at the Meryton assembly and again at
+      Netherfield, where Darcy's initial slight and pride antagonise
+      Elizabeth; after his first, refused proposal and his letter explaining
+      himself, and a later meeting at Pemberley, they become engaged and
+      marry.
+    min_citations: 2
+
+  - id: pp-012
+    question: "How is Elizabeth Bennet connected to Charles Bingley?"
+    class: path
+    expect_abstain: false
+    expected_answer: >
+      Through her sister Jane: Bingley courts and eventually marries Jane,
+      making him Elizabeth's brother-in-law.
+    min_citations: 2
+
+  - id: pp-013
+    question: "How is George Wickham connected to Mr Darcy?"
+    class: path
+    expect_abstain: false
+    expected_answer: >
+      Wickham is the son of the elder Mr Darcy's steward and grew up alongside
+      Darcy; a dispute over a promised living and Wickham's attempted
+      elopement with Georgiana Darcy turns them into enemies, and Wickham
+      later becomes Darcy's brother-in-law once Darcy marries Elizabeth.
+    min_citations: 2
+
+  - id: pp-014
+    question: "How is Lady Catherine de Bourgh connected to Elizabeth Bennet?"
+    class: path
+    expect_abstain: false
+    expected_answer: >
+      Lady Catherine is the patroness of Mr Collins, who proposes to
+      Elizabeth before marrying Charlotte Lucas instead; Lady Catherine is
+      also Mr Darcy's aunt, and once Darcy marries Elizabeth, Lady Catherine
+      becomes Elizabeth's aunt by marriage.
+    min_citations: 2
+
+  - id: pp-015
+    question: "How is Georgiana Darcy connected to Elizabeth Bennet?"
+    class: path
+    expect_abstain: false
+    expected_answer: >
+      Georgiana is Mr Darcy's younger sister; once Darcy and Elizabeth marry,
+      Georgiana becomes Elizabeth's sister-in-law.
+    min_citations: 2
+
+  # ── aggregation (exhaustive, never a plausible subset — F4.1) ───────────
+  - id: pp-016
+    question: "Who are all of Mr Bennet's daughters?"
+    class: aggregation
+    expect_abstain: false
+    expected_answer: >
+      Jane, Elizabeth, Mary, Kitty and Lydia Bennet — exactly five daughters.
+    expected_entities:
+      - Jane Bennet
+      - Elizabeth Bennet
+      - Mary Bennet
+      - Kitty Bennet
+      - Lydia Bennet
+
+  - id: pp-017
+    question: "Who are all of Mrs Bennet's children?"
+    class: aggregation
+    expect_abstain: false
+    expected_answer: >
+      The same five daughters as Mr Bennet's: Jane, Elizabeth, Mary, Kitty and
+      Lydia Bennet.
+    expected_entities:
+      - Jane Bennet
+      - Elizabeth Bennet
+      - Mary Bennet
+      - Kitty Bennet
+      - Lydia Bennet
+
+  - id: pp-018
+    question: "Which characters become engaged to someone over the course of the novel?"
+    class: aggregation
+    expect_abstain: false
+    expected_answer: >
+      Four couples become engaged: Fitzwilliam Darcy and Elizabeth Bennet,
+      Charles Bingley and Jane Bennet, William Collins and Charlotte Lucas,
+      and George Wickham and Lydia Bennet.
+    expected_entities:
+      - Fitzwilliam Darcy
+      - Elizabeth Bennet
+      - Charles Bingley
+      - Jane Bennet
+      - William Collins
+      - Charlotte Lucas
+      - George Wickham
+      - Lydia Bennet
+
+  - id: pp-019
+    question: "Who are the Lucas family's children in the novel?"
+    class: aggregation
+    expect_abstain: false
+    expected_answer: "Charlotte Lucas and Maria Lucas."
+    expected_entities:
+      - Charlotte Lucas
+      - Maria Lucas
+
+  - id: pp-020
+    question: "Which of Mr Bennet's daughters get married during the novel?"
+    class: aggregation
+    expect_abstain: false
+    expected_answer: >
+      Three: Jane (to Charles Bingley), Elizabeth (to Fitzwilliam Darcy) and
+      Lydia (to George Wickham). Mary and Kitty remain unmarried in the novel.
+    expected_entities:
+      - Jane Bennet
+      - Elizabeth Bennet
+      - Lydia Bennet
+
+  # ── temporal ─────────────────────────────────────────────────────────────
+  - id: pp-021
+    question: "What happens between Mr Darcy and Elizabeth Bennet over the course of the novel?"
+    class: temporal
+    expect_abstain: false
+    expected_answer: >
+      They begin antagonists after Darcy slights Elizabeth at the assembly;
+      he proposes and is refused; his letter and their later meeting at
+      Pemberley change her opinion of him; they become engaged near the
+      novel's end and marry in the final chapter.
+    min_citations: 2
+
+  - id: pp-022
+    question: "What happens to Mr Collins and Charlotte Lucas?"
+    class: temporal
+    expect_abstain: false
+    expected_answer: >
+      Mr Collins proposes to Elizabeth and is refused; he then proposes to
+      Charlotte Lucas, who accepts, and they become engaged and then married
+      within about a chapter of each other.
+    min_citations: 2
+
+  - id: pp-023
+    question: "What happens to Lydia Bennet over the course of the novel?"
+    class: temporal
+    expect_abstain: false
+    expected_answer: >
+      She elopes with George Wickham; the family fears ruin until Darcy
+      secretly arranges and pays for their marriage, after which they marry
+      and she becomes Mrs Wickham.
+    min_citations: 2
+
+  - id: pp-024
+    question: "What happens to Jane Bennet and Charles Bingley's relationship?"
+    class: temporal
+    expect_abstain: false
+    expected_answer: >
+      Bingley courts Jane, then leaves Netherfield abruptly (influenced by
+      Darcy and his sisters); the two are separated for most of the novel
+      until Bingley returns, they become engaged, and marry in the final
+      chapter alongside Elizabeth and Darcy.
+    min_citations: 2
+
+  - id: pp-025
+    question: "How does George Wickham's standing with Mr Darcy change over the novel?"
+    class: temporal
+    expect_abstain: false
+    expected_answer: >
+      They grow up together as the sons of Pemberley's owner and his steward;
+      a dispute over a promised living and Wickham's attempt to elope with
+      Georgiana Darcy turns them into enemies; Wickham later becomes Darcy's
+      brother-in-law after Darcy quietly funds his marriage to Lydia, though
+      the two remain estranged.
+    min_citations: 2
+
+  # ── unanswerable (abstention is the correct answer) ──────────────────────
+  - id: pp-026
+    question: "What happens to Elizabeth Bennet's brother?"
+    class: unanswerable
+    expect_abstain: true
+    min_citations: 0
+    notes: "Elizabeth has no brother — only four sisters. A plausible-sounding hedge is wrong; abstaining is correct."
+
+  - id: pp-027
+    question: "Who does Mary Bennet marry?"
+    class: unanswerable
+    expect_abstain: true
+    min_citations: 0
+    notes: "Mary never marries in the novel."
+
+  - id: pp-028
+    question: "What is Mr Darcy's mother's opinion of Elizabeth Bennet?"
+    class: unanswerable
+    expect_abstain: true
+    min_citations: 0
+    notes: "Lady Anne Darcy is deceased before the novel begins and never appears or is quoted on the subject."
+
+  - id: pp-029
+    question: "Where did Elizabeth Bennet attend university?"
+    class: unanswerable
+    expect_abstain: true
+    min_citations: 0
+    notes: "The premise is anachronistic for the setting; the text never places her at a university."
+
+  - id: pp-030
+    question: "Who is Mr Darcy's brother?"
+    class: unanswerable
+    expect_abstain: true
+    min_citations: 0
+    notes: "Darcy has no brother — only a younger sister, Georgiana."

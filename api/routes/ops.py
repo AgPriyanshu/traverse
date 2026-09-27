@@ -14,8 +14,11 @@ from ..contracts.api import (
 from ..contracts.pipeline import IngestionRunOut
 from ..db.engine import get_session
 from ..ops import gather_health, pipeline_status
+from ..ops.answer_judge import AnswerJudgment, JudgeAnswerRequest, judge_answer
+from ..ops.answer_quality import AnswerQualityOut, compute_answer_quality
 from ..ops.extraction_cost import ExtractionCostOut, compute_extraction_cost
 from ..ops.extraction_quality import ExtractionQualityOut, compute_extraction_quality
+from ..ops.query_latency import QueryLatencyOut, compute_query_latency
 from ..ops.reconciliation_quality import (
     ReconciliationQualityOut,
     compare_graph_checksums,
@@ -102,6 +105,54 @@ async def relation_cost(
     ``prefix_cache_alert`` is set when a measured hit rate is below 80%.
     """
     return await compute_relation_cost(session, book_id)
+
+
+@router.get("/ops/answer-quality", response_model=AnswerQualityOut)
+async def answer_quality(book_key: str = Query(...)) -> AnswerQualityOut:
+    """Accuracy, citation precision, abstention rate, aggregation exact-match (S6.14).
+
+    Reads no live table -- scores whatever ``scripts/eval_answers.py`` last
+    wrote to ``eval/gold/<book>/answer_judgements.json`` against the gold
+    question set. ``gold_available=False`` for a book with no labelled
+    question set; ``answered=0`` (not an error) for one that has never been
+    run, e.g. because be2's query pipeline (S6.1-S6.5) has not merged yet.
+    """
+    return compute_answer_quality(book_key)
+
+
+@router.post("/ops/judge-answer", response_model=AnswerJudgment)
+async def judge_answer_route(body: JudgeAnswerRequest) -> AnswerJudgment:
+    """Frontier-model judge for one answered question (S6.14).
+
+    Never the model under test — ``LLMPurpose.JUDGE`` always routes to
+    ``settings.frontier_model`` (``api/llm/routing.py``), refusing outright
+    under ``INFERENCE_MODE=local`` rather than grading with the local model.
+    """
+    return await judge_answer(
+        question_id=body.question_id,
+        question=body.question,
+        expected_answer=body.expected_answer,
+        expect_abstain=body.expect_abstain,
+        system_answer=body.system_answer,
+        abstained=body.abstained,
+        citations=body.citations,
+    )
+
+
+@router.get("/ops/query-latency", response_model=QueryLatencyOut)
+async def query_latency(
+    project_id: UUID = Query(...),
+    session: SQLModelAsyncSession = Depends(get_session),
+) -> QueryLatencyOut:
+    """p50/p95/p99 latency and TTFT against the NFR-perf budget (S6.15).
+
+    ``sample_count=0`` until be2's query pipeline (S6.1-S6.5) starts writing
+    ``QueryLog`` rows -- not an error, and not a passing gate either
+    (``p95_within_budget=None``). Judge only from the integration host
+    (BRANCH.md §9); vLLM is a single-GPU host singleton every worktree
+    shares.
+    """
+    return await compute_query_latency(session, project_id)
 
 
 @router.get("/ops/reconciliation-quality", response_model=ReconciliationQualityOut)

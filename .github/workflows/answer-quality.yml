@@ -1,0 +1,91 @@
+name: Answer quality (nightly)
+
+# S6.14: trend accuracy/citation-precision/abstention/aggregation nightly
+# rather than gating any PR on them -- the harness needs a live query
+# pipeline to produce anything to judge, and be2's S6.1-S6.5 (api/query/**)
+# is still landing across sprint-6 worktrees. Same not-my-dependency
+# convention as nightly-corpus.yml and scripts/perf_smoke.py: until /api/query
+# stops 501ing, scripts/eval_answers.py records 0 judged and exits 0, so this
+# job goes green every night with an honest "nothing judged yet" summary
+# instead of failing a schedule for a dependency it does not own. It starts
+# asserting for real the moment that work merges into ai-master, no change
+# needed here.
+on:
+  schedule:
+    - cron: "30 8 * * *" # 08:30 UTC, after nightly-corpus.yml's 08:00 ingestion
+  workflow_dispatch:
+
+concurrency:
+  group: answer-quality-nightly
+  cancel-in-progress: false
+
+env:
+  INFERENCE_MODE: api
+  EMBEDDING_DEVICE: cpu
+
+jobs:
+  answer-quality:
+    name: Score the S6.14 gold set against Pride and Prejudice
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ai-master
+
+      - name: .env from .env.example
+        run: make env
+
+      - name: Fetch and paginate the corpus
+        run: python3 scripts/seed_corpus.py --only pride-and-prejudice
+
+      - name: Bring up the full stack
+        run: docker compose up -d --build
+
+      - name: Wait for healthy
+        run: ./scripts/wait_for_healthy.sh --timeout 900
+
+      - name: Ingest Pride and Prejudice
+        run: python3 scripts/ingest_book.py pride-and-prejudice --project-slug nightly-answer-quality
+
+      - name: Restore the answer-quality trend
+        uses: actions/cache/restore@v4
+        with:
+          path: answer-quality-trend.jsonl
+          key: answer-quality-trend-${{ github.run_id }}
+          restore-keys: answer-quality-trend-
+
+      - name: Ask the S6.14 gold set and judge it (make eval-answers)
+        run: make eval-answers BOOK=pride-and-prejudice
+
+      - name: Post the table to the run summary
+        if: always()
+        run: |
+          python3 -m eval.runners.answers --book-key pride-and-prejudice \
+            --out /tmp/answer-quality-summary.md
+          cat /tmp/answer-quality-summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Save the answer-quality trend
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: answer-quality-trend.jsonl
+          key: answer-quality-trend-${{ github.run_id }}
+
+      - name: Publish this run's judgements and trend
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: answer-quality
+          path: |
+            answer-quality-trend.jsonl
+            eval/gold/pride_and_prejudice/answer_judgements.json
+          if-no-files-found: ignore
+
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs --tail=200
+
+      - name: Tear down
+        if: always()
+        run: docker compose down --remove-orphans

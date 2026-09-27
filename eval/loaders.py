@@ -22,6 +22,7 @@ GOLD_DIR = REPO_ROOT / "eval" / "gold"
 SCHEMA_PATH = REPO_ROOT / "eval" / "schema" / "roster.schema.json"
 RELATIONS_SCHEMA_PATH = REPO_ROOT / "eval" / "schema" / "relations.schema.json"
 IDENTITY_SCHEMA_PATH = REPO_ROOT / "eval" / "schema" / "identity.schema.json"
+ANSWERS_SCHEMA_PATH = REPO_ROOT / "eval" / "schema" / "answers.schema.json"
 MANIFEST_PATH = REPO_ROOT / "corpus" / "manifest.json"
 
 
@@ -248,4 +249,50 @@ def available_gold_identity_series() -> list[str]:
 
     return sorted(
         p.parent.name.replace("_", "-") for p in GOLD_DIR.glob("*/identity.yaml")
+    )
+
+
+def gold_answers_path(book_key: str) -> Path:
+    slug = book_key.replace("-", "_")
+    return GOLD_DIR / slug / "answers.yaml"
+
+
+def load_gold_answers(book_key: str, *, verify_checksum: bool = True) -> dict[str, Any]:
+    """Load and schema-validate one book's gold question set (S6.14).
+
+    Raises:
+        FileNotFoundError: If no gold question set exists for ``book_key`` yet.
+        RosterSchemaError: If the document does not match its schema.
+        CorpusChecksumMismatch: If ``verify_checksum`` and the corpus has been
+            repaginated since labelling.
+    """
+    path = gold_answers_path(book_key)
+    if not path.exists():
+        raise FileNotFoundError(
+            f"no gold answers for {book_key!r} at {path.relative_to(REPO_ROOT)}"
+        )
+
+    document = yaml.safe_load(path.read_text())
+    schema = json.loads(ANSWERS_SCHEMA_PATH.read_text())
+    errors = sorted(
+        Draft202012Validator(schema).iter_errors(document), key=lambda e: list(e.path)
+    )
+    if errors:
+        detail = "; ".join(f"{list(e.path)}: {e.message}" for e in errors)
+
+        raise RosterSchemaError(f"{ANSWERS_SCHEMA_PATH.name} violations: {detail}")
+
+    if verify_checksum:
+        _verify_corpus_checksum(book_key, document)
+
+    return document
+
+
+def available_gold_answer_books() -> list[str]:
+    """List book keys with a gold question set on disk, without validating them."""
+    if not GOLD_DIR.exists():
+        return []
+
+    return sorted(
+        p.parent.name.replace("_", "-") for p in GOLD_DIR.glob("*/answers.yaml")
     )

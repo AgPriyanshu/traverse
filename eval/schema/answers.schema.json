@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://traverse.internal/eval/schema/answers.schema.json",
+  "title": "Gold question set",
+  "description": "Hand-labelled questions for the S6.14 answer-quality harness. Pinned to a corpus PDF checksum exactly like the gold roster and gold relations.",
+  "type": "object",
+  "required": ["book_key", "corpus_pdf_sha256", "page_count", "questions"],
+  "additionalProperties": false,
+  "properties": {
+    "book_key": { "type": "string" },
+    "corpus_pdf_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "page_count": { "type": "integer", "minimum": 1 },
+    "labelled_by": { "type": "string" },
+    "labelled_at": { "type": "string", "format": "date-time" },
+    "judge_prompt_version": {
+      "type": "string",
+      "description": "The api/ops/answer_judge.py judge prompt version this set's expectations were written against. Informational only -- the judge itself is versioned in code, not per gold set."
+    },
+    "questions": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/question" }
+    }
+  },
+  "$defs": {
+    "question": {
+      "type": "object",
+      "required": ["id", "question", "class", "expect_abstain"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "question": { "type": "string", "minLength": 1 },
+        "class": {
+          "enum": [
+            "single_fact",
+            "relationship",
+            "path",
+            "aggregation",
+            "temporal",
+            "unanswerable"
+          ]
+        },
+        "expect_abstain": {
+          "type": "boolean",
+          "description": "True only for the unanswerable class -- a correct answer here is abstention, not a hedge."
+        },
+        "expected_answer": {
+          "type": "string",
+          "description": "A short reference answer for the judge to compare against. Required unless expect_abstain is true."
+        },
+        "expected_entities": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Canonical roster names the answer must resolve to exactly (aggregation class) -- e.g. Mr Bennet's five daughters. Scored as an exact set match, never a plausible subset."
+        },
+        "min_citations": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 1,
+          "description": "Every factual claim must carry a citation (query-path.md); 0 only for expect_abstain questions."
+        },
+        "notes": { "type": "string" }
+      },
+      "if": {
+        "properties": { "expect_abstain": { "const": false } }
+      },
+      "then": {
+        "required": ["expected_answer"]
+      }
+    }
+  }
+}

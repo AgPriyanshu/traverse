@@ -178,11 +178,11 @@ and is idempotent and create-only, so it is safe to run while others are working
 | Resource | Isolation |
 | --- | --- |
 | Postgres | `traverse_be1`, `traverse_be2`, `traverse_int`, each with `vector` |
-| Postgres (test) | `traverse_test` — **not** one of the three slices above, belongs to the `test` compose service, truncated between runs |
+| Postgres (test) | `traverse_test_<TEST_IMAGE_TAG>`, one per **worktree** (not one of the three slices above) — belongs to the `test` compose service, truncated between runs, created on demand by `test-db-init` (S6 fix, was a single shared `traverse_test`) |
 | Postgres (default) | the `db` container's own `postgres` database, migrated by the plain `migrate` service. `docker compose down -v` wipes this **and every database above** — the integration checkout's `traverse_int` is not a separate volume from an agent's, just a separate database in it |
 | Neo4j | **be2 exclusive** — Community edition is single-database |
 | RabbitMQ | vhost per agent: `/be1`, `/be2`, `/int` |
-| MinIO | bucket per agent, plus `traverse-test` (SCR-19 root cause) for the `test` service — same reasoning as Postgres's `traverse_test` row above |
+| MinIO | bucket per agent, plus `traverse-test-<TEST_IMAGE_TAG>` for the `test` service, one per worktree (S6 fix, was a single shared `traverse-test`, SCR-19 root cause originally) — same reasoning as Postgres's test row above |
 | vLLM | **shared** — one GPU. Timings from a worktree are invalid. |
 | FastAPI | 8000 int · 8001 be1 · 8002 be2 · 8003 fe1-mock |
 | Vite | 5173 fe1 · 5174 int |
@@ -229,20 +229,30 @@ make revision m="…"               ORCHESTRATOR ONLY — typed confirmation
   Bare `docker compose` without it falls back to `dev`, shared across worktrees.
 - **`docker compose run` from a worktree can recreate the shared db/rabbitmq**
   when the compose config differs from the running stack. Volumes survive.
-- **`traverse_test` (the `test` service's Postgres database) has no
-  per-worktree isolation, unlike `traverse_be1`/`traverse_be2`/`traverse_int`**
-  (S5, do1's final verification pass). Two concurrent `docker compose
-  --profile test run --rm test` invocations from different worktrees
-  deadlocked each other: one run's fixture connection sat idle-in-transaction
-  holding a lock the other's `TRUNCATE` teardown needed, and vice versa —
-  confirmed live in `pg_stat_activity`, both suites hung at the same ~46-49%
-  mark until one container was removed. Same class of gap as SCR-19's MinIO
-  bucket finding (Sprint 4 retro A-4.2), just on Postgres and for
-  test-vs-test rather than test-vs-live. Workaround: check
+- **Fixed (S6, do1): per-worktree `test` isolation.** `traverse_test` used to
+  be one Postgres database shared by every worktree's `test` compose service,
+  with no isolation between them, unlike `traverse_be1`/`traverse_be2`/
+  `traverse_int` — two concurrent `docker compose --profile test run --rm
+  test` invocations from different worktrees deadlocked each other (S5
+  finding: one run's idle-in-transaction fixture connection held a lock the
+  other's `TRUNCATE` teardown needed, confirmed live in `pg_stat_activity`).
+  Same class of gap as SCR-19's MinIO bucket finding (Sprint 4 retro A-4.2),
+  just on Postgres and test-vs-test rather than test-vs-live. Closed the same
+  way: a new `test-db-init` compose service (`docker/postgres/init-test-db.sh`,
+  same always-runs pattern as `rabbitmq-init`/`minio-init`) creates
+  `TEST_POSTGRES_DB`, which now defaults to `traverse_test_${TEST_IMAGE_TAG}`
+  — keyed by the same variable that already tags each worktree's `test`
+  image — instead of the bare `traverse_test`. `migrate-test` and `test` both
+  depend on it. `MINIO_BUCKET`/`TEST_MINIO_BUCKET` got the identical
+  worktree-scoped default (`traverse-test-${TEST_IMAGE_TAG}`), closing the
+  matching MinIO-level race between two worktrees' `delete_prefix("books/")`
+  teardowns. `AGENT_DATABASES`/`MINIO_BUCKETS` no longer enumerate a bare
+  `traverse_test`/`traverse-test` — it's created on demand, not at cold-volume
+  init. `scripts/bootstrap_databases.sh` pre-warms all four worktrees'
+  (`be1 be2 fe1 do1`) test databases/buckets so a fresh worktree's first test
+  run isn't the one paying for the creation. Old workaround (check
   `docker ps --filter name=traverse-test-run-` is empty before starting a
-  run, and retry in a clear window. Not yet fixed; a `TEST_POSTGRES_DB`
-  suffixed by `TEST_IMAGE_TAG` the same way the image tag already is would
-  close it — recommended as a Sprint 6 action item.
+  run) is no longer needed.
 
 - **`eval/` is a repo-root package, not under `api/`, and `api/ops/
   extraction_quality.py`/`extraction_cost.py` import it anyway.** Works via
