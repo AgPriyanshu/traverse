@@ -7,18 +7,20 @@ inline (``api/AGENTS.md``).
 import logging
 from uuid import UUID
 
-from sqlalchemy import bindparam, delete, insert, select, update
+from sqlalchemy import and_, bindparam, delete, insert, or_, select, update
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
-from ..contracts.enums import CandidateKind, ReviewTaskType
+from ..contracts.enums import CandidateKind, RelationStatus, ReviewTaskType
 from ..db.models import (
     BookCharacterCandidate,
     Character,
     CharacterAppearance,
     CharacterMention,
     RejectedCandidate,
+    Relation,
     ReviewTask,
 )
+from ..graph import ontology
 from .discovery import MentionCandidate
 
 logger = logging.getLogger(__name__)
@@ -447,6 +449,73 @@ async def persist_characters(
         await session.refresh(character)
 
     return persisted
+
+
+async def list_project_roster(
+    session: SQLModelAsyncSession, project_id: UUID
+) -> list[Character]:
+    """Return every character in a project, for query-time name resolution (S6.7).
+
+    Full ORM rows rather than a narrower column projection: the resolution
+    cascade needs ``canonical_name``, ``aliases`` and ``importance_tier``
+    together, and even a long series' roster is small enough (dozens to a few
+    hundred rows) that the extra columns cost nothing measurable against the
+    <50ms budget.
+    """
+    statement = select(Character).where(Character.project_id == project_id)
+    roster = list((await session.execute(statement)).scalars().all())
+
+    return roster
+
+
+async def kinship_candidates(
+    session: SQLModelAsyncSession,
+    *,
+    project_id: UUID,
+    referent_id: UUID,
+    predicate: str,
+) -> list[UUID]:
+    """Return every character related to ``referent_id`` by ``predicate`` (S6.7).
+
+    ``predicate`` is read as if ``referent_id`` were its subject — "referent
+    ``predicate`` candidate", e.g. ``child_of`` for "her mother". The query
+    also matches the row stored the other way round, under the ontology's
+    inverse: S4's aggregation canonicalises a symmetric or inverse pair onto
+    a single stored direction, and query-time code cannot know which one a
+    given fact landed on.
+
+    Args:
+        session: An open database session.
+        project_id: Scopes the search to one project's roster.
+        referent_id: The character a relative term is anchored to — S6.7's
+            "her" in "her sister".
+        predicate: An ontology predicate: ``sibling_of`` for "sister"/
+            "brother", ``married_to`` for "wife"/"husband", ``child_of`` for
+            "mother"/"father", ``parent_of`` for "son"/"daughter".
+
+    Returns:
+        Candidate character ids, unordered and possibly empty.
+    """
+    inverse = ontology.inverse_of(predicate) or predicate
+    statement = select(
+        Relation.subject_character_id, Relation.object_character_id
+    ).where(
+        Relation.project_id == project_id,
+        Relation.status == RelationStatus.ACTIVE,
+        or_(
+            and_(
+                Relation.subject_character_id == referent_id,
+                Relation.predicate == predicate,
+            ),
+            and_(
+                Relation.object_character_id == referent_id,
+                Relation.predicate == inverse,
+            ),
+        ),
+    )
+    rows = (await session.execute(statement)).all()
+
+    return [obj if subj == referent_id else subj for subj, obj in rows]
 
 
 async def queue_collision_review(

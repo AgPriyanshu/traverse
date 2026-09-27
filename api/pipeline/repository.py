@@ -460,6 +460,29 @@ async def list_chunks(
     return chunks
 
 
+async def get_chunk_with_book(
+    session: SQLModelAsyncSession, chunk_id: UUID
+) -> tuple[DocumentChunk, Book] | None:
+    """Return one chunk with its book, for S6.8's quote-span locator.
+
+    The locator needs the source PDF (``Book.storage_key``) and page count
+    alongside the chunk's own page range — a single joined read rather than
+    two round trips on the query critical path.
+    """
+    statement = (
+        select(DocumentChunk, Book)
+        .join(Book, Book.id == DocumentChunk.book_id)  # type: ignore[arg-type]
+        .where(DocumentChunk.id == chunk_id)  # type: ignore[arg-type]
+    )
+    row = (await session.execute(statement)).first()
+    if row is None:
+        return None
+
+    chunk, book = row
+
+    return chunk, book
+
+
 async def list_chunks_with_chapter_number(
     session: SQLModelAsyncSession, book_id: UUID
 ) -> list[tuple[DocumentChunk, int | None]]:

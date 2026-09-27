@@ -14,6 +14,8 @@ matching the precedent in ``storage.py``.
 import io
 import json
 import tempfile
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 from uuid import UUID
 
@@ -109,6 +111,27 @@ def _render_sync(
     return png_bytes, width, height, spans
 
 
+@asynccontextmanager
+async def local_copy(storage_key: str) -> AsyncIterator[Path]:
+    """Download a source PDF to a scratch file, cleaned up on exit.
+
+    Shared by :func:`render_page` and :mod:`api.pipeline.quotes` (S6.8) — both
+    need a real local file for ``pypdfium2``, which does not read from object
+    storage directly.
+    """
+    handle = await anyio.to_thread.run_sync(
+        lambda: tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)  # noqa: SIM115
+    )
+    temp_path = Path(handle.name)
+    await anyio.to_thread.run_sync(handle.close)
+
+    try:
+        await store.get_object(storage_key, temp_path)
+        yield temp_path
+    finally:
+        await anyio.to_thread.run_sync(temp_path.unlink, True)
+
+
 async def render_page(
     book_id: UUID, storage_key: str, page: int, page_count: int | None
 ) -> PageRenderOut:
@@ -143,19 +166,10 @@ async def render_page(
     if cached is not None:
         return cached
 
-    handle = await anyio.to_thread.run_sync(
-        lambda: tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)  # noqa: SIM115
-    )
-    temp_path = Path(handle.name)
-    await anyio.to_thread.run_sync(handle.close)
-
-    try:
-        await store.get_object(storage_key, temp_path)
+    async with local_copy(storage_key) as temp_path:
         png_bytes, width, height, spans = await anyio.to_thread.run_sync(
             _render_sync, temp_path, page - 1
         )
-    finally:
-        await anyio.to_thread.run_sync(temp_path.unlink, True)
 
     await store.put_bytes(png_key, png_bytes, content_type="image/png")
     metadata = {

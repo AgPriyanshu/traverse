@@ -19,7 +19,9 @@ page. Symbols over line numbers.
 | Graph-constrained retrieval | `api/query/` | S6 |
 | Grounding check / abstention | `api/query/` | S6 |
 | SSE streaming | `api/routes/query.py` | S6 |
-| `resolve_names`, `locate_quote` | `api/pipeline/` | S6 |
+| `resolve_names` (name/nickname/partial/fuzzy/relative cascade, ranked candidates) | `api/extraction/resolution.py` | **Built** (S6.7) — reuses `api/extraction/normalization.py`; never an LLM call |
+| `locate_quote` (exact → whitespace-normalised → fuzzy span match, `None` if unlocated) | `api/pipeline/quotes.py` | **Built** (S6.8) — reuses `local_copy` from `api/pipeline/render.py` |
+| `QueryTimer` (per-stage timing, `as_dict()` → `QueryLog.latency_ms`) | `api/pipeline/timing.py` | **Built** (S6.9) — be2's query pipeline owns calling `.stage()`/`.mark_ttft()` and persisting the row |
 | Spoiler enforcement | query layer, all surfaces | S8 |
 
 ## Route classes (S6)
