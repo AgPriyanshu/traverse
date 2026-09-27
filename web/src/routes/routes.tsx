@@ -58,24 +58,6 @@ export const routes: RouteObject[] = [
                 }),
               },
               {
-                path: "characters",
-                lazy: async () => ({
-                  Component: (await import("./book/characters")).Characters,
-                }),
-              },
-              {
-                path: "characters/:characterId",
-                lazy: async () => ({
-                  Component: (await import("./book/character-detail")).CharacterDetail,
-                }),
-              },
-              {
-                path: "graph",
-                lazy: async () => ({
-                  Component: (await import("./book/graph/graph-explorer")).GraphExplorer,
-                }),
-              },
-              {
                 path: "ask",
                 element: <NotYetBuilt screen="Ask" sprint={6} />,
               },
@@ -91,22 +73,47 @@ export const routes: RouteObject[] = [
       {
         path: "projects",
         children: [
-          { index: true, element: <NotYetBuilt screen="Projects" sprint={5} /> },
-          { path: "new", element: <NotYetBuilt screen="New project" sprint={5} /> },
+          {
+            index: true,
+            lazy: async () => ({
+              Component: (await import("./project/project-list")).ProjectList,
+            }),
+          },
+          {
+            path: "new",
+            lazy: async () => ({
+              Component: (await import("./project/project-new")).ProjectNew,
+            }),
+          },
           {
             path: ":projectId",
+            lazy: async () => ({
+              Component: (await import("./project/project-layout")).ProjectLayout,
+            }),
             children: [
               {
                 index: true,
-                element: <NotYetBuilt screen="Project overview" sprint={5} />,
+                lazy: async () => ({
+                  Component: (await import("./project/project-overview")).ProjectOverview,
+                }),
               },
               {
                 path: "characters",
-                element: <NotYetBuilt screen="The series roster" sprint={5} />,
+                lazy: async () => ({
+                  Component: (await import("./project/characters")).Characters,
+                }),
+              },
+              {
+                path: "characters/:characterId",
+                lazy: async () => ({
+                  Component: (await import("./project/character-detail")).CharacterDetail,
+                }),
               },
               {
                 path: "graph",
-                element: <NotYetBuilt screen="The series graph" sprint={5} />,
+                lazy: async () => ({
+                  Component: (await import("./project/graph/graph-explorer")).GraphExplorer,
+                }),
               },
               {
                 path: "ask",

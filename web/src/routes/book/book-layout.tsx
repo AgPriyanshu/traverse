@@ -1,8 +1,8 @@
-import { Box, HStack, Text } from "@chakra-ui/react";
-import { Outlet, useParams } from "react-router";
+import { Box, HStack, Link, Text } from "@chakra-ui/react";
+import { Link as RouterLink, Outlet, useParams } from "react-router";
 import { NavLinks, PageHeader, bookNav } from "@/components/layout";
 import { StatusDot, toneForBookStatus } from "@/components/ui";
-import { useBook } from "@/lib/api";
+import { useBook, useProject } from "@/lib/api";
 import { formatCount, formatRelativeTime } from "@/lib/format";
 
 export const BookLayout = () => {
@@ -11,6 +11,7 @@ export const BookLayout = () => {
 
   // Apis.
   const book = useBook(bookId);
+  const project = useProject(book.data?.project_id);
 
   // Variables.
   const status = book.data ? toneForBookStatus(book.data.status) : null;
@@ -19,7 +20,15 @@ export const BookLayout = () => {
     <>
       <PageHeader
         title={book.data?.title ?? "Book"}
-        eyebrow={book.data?.author ?? undefined}
+        eyebrow={
+          project.data ? (
+            <Link asChild>
+              <RouterLink to={`/projects/${project.data.id}`}>{project.data.name}</RouterLink>
+            </Link>
+          ) : (
+            book.data?.author ?? undefined
+          )
+        }
         meta={
           <HStack gap="4" wrap="wrap">
             {status ? (
@@ -46,7 +55,11 @@ export const BookLayout = () => {
         borderBottomWidth="1px"
         borderColor="border"
       >
-        <NavLinks items={bookNav(bookId)} direction="row" ariaLabel="This book" />
+        <NavLinks
+          items={bookNav(bookId, book.data?.project_id, book.data?.series_order)}
+          direction="row"
+          ariaLabel="This book"
+        />
       </Box>
 
       <Outlet />

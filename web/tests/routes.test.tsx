@@ -15,18 +15,20 @@ const ROUTES: [path: string, heading: RegExp][] = [
   ["/books/abc-123", /ingestion/i],
   ["/books/abc-123/chapters", /chapters/i],
   ["/books/abc-123/pages/12", /page 12/i],
-  // Real screens as of S3.10/S3.11 — every API call 501s under this test's
-  // default mock, so both surface the frozen contract's own "not built yet"
-  // error state rather than the generic `<NotYetBuilt>` placeholder.
-  ["/books/abc-123/characters", /not built yet/i],
-  ["/books/abc-123/characters/c-1", /not built yet/i],
   ["/books/abc-123/ask", /ask is not built yet/i],
   ["/books/abc-123/review", /the review queue is not built yet/i],
-  ["/projects", /projects is not built yet/i],
-  ["/projects/new", /new project is not built yet/i],
-  ["/projects/p-1", /project overview is not built yet/i],
-  ["/projects/p-1/characters", /the series roster is not built yet/i],
-  ["/projects/p-1/graph", /the series graph is not built yet/i],
+  // Real screens as of S3.10/S3.11/S5.9-S5.12, now project-scoped — every
+  // API call 501s under this test's default mock, so each surfaces the
+  // frozen contract's own "not built yet" error state rather than the
+  // generic `<NotYetBuilt>` placeholder.
+  ["/projects", /not built yet/i],
+  // `/projects/new` makes no API call until submit, so it renders its own
+  // real heading rather than the frozen contract's 501 error state.
+  ["/projects/new", /new project/i],
+  ["/projects/p-1", /not built yet/i],
+  ["/projects/p-1/characters", /not built yet/i],
+  ["/projects/p-1/characters/c-1", /not built yet/i],
+  ["/projects/p-1/graph", /not built yet/i],
   ["/projects/p-1/ask", /ask is not built yet/i],
   ["/ops", /the operations dashboard is not built yet/i],
   ["/ops/evals", /eval ablations is not built yet/i],
