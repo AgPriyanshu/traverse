@@ -1,6 +1,7 @@
 import { Box, Button, Drawer, HStack, Portal, Span, Stack, Text } from "@chakra-ui/react";
 import { useMemo, useState } from "react";
 import { ErrorState, LoadingSkeleton } from "@/components/ui";
+import type { Book } from "@/lib/api";
 import { useEvidence } from "@/lib/api";
 import { formatCount } from "@/lib/format";
 import type { EdgeContext } from "./edge-context";
@@ -13,19 +14,11 @@ const EVIDENCE_PAGE_SIZE = 10;
 
 export type EvidencePanelProps = {
   target: EdgeContext | null;
-  bookId: string;
-  bookTitle?: string | null;
-  chapterCount: number;
+  books: readonly Book[];
   onClose: () => void;
 };
 
-export const EvidencePanel = ({
-  target,
-  bookId,
-  bookTitle,
-  chapterCount,
-  onClose,
-}: EvidencePanelProps) => {
+export const EvidencePanel = ({ target, books, onClose }: EvidencePanelProps) => {
   return (
     <Drawer.Root
       open={target !== null}
@@ -39,14 +32,7 @@ export const EvidencePanel = ({
         <Drawer.Positioner>
           <Drawer.Content bg="bg.surface" maxW={{ base: "full", sm: "lg" }}>
             {target ? (
-              <EvidenceBody
-                key={target.edge.id}
-                target={target}
-                bookId={bookId}
-                bookTitle={bookTitle}
-                chapterCount={chapterCount}
-                onClose={onClose}
-              />
+              <EvidenceBody key={target.edge.id} target={target} books={books} onClose={onClose} />
             ) : null}
           </Drawer.Content>
         </Drawer.Positioner>
@@ -57,13 +43,7 @@ export const EvidencePanel = ({
 
 type EvidenceBodyProps = Omit<EvidencePanelProps, "target"> & { target: EdgeContext };
 
-const EvidenceBody = ({
-  target,
-  bookId,
-  bookTitle,
-  chapterCount,
-  onClose,
-}: EvidenceBodyProps) => {
+const EvidenceBody = ({ target, books, onClose }: EvidenceBodyProps) => {
   const { edge, sourceName, targetName } = target;
 
   // States.
@@ -76,6 +56,7 @@ const EvidenceBody = ({
   const items = useMemo(() => {
     return [...(evidence.data ?? [])].sort(
       (a, b) =>
+        (a.series_order ?? Infinity) - (b.series_order ?? Infinity) ||
         (a.chapter_no ?? Infinity) - (b.chapter_no ?? Infinity) ||
         a.page_start - b.page_start,
     );
@@ -119,13 +100,7 @@ const EvidenceBody = ({
 
       <Drawer.Body>
         <Stack gap="5">
-          <RelationArc
-            a={edge.source}
-            b={edge.target}
-            chapterCount={chapterCount}
-            bookId={bookId}
-            bookTitle={bookTitle}
-          />
+          <RelationArc a={edge.source} b={edge.target} books={books} />
 
           <Stack gap="0" as="section" aria-label="Evidence">
             <Text textStyle="small" color="fg.subtle" fontWeight="600" textTransform="uppercase" letterSpacing="wide" marginBlockEnd="1">
@@ -144,7 +119,7 @@ const EvidenceBody = ({
             ) : null}
             <Box as="ol" listStyleType="none" margin="0" padding="0">
               {items.map((item) => (
-                <EvidenceItem key={item.id} evidence={item} bookTitle={bookTitle} />
+                <EvidenceItem key={item.id} evidence={item} />
               ))}
             </Box>
           </Stack>

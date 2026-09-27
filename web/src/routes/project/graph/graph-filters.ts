@@ -1,12 +1,4 @@
-import type {
-  Chapter,
-  Graph,
-  GraphEdge,
-  GraphNode,
-  ImportanceTier,
-  RelationFamily,
-} from "@/lib/api";
-import { chapterForPage } from "../chapter-lookup";
+import type { Graph, GraphEdge, GraphNode, ImportanceTier, RelationFamily } from "@/lib/api";
 import { TIER_ORDER } from "../character-labels";
 import { FAMILY_ORDER } from "./relation-style";
 
@@ -16,16 +8,15 @@ export type GraphFilters = {
   /** Empty means every tier. */
   tiers: ImportanceTier[];
   minConfidence: number;
-  chapterFrom: number | null;
-  chapterTo: number | null;
+  /** A `series_order` to slice the standing graph to one book, client-side — the animation between slices is the feature (S5.11). `null` means every book. */
+  bookFilter: number | null;
 };
 
 export const DEFAULT_FILTERS: GraphFilters = {
   families: [],
   tiers: [],
   minConfidence: 0,
-  chapterFrom: null,
-  chapterTo: null,
+  bookFilter: null,
 };
 
 const parseList = <T extends string>(raw: string | null, allowed: readonly T[]): T[] => {
@@ -46,8 +37,7 @@ export const parseFilters = (params: URLSearchParams): GraphFilters => {
     families: parseList(params.get("family"), FAMILY_ORDER),
     tiers: parseList(params.get("tier"), TIER_ORDER),
     minConfidence: Math.min(1, Math.max(0, confidence)),
-    chapterFrom: parseNumber(params.get("from")),
-    chapterTo: parseNumber(params.get("to")),
+    bookFilter: parseNumber(params.get("book")),
   };
 };
 
@@ -66,8 +56,7 @@ export const writeFilters = (
   set("family", filters.families.length > 0 ? filters.families.join(",") : null);
   set("tier", filters.tiers.length > 0 ? filters.tiers.join(",") : null);
   set("conf", filters.minConfidence > 0 ? String(filters.minConfidence) : null);
-  set("from", filters.chapterFrom === null ? null : String(filters.chapterFrom));
-  set("to", filters.chapterTo === null ? null : String(filters.chapterTo));
+  set("book", filters.bookFilter === null ? null : String(filters.bookFilter));
   return next;
 };
 
@@ -75,30 +64,22 @@ export const hasEdgeFilter = (filters: GraphFilters): boolean => {
   return (
     filters.families.length > 0 ||
     filters.minConfidence > 0 ||
-    filters.chapterFrom !== null ||
-    filters.chapterTo !== null
+    filters.bookFilter !== null
   );
 };
 
-/** Edges carry page refs, not chapters, so the chapter comes from the same page-to-chapter join the mention list uses. */
-export const edgeChapters = (edge: GraphEdge, chapters: readonly Chapter[]): number[] => {
+/**
+ * The distinct books an edge has evidence in, from its own page refs — no
+ * join against a book's chapter list is needed at this level of detail. The
+ * exact chapter and page live one level down, in the evidence panel and the
+ * relationship arc, both of which already carry `chapter_no` per item.
+ */
+export const edgeBookOrders = (edge: GraphEdge): number[] => {
   const numbers = new Set<number>();
   for (const ref of edge.page_refs ?? []) {
-    const chapter = chapterForPage(chapters, ref.page);
-    if (chapter?.number !== null && chapter?.number !== undefined) {
-      numbers.add(chapter.number);
-    }
+    numbers.add(ref.book_order);
   }
   return [...numbers].sort((a, b) => a - b);
-};
-
-export const edgeChapterSpan = (
-  edge: GraphEdge,
-  chapters: readonly Chapter[],
-): { first: number; last: number } | null => {
-  const numbers = edgeChapters(edge, chapters);
-  if (numbers.length === 0) { return null; }
-  return { first: numbers[0] as number, last: numbers[numbers.length - 1] as number };
 };
 
 export type FilteredGraph = {
@@ -106,31 +87,25 @@ export type FilteredGraph = {
   edges: GraphEdge[];
 };
 
-export const filterGraph = (
-  graph: Graph,
-  filters: GraphFilters,
-  chapters: readonly Chapter[],
-): FilteredGraph => {
+export const filterGraph = (graph: Graph, filters: GraphFilters): FilteredGraph => {
   const nodes = graph.nodes ?? [];
   const edges = graph.edges ?? [];
-  const tierOk = new Map<string, boolean>();
-  for (const node of nodes) {
-    tierOk.set(
-      node.id,
-      filters.tiers.length === 0 || filters.tiers.includes(node.importance_tier),
-    );
-  }
 
-  const hasRange = filters.chapterFrom !== null || filters.chapterTo !== null;
+  const nodeOk = (node: GraphNode): boolean => {
+    if (filters.tiers.length > 0 && !filters.tiers.includes(node.importance_tier)) { return false; }
+    if (filters.bookFilter !== null && !(node.appears_in_books ?? []).includes(filters.bookFilter)) {
+      return false;
+    }
+    return true;
+  };
+  const nodeOkById = new Map(nodes.map((node) => [node.id, nodeOk(node)]));
+
   const visibleEdges = edges.filter((edge) => {
-    if (!tierOk.get(edge.source) || !tierOk.get(edge.target)) { return false; }
+    if (!nodeOkById.get(edge.source) || !nodeOkById.get(edge.target)) { return false; }
     if (filters.families.length > 0 && !filters.families.includes(edge.family)) { return false; }
     if (edge.confidence < filters.minConfidence) { return false; }
-    if (hasRange) {
-      const numbers = edgeChapters(edge, chapters);
-      const from = filters.chapterFrom ?? -Infinity;
-      const to = filters.chapterTo ?? Infinity;
-      return numbers.some((number) => number >= from && number <= to);
+    if (filters.bookFilter !== null && !edgeBookOrders(edge).includes(filters.bookFilter)) {
+      return false;
     }
     return true;
   });
@@ -142,7 +117,7 @@ export const filterGraph = (
   }
   const narrowed = hasEdgeFilter(filters);
   const visibleNodes = nodes.filter(
-    (node) => tierOk.get(node.id) && (!narrowed || connected.has(node.id)),
+    (node) => nodeOkById.get(node.id) && (!narrowed || connected.has(node.id)),
   );
 
   return { nodes: visibleNodes, edges: visibleEdges };

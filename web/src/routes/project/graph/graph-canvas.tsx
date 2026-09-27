@@ -9,11 +9,20 @@ import { FAMILY_COLOR_VAR, FAMILY_DASH } from "./relation-style";
 
 cytoscape.use(fcose);
 
-const NODE_SIZE: Record<ImportanceTier, number> = {
-  protagonist: 46,
-  major: 34,
-  minor: 24,
-  mentioned: 16,
+const TIER_BASE_SIZE: Record<ImportanceTier, number> = {
+  protagonist: 40,
+  major: 30,
+  minor: 21,
+  mentioned: 14,
+};
+
+/** Every extra book a character has appeared in beyond the first widens the node — total appearances, not just the current slice's mention count (S5.11). */
+const APPEARANCE_STEP = 4;
+const MAX_APPEARANCE_BONUS = 24;
+
+const nodeSize = (node: Pick<GraphNode, "importance_tier" | "appears_in_books">): number => {
+  const extra = Math.max(0, (node.appears_in_books ?? []).length - 1);
+  return TIER_BASE_SIZE[node.importance_tier] + Math.min(MAX_APPEARANCE_BONUS, extra * APPEARANCE_STEP);
 };
 
 const LABEL_FONT_SIZE = 12;
@@ -90,6 +99,14 @@ const buildStyle = (): StylesheetJson => {
       style: { "background-color": accent, "font-weight": 700 },
     },
     {
+      selector: "node.first-in-book",
+      style: {
+        "border-width": 3,
+        "border-style": "dashed",
+        "border-color": accent,
+      },
+    },
+    {
       selector: "edge",
       style: {
         width: "data(width)",
@@ -138,7 +155,8 @@ const toElements = (
         id: node.id,
         label: node.canonical_name,
         tier: node.importance_tier,
-        size: NODE_SIZE[node.importance_tier],
+        size: nodeSize(node),
+        firstBookOrder: node.first_book_order ?? null,
       },
     });
   }
@@ -170,6 +188,8 @@ export type GraphCanvasProps = {
   visibleEdgeIds: ReadonlySet<string>;
   symmetricPredicates: ReadonlySet<string>;
   selectedEdgeId: string | null;
+  /** The active book slice's series_order, for the "first appears here" badge — `null` draws no badge. */
+  firstInBookFilter?: number | null;
   onSelectEdge: (edgeId: string) => void;
   onSelectNode: (nodeId: string) => void;
   ariaLabel: string;
@@ -178,7 +198,10 @@ export type GraphCanvasProps = {
 /**
  * Positions are computed once over the whole graph. A filter change hides and
  * reveals elements in place and animates the viewport, so the reader sees what
- * changed rather than a new, unrelated layout (S4.11).
+ * changed rather than a new, unrelated layout (S4.11) — the book filter uses
+ * the same mechanism (S5.11): it is a slice of the standing graph, not a
+ * fresh fetch, so the animation reads as "this is the same graph, narrowed"
+ * rather than "here is a different graph."
  */
 export const GraphCanvas = ({
   nodes,
@@ -187,6 +210,7 @@ export const GraphCanvas = ({
   visibleEdgeIds,
   symmetricPredicates,
   selectedEdgeId,
+  firstInBookFilter = null,
   onSelectEdge,
   onSelectNode,
   ariaLabel,
@@ -313,6 +337,16 @@ export const GraphCanvas = ({
       edge.connectedNodes().addClass("picked");
     }
   }, [selectedEdgeId, nodes, edges, colorMode]);
+
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) { return; }
+    cy.nodes().forEach((node) => {
+      const matches =
+        firstInBookFilter !== null && node.data("firstBookOrder") === firstInBookFilter;
+      node.toggleClass("first-in-book", matches);
+    });
+  }, [firstInBookFilter, nodes, edges, colorMode]);
 
   return (
     <Box

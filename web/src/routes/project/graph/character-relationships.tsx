@@ -2,30 +2,26 @@ import { Box, Button, HStack, Link, Stack, Text } from "@chakra-ui/react";
 import { useMemo } from "react";
 import { Link as RouterLink, useSearchParams } from "react-router";
 import { EmptyState, ErrorState, LoadingSkeleton } from "@/components/ui";
-import type { Chapter, GraphEdge, RelationFamily } from "@/lib/api";
+import type { Book, GraphEdge, RelationFamily } from "@/lib/api";
 import { useNeighbourhood } from "@/lib/api";
-import { formatCount } from "@/lib/format";
+import { formatCount, formatSeriesOrderRun } from "@/lib/format";
 import { buildNodeIndex, contextFor } from "./edge-context";
 import { EvidencePanel } from "./evidence-panel";
 import { FamilyBadge } from "./family-stroke";
-import { edgeChapterSpan } from "./graph-filters";
+import { edgeBookOrders } from "./graph-filters";
 import { FAMILY_LABEL, FAMILY_ORDER, predicateLabel } from "./relation-style";
 
 export type CharacterRelationshipsProps = {
   characterId: string;
-  bookId: string;
-  bookTitle?: string | null;
-  chapters: readonly Chapter[];
-  chapterCount: number;
+  projectId: string;
+  books: readonly Book[];
 };
 
-/** A character's relationships grouped by family; each row opens the same evidence panel the graph uses (S4.13). */
+/** A character's relationships grouped by family; each row opens the same evidence panel the graph uses (S4.13, extended across volumes in S5.12). */
 export const CharacterRelationships = ({
   characterId,
-  bookId,
-  bookTitle,
-  chapters,
-  chapterCount,
+  projectId,
+  books,
 }: CharacterRelationshipsProps) => {
   // Hooks.
   const [searchParams, setSearchParams] = useSearchParams();
@@ -94,7 +90,7 @@ export const CharacterRelationships = ({
               const outgoing = edge.source === characterId;
               const otherId = outgoing ? edge.target : edge.source;
               const otherName = nodeIndex.get(otherId)?.canonical_name ?? "Unknown character";
-              const span = edgeChapterSpan(edge, chapters);
+              const bookOrders = edgeBookOrders(edge);
               return (
                 <Box
                   as="li"
@@ -105,7 +101,7 @@ export const CharacterRelationships = ({
                 >
                   <HStack gap="2" wrap="wrap" align="baseline">
                     <Link asChild fontWeight="600">
-                      <RouterLink to={`/books/${bookId}/characters/${otherId}`}>
+                      <RouterLink to={`/projects/${projectId}/characters/${otherId}`}>
                         {otherName}
                       </RouterLink>
                     </Link>
@@ -116,7 +112,7 @@ export const CharacterRelationships = ({
                   <HStack gap="3" wrap="wrap" justify="space-between" marginBlockStart="1">
                     <Text textStyle="data" color="fg.muted">
                       {formatCount(edge.evidence_count, "citation")}
-                      {span ? ` · ch. ${span.first}–${span.last}` : ""}
+                      {bookOrders.length > 0 ? ` · bk. ${formatSeriesOrderRun(bookOrders)}` : ""}
                       {edge.hearsay ? " · hearsay" : ""}
                     </Text>
                     <Button
@@ -139,9 +135,7 @@ export const CharacterRelationships = ({
 
       <EvidencePanel
         target={selected}
-        bookId={bookId}
-        bookTitle={bookTitle}
-        chapterCount={chapterCount}
+        books={books}
         onClose={() => { handleSelect(null); }}
       />
     </Stack>
