@@ -15,7 +15,10 @@ const ROUTES: [path: string, heading: RegExp][] = [
   ["/books/abc-123", /ingestion/i],
   ["/books/abc-123/chapters", /chapters/i],
   ["/books/abc-123/pages/12", /page 12/i],
-  ["/books/abc-123/ask", /ask is not built yet/i],
+  // The ask screens (S6.10-S6.13) resolve their scope from `useBook`/
+  // `useProject` before rendering anything else, so a 501 there surfaces the
+  // frozen contract's own error state, same as every other real screen below.
+  ["/books/abc-123/ask", /not built yet/i],
   ["/books/abc-123/review", /the review queue is not built yet/i],
   // Real screens as of S3.10/S3.11/S5.9-S5.12, now project-scoped — every
   // API call 501s under this test's default mock, so each surfaces the
@@ -29,7 +32,7 @@ const ROUTES: [path: string, heading: RegExp][] = [
   ["/projects/p-1/characters", /not built yet/i],
   ["/projects/p-1/characters/c-1", /not built yet/i],
   ["/projects/p-1/graph", /not built yet/i],
-  ["/projects/p-1/ask", /ask is not built yet/i],
+  ["/projects/p-1/ask", /not built yet/i],
   ["/ops", /the operations dashboard is not built yet/i],
   ["/ops/evals", /eval ablations is not built yet/i],
   ["/nowhere", /there is no page here/i],
