@@ -2,11 +2,13 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
 from ..contracts.api import ReviewResolution, ReviewTaskOut
 from ..contracts.enums import ReviewStatus, ReviewTaskType
-from ._stub import not_implemented
+from ..db.engine import get_session
+from ..review import service
 
 router = APIRouter(tags=["review"])
 OWNER = "be2"
@@ -18,10 +20,27 @@ async def list_tasks(
     task_type: ReviewTaskType | None = Query(default=None),
     status: ReviewStatus = Query(default=ReviewStatus.OPEN),
     limit: int = Query(default=50, le=200),
+    session: SQLModelAsyncSession = Depends(get_session),
 ) -> list[ReviewTaskOut]:
-    not_implemented(OWNER, "S7.2")
+    """Return the queue, highest blast radius first (S7.3)."""
+    return await service.list_tasks(
+        session, project_id=project_id, task_type=task_type, status=status, limit=limit
+    )
 
 
 @router.post("/review/tasks/{task_id}/resolve", response_model=ReviewTaskOut)
-async def resolve_task(task_id: UUID, body: ReviewResolution) -> ReviewTaskOut:
-    not_implemented(OWNER, "S7.4")
+async def resolve_task(
+    task_id: UUID,
+    body: ReviewResolution,
+    session: SQLModelAsyncSession = Depends(get_session),
+) -> ReviewTaskOut:
+    """Apply a decision and resume whatever it was blocking (S7.2, S7.4).
+
+    Idempotent: resolving an already-resolved task returns its current state
+    rather than erroring or re-applying the decision.
+    """
+    result = await service.resolve_task(session, task_id, body)
+    if result is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "review task not found")
+
+    return result

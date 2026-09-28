@@ -30,6 +30,7 @@ TABLES_TOUCHED_BY_TESTS = (
     "bookcharactercandidate",
     "rejectedcandidate",
     "reviewtask",
+    "correctionfeedback",
     "book",
     "project",
 )

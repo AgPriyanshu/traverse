@@ -14,6 +14,8 @@ from ..db.models import (
     RelationEvidence,
     ReviewTask,
 )
+from ..review import priority as priority_scoring
+from ..review import workflow as review_workflow
 from .aggregate import Fact
 from .roster import RosterEntry, descriptor_from_attributes
 
@@ -143,6 +145,33 @@ async def chunks_with_two_characters(
     return set(rows)
 
 
+async def _initial_priority(
+    session: SQLModelAsyncSession,
+    task_type: ReviewTaskType,
+    character_ids: list[UUID],
+) -> int:
+    """A first-cut S7.3 score at queue time, from the tiers involved.
+
+    Re-hydrated (and corrected against then-current mention/edge counts) on
+    every read by ``api.review.payloads.hydrate`` -- this is only what a task
+    sorts by before it has ever been read.
+    """
+    if not character_ids:
+        return priority_scoring.blast_radius(task_type=task_type, max_tier=None)
+
+    tiers = (
+        await session.exec(
+            select(Character.importance_tier).where(Character.id.in_(character_ids))
+        )
+    ).all()
+
+    return priority_scoring.blast_radius(
+        task_type=task_type,
+        max_tier=priority_scoring.highest_tier(tiers),
+        cascade=len(character_ids),
+    )
+
+
 async def replace_conflict_tasks(
     session: SQLModelAsyncSession,
     project_id: UUID,
@@ -167,18 +196,78 @@ async def replace_conflict_tasks(
         await session.delete(task)
 
     for payload in payloads:
+        character_ids = [UUID(cid) for cid in payload.get("character_ids", [])]
+        priority = await _initial_priority(
+            session, ReviewTaskType.RESOLVE_CONFLICT, character_ids
+        )
         session.add(
             ReviewTask(
                 project_id=project_id,
                 book_id=book_id,
                 task_type=ReviewTaskType.RESOLVE_CONFLICT,
                 payload=payload,
-                priority=10,
+                priority=priority,
+                graph_thread_id=review_workflow.thread_id(
+                    book_id, review_workflow.CONFLICT_GATE
+                ),
             )
         )
     await session.commit()
 
     return len(payloads)
+
+
+async def replace_confirm_relation_tasks(
+    session: SQLModelAsyncSession,
+    project_id: UUID,
+    book_id: UUID,
+    entries: list[dict],
+) -> int:
+    """Replace this book's open ``confirm_relation`` tasks with fresh ones.
+
+    ``entries`` are ``{"relation_id": ..., "reason": ...}`` -- one per edge
+    this aggregation run flagged as genuinely uncertain (single-source
+    hearsay; see ``aggregate.aggregate`` callers in ``relations.tasks``), not
+    every edge below some confidence threshold.
+    """
+    existing = (
+        (
+            await session.execute(
+                select(ReviewTask)
+                .where(ReviewTask.project_id == project_id)
+                .where(ReviewTask.book_id == book_id)
+                .where(ReviewTask.task_type == ReviewTaskType.CONFIRM_RELATION)
+                .where(ReviewTask.status == ReviewStatus.OPEN)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for task in existing:
+        await session.delete(task)
+
+    for entry in entries:
+        relation = await session.get(Relation, UUID(entry["relation_id"]))
+        character_ids = (
+            [relation.subject_character_id, relation.object_character_id]
+            if relation is not None
+            else []
+        )
+        priority = await _initial_priority(
+            session, ReviewTaskType.CONFIRM_RELATION, character_ids
+        )
+        session.add(
+            ReviewTask(
+                project_id=project_id,
+                book_id=book_id,
+                task_type=ReviewTaskType.CONFIRM_RELATION,
+                payload=entry,
+                priority=priority,
+            )
+        )
+    await session.commit()
+
+    return len(entries)
 
 
 async def load_project_facts(
