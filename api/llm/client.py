@@ -12,7 +12,7 @@ from langchain_openai import ChatOpenAI
 from pydantic import SecretStr
 
 from ..config import settings
-from ..contracts.enums import LLMPurpose
+from ..contracts.enums import InferenceMode, LLMPurpose
 from .routing import route_for
 
 _semaphore: asyncio.Semaphore | None = None
@@ -43,14 +43,17 @@ def semaphore() -> asyncio.Semaphore:
     return _semaphore
 
 
-def get_llm(purpose: LLMPurpose) -> ChatOpenAI:
+def get_llm(purpose: LLMPurpose, *, mode: InferenceMode | None = None) -> ChatOpenAI:
     """Return a chat model configured for ``purpose``.
 
     Args:
         purpose: Routes to a model and, transitively, an endpoint. Call sites
             never choose a model directly.
+        mode: The Sprint 8 "model" ablation axis override for this call.
+            ``None`` (every caller before S8.2) is local, unchanged (see
+            ``routing.route_for``).
     """
-    route = route_for(purpose)
+    route = route_for(purpose, mode=mode)
     api_key = settings.frontier_api_key if route.frontier else None
 
     if route.frontier:

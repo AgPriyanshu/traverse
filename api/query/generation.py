@@ -22,7 +22,7 @@ from ..contracts.api import (
     RelationArcOut,
     RelationOut,
 )
-from ..contracts.enums import LLMPurpose
+from ..contracts.enums import InferenceMode, LLMPurpose
 from ..llm import get_llm, semaphore
 from ..llm.tracing import trace_generation
 from . import citations, repository
@@ -260,7 +260,11 @@ def _build_narrative_prompt(question: str, chunks: list) -> str:
 
 
 async def stream_narrative_draft(
-    question: str, chunks: list, *, project_id: str
+    question: str,
+    chunks: list,
+    *,
+    project_id: str,
+    mode: InferenceMode | None = None,
 ) -> AsyncIterator[str]:
     """Stream a free-text draft answer from the retrieved chunks alone.
 
@@ -273,6 +277,9 @@ async def stream_narrative_draft(
         question: The user's question.
         chunks: Retrieved chunks to answer from, in ranked order.
         project_id: Tags the Langfuse trace.
+        mode: The Sprint 8 "model" ablation axis override for this call
+            (PRD Appendix A). ``None`` (every caller before S8.2) is local,
+            unchanged (``llm.routing.route_for``).
 
     Yields:
         Text deltas as they arrive from the model.
@@ -281,7 +288,7 @@ async def stream_narrative_draft(
         return
 
     prompt = _build_narrative_prompt(question, chunks)
-    model = get_llm(LLMPurpose.ANSWER)
+    model = get_llm(LLMPurpose.ANSWER, mode=mode)
 
     async with semaphore():
         with trace_generation(

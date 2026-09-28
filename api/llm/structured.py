@@ -12,7 +12,7 @@ from typing import Any, TypeVar
 from langchain.messages import HumanMessage
 from pydantic import BaseModel
 
-from ..contracts.enums import LLMPurpose
+from ..contracts.enums import InferenceMode, LLMPurpose
 from .client import get_llm, semaphore
 from .errors import LengthLimitError, PermanentLLMError, classify_call_error
 from .routing import route_for
@@ -30,6 +30,7 @@ async def structured_call(
     purpose: LLMPurpose,
     book_id: str | None = None,
     stage: str | None = None,
+    mode: InferenceMode | None = None,
 ) -> T:
     """Call the model routed for ``purpose`` and parse its reply as ``schema``.
 
@@ -39,6 +40,11 @@ async def structured_call(
         purpose: Routes the call to a model — never chosen by the call site.
         book_id: Tags the Langfuse trace for the Sprint 9 cost breakdown.
         stage: Tags the Langfuse trace with the pipeline stage that called in.
+        mode: The Sprint 8 "model" ablation axis override for this call.
+            ``None`` (every caller before S8.2) is local, unchanged (see
+            ``routing.route_for``). Applied to both the route and the model
+            instance, so the two never disagree about which endpoint
+            actually answered.
 
     Returns:
         A validated ``schema`` instance.
@@ -57,8 +63,10 @@ async def structured_call(
             attempt could plausibly survive (network, 5xx, 429, timeout).
             Not retried here — see ``errors.py``; that retry is Celery's job.
     """
-    route = route_for(purpose)
-    model = get_llm(purpose).with_structured_output(schema, include_raw=True)
+    route = route_for(purpose, mode=mode)
+    model = get_llm(purpose, mode=mode).with_structured_output(
+        schema, include_raw=True
+    )
 
     current_prompt = prompt
     parsing_error: BaseException | None = None

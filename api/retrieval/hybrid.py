@@ -5,6 +5,7 @@ Reciprocal rank fusion, not score normalisation — a cosine similarity and a
 scores onto a shared scale is where hybrid search usually goes wrong (PRD F4.1).
 """
 
+from enum import StrEnum
 from uuid import UUID
 
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
@@ -15,6 +16,23 @@ from ..query.scope import ReadingScope
 from . import repository
 
 RRF_K = 60
+
+
+class RetrievalMode(StrEnum):
+    """The retrieval ablation axis (PRD Appendix A): each step adds one arm.
+
+    ``vector_only -> +BM25 -> +rerank -> +graph_constrained`` is a
+    progression, not four independent choices — each value below runs
+    everything to its left plus one more thing. Values match
+    ``AblationConfig.retrieval_mode`` (``api/contracts/api.py``) exactly, so
+    an eval cell's config constructs one of these directly, no translation
+    table to drift out of sync (S8.2, F6.3).
+    """
+
+    VECTOR_ONLY = "vector_only"
+    BM25 = "bm25"
+    RERANK = "rerank"
+    GRAPH_CONSTRAINED = "graph_constrained"
 
 
 def _to_chunk_out(
@@ -87,8 +105,9 @@ async def hybrid_search(
     character_ids: list[UUID] | None = None,
     limit: int = 20,
     rerank: bool | None = None,
+    mode: RetrievalMode | None = None,
 ) -> SearchResultOut:
-    """Run both retrieval arms and fuse them with reciprocal rank fusion.
+    """Run the retrieval arms ``mode`` calls for and fuse them with RRF.
 
     Args:
         session: An open database session.
@@ -100,11 +119,21 @@ async def hybrid_search(
         book_id: Restrict to one book. ``None`` searches the whole project.
         character_ids: S6.3's graph-constrained retrieval filter — restricts
             both arms to chunks mentioning at least one of these characters.
-            ``None`` searches the whole project, unconstrained.
+            ``None`` searches the whole project, unconstrained. Ignored
+            (treated as ``None``) below ``RetrievalMode.GRAPH_CONSTRAINED``,
+            since a lower mode is measuring retrieval without the graph
+            constraint on purpose.
         limit: Chunks to return after fusion.
         rerank: Force the cross-encoder reranker on or off for this call,
             overriding ``settings.reranker_enabled``. ``None`` defers to the
-            setting (S2.10).
+            setting (S2.10). Ignored when ``mode`` is given — the mode
+            already says whether rerank runs (S8.2).
+        mode: The Sprint 8 ablation switch (PRD Appendix A) — which arms to
+            run. ``None`` is the pre-S8.2 default: both arms, RRF-fused,
+            reranked per ``rerank``/the setting, honouring ``character_ids``
+            exactly as before. Equivalent to ``GRAPH_CONSTRAINED`` when
+            ``character_ids`` is given, to ``RERANK`` otherwise — never a
+            behaviour change for a caller that does not pass it.
 
     Returns:
         Fused, ranked chunks with both component scores populated where the
@@ -118,6 +147,11 @@ async def hybrid_search(
     # out of every call that never uses it.
     from . import rerank as rerank_module
 
+    effective_character_ids = (
+        character_ids if mode is None or mode is RetrievalMode.GRAPH_CONSTRAINED
+        else None
+    )
+
     query_embedding = repository.embed_query(query)
 
     dense_results = await repository.dense_search(
@@ -126,20 +160,25 @@ async def hybrid_search(
         query_embedding=query_embedding,
         scope=scope,
         book_id=book_id,
-        character_ids=character_ids,
+        character_ids=effective_character_ids,
     )
-    lexical_results = await repository.lexical_search(
-        session,
-        project_id=project_id,
-        query=query,
-        scope=scope,
-        book_id=book_id,
-        character_ids=character_ids,
-    )
+    lexical_results: list[tuple[DocumentChunk, float]] = []
+    if mode is not RetrievalMode.VECTOR_ONLY:
+        lexical_results = await repository.lexical_search(
+            session,
+            project_id=project_id,
+            query=query,
+            scope=scope,
+            book_id=book_id,
+            character_ids=effective_character_ids,
+        )
 
     fused = _reciprocal_rank_fusion(dense_results, lexical_results)
 
-    use_rerank = rerank_module.reranker_enabled() if rerank is None else rerank
+    if mode is None:
+        use_rerank = rerank_module.reranker_enabled() if rerank is None else rerank
+    else:
+        use_rerank = mode in (RetrievalMode.RERANK, RetrievalMode.GRAPH_CONSTRAINED)
     if use_rerank and fused:
         fused = rerank_module.rerank(query, fused)
 
@@ -149,6 +188,6 @@ async def hybrid_search(
         for _chunk_id, _rrf_score, chunk, dense_score, lexical_score in top
     ]
 
-    tier = "graph_constrained" if character_ids else "unconstrained"
+    tier = "graph_constrained" if effective_character_ids else "unconstrained"
 
     return SearchResultOut(chunks=chunks, tier=tier)
