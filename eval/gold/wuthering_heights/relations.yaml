@@ -1,0 +1,252 @@
+# Gold relations for Wuthering Heights (S8.5), matching relations.schema.json
+# and the rigor of pride_and_prejudice/relations.yaml.
+#
+# Closed world over in-scope pairs, same as Pride and Prejudice, but
+# `scope_tiers` includes `minor` here (not just protagonist/major): Isabella
+# Linton, Linton Heathcliff, Mr. Earnshaw and Frances are minor-tier by
+# roster.yaml's importance ranking yet central to the two-generation family
+# tree this book exists in the gold set to exercise. Leaving them out of scope
+# would silently exempt exactly the pairs the collision/family-tree case is
+# supposed to stress.
+#
+# Chapter bounding differs from Pride and Prejudice's convention in one
+# respect: P&P's core family is alive for the whole book, so its kinship
+# relations run [1, 61]. Half of this book's cast dies mid-story. A relation
+# whose subject or object dies is bounded to the chapter of that death (the
+# fact stops being freshly evidenced there, even though the biological/legal
+# fact does not "expire") rather than padded to chapter 34 -- padding it would
+# assert the corpus keeps re-evidencing a relation for a character who is no
+# longer in the story. `parent_of`/`sibling_of`/`married_to` edges whose
+# parties both remain alive and present (e.g. Hindley -> Hareton, Heathcliff's
+# guardianship edges) do run to chapter 34.
+#
+# All chapters and pages below were verified against this exact corpus build
+# (pdf_sha256 matches roster.yaml and the live manifest) by paginating
+# corpus/downloads/wuthering-heights.txt with scripts/seed_corpus.py's own
+# `strip_boilerplate`/`paginate` and locating the cited text directly -- not
+# recalled from memory. Chapter-start pages: III=11, IV=20, V=25, VI=27,
+# VII=31, VIII=38, IX=44, X=56, XII=75, XIII=83, XVI=102, XVII=105, XIX=123,
+# XX=126, XXI=130, XXVII=164, XXVIII=173, XXX=181, XXXII=189, XXXIV=203.
+book_key: wuthering-heights
+corpus_pdf_sha256: 68f6058e17d7ba0cdf9154d43bd366267bbad7d9c6f10b4f907bf26141e0962a
+page_count: 211
+labelled_by: be1 (from the public-domain text and this exact corpus build, S8.5)
+labelled_at: "2026-09-28T00:00:00+00:00"
+source_notes: >
+  Relationships read directly from this corpus build (Gutenberg #768) by
+  locating the cited scenes and computing their page with the project's own
+  pagination function, the same method used for pride_and_prejudice/relations.yaml.
+  Kinship predicates outside the frozen ontology (cousin, aunt/nephew --
+  Catherine Linton/Hareton Earnshaw are first cousins, Isabella is Catherine
+  Linton's aunt) are deliberately absent, exactly as P&P omits cousin/patron.
+  In-law edges are asserted only where the marriage that creates them is
+  plot-central (Heathcliff/Edgar via Isabella), not derived exhaustively for
+  every combinatorially possible in-law pair -- matching P&P's own economy.
+scope_tiers: [protagonist, major, minor]
+ignored_predicates: [acquaintance_of, neighbour_of, co_occurs_with]
+chapter_tolerance: 3
+relations:
+# ── generation 1: the Earnshaws and Heathcliff's arrival ────────────────────
+- subject: Mr. Earnshaw
+  predicate: parent_of
+  object: Hindley Earnshaw
+  chapters: [3, 5]
+  evidence_pages: [12, 26]
+- subject: Mr. Earnshaw
+  predicate: parent_of
+  object: Catherine Earnshaw
+  chapters: [3, 5]
+  evidence_pages: [12, 26]
+- subject: Mr. Earnshaw
+  predicate: adoptive_parent_of
+  object: Heathcliff
+  alt_predicates: [guardian_of]
+  chapters: [4, 5]
+  evidence_pages: [23, 26]
+  note: >
+    Brought home from the streets of Liverpool as a foundling (ch4 flashback)
+    and raised alongside his own children until his ch5 death; never a legal
+    adoption in the text, but treated as filial in every other respect.
+- subject: Hindley Earnshaw
+  predicate: sibling_of
+  object: Catherine Earnshaw
+  chapters: [3, 16]
+  evidence_pages: [12, 102]
+- subject: Hindley Earnshaw
+  predicate: married_to
+  object: Frances
+  chapters: [6, 8]
+  evidence_pages: [27, 38]
+  note: Hindley returns from college for his father's funeral already married to her.
+- subject: Hindley Earnshaw
+  predicate: parent_of
+  object: Hareton Earnshaw
+  chapters: [8, 34]
+  evidence_pages: [38, 203]
+- subject: Frances
+  predicate: parent_of
+  object: Hareton Earnshaw
+  chapters: [8, 8]
+  evidence_pages: [38]
+  note: Dies of consumption within the same chapter, shortly after Hareton's birth.
+
+# ── generation 2: Catherine Linton and Linton Heathcliff ────────────────────
+- subject: Catherine Earnshaw
+  predicate: parent_of
+  object: Catherine Linton
+  chapters: [16, 34]
+  evidence_pages: [102, 203]
+  note: Dies two hours after giving birth to her.
+- subject: Edgar Linton
+  predicate: parent_of
+  object: Catherine Linton
+  chapters: [16, 34]
+  evidence_pages: [102, 203]
+- subject: Edgar Linton
+  predicate: sibling_of
+  object: Isabella Linton
+  chapters: [6, 19]
+  evidence_pages: [27, 123]
+- subject: Isabella Linton
+  predicate: parent_of
+  object: Linton Heathcliff
+  chapters: [17, 30]
+  evidence_pages: [105, 181]
+  note: >
+    Born in London after Isabella permanently flees Wuthering Heights (ch17);
+    "six months younger" than Catherine Linton (born ch16), so his birth
+    postdates Isabella's flight.
+- subject: Heathcliff
+  predicate: parent_of
+  object: Linton Heathcliff
+  chapters: [17, 30]
+  evidence_pages: [105, 181]
+- subject: Heathcliff
+  predicate: guardian_of
+  object: Hareton Earnshaw
+  chapters: [17, 34]
+  evidence_pages: [105, 203]
+  note: >
+    Inherits Wuthering Heights (and Hareton's upbringing) when Hindley dies in
+    debt to him; deliberately keeps Hareton illiterate and treated as a
+    servant as revenge on Hindley -- the disjoint-lifespans blocking rule in
+    roster.yaml has a mirror here: this edge must not be read as ordinary
+    kinship warmth.
+- subject: Heathcliff
+  predicate: guardian_of
+  object: Linton Heathcliff
+  chapters: [20, 30]
+  evidence_pages: [126, 181]
+  note: Demands custody from Edgar Linton purely to route Thrushcross Grange's inheritance through his own son.
+- subject: Heathcliff
+  predicate: guardian_of
+  object: Catherine Linton
+  alt_predicates: [in_law_of]
+  chapters: [28, 34]
+  evidence_pages: [173, 203]
+  note: Becomes her legal guardian per Linton's will once Edgar dies; concurrently her father-in-law through her marriage to Linton.
+
+# ── romantic arcs ────────────────────────────────────────────────────────────
+- subject: Heathcliff
+  predicate: friend_of
+  object: Catherine Earnshaw
+  chapters: [4, 9]
+  evidence_pages: [23, 51]
+  arc: heathcliff-catherine
+- subject: Heathcliff
+  predicate: lover_of
+  object: Catherine Earnshaw
+  chapters: [9, 16]
+  evidence_pages: [51, 102]
+  arc: heathcliff-catherine
+  note: >
+    Never married -- Catherine marries Edgar Linton in the interim, off-page,
+    during Heathcliff's three-year absence. The "Nelly, I am Heathcliff!"
+    declaration (ch9) and their final reunion (ch15) frame this as mutual,
+    unconsummated love ending only at her ch16 death.
+- subject: Catherine Earnshaw
+  predicate: married_to
+  object: Edgar Linton
+  chapters: [9, 16]
+  evidence_pages: [52, 102]
+  note: >
+    The wedding itself is not narrated -- it happens off-page some time after
+    ch9 (Heathcliff's departure) and before ch10 opens on Catherine already
+    "Mrs. Linton"; approximate to a few chapters like P&P's own transitions,
+    covered by chapter_tolerance.
+- subject: Isabella Linton
+  predicate: unrequited_love_for
+  object: Heathcliff
+  chapters: [10, 12]
+  evidence_pages: [56, 83]
+  arc: isabella-heathcliff
+- subject: Isabella Linton
+  predicate: married_to
+  object: Heathcliff
+  chapters: [13, 17]
+  evidence_pages: [83, 105]
+  arc: isabella-heathcliff
+  note: >
+    Elopes ch12, married by the ch13 opening. Flees permanently in ch17
+    (never formally separated or divorced) and dies in London roughly twelve
+    years later, announced ch19.
+- subject: Heathcliff
+  predicate: in_law_of
+  object: Edgar Linton
+  chapters: [13, 28]
+  evidence_pages: [83, 173]
+  note: 'Nelly names the tie explicitly: "Heathcliff married Mr. Linton''s sister."'
+- subject: Catherine Linton
+  predicate: lover_of
+  object: Linton Heathcliff
+  chapters: [21, 26]
+  evidence_pages: [130, 161]
+  arc: catherine-linton
+  note: A courtship largely engineered by Heathcliff toward the inheritance scheme; Linton's own feelings are genuine but self-interested.
+- subject: Catherine Linton
+  predicate: married_to
+  object: Linton Heathcliff
+  chapters: [27, 30]
+  evidence_pages: [164, 181]
+  arc: catherine-linton
+  note: Forced during Catherine's five-day imprisonment at Wuthering Heights (ch27); Linton dies within months (ch30).
+- subject: Catherine Linton
+  predicate: engaged_to
+  object: Hareton Earnshaw
+  chapters: [32, 34]
+  evidence_pages: [189, 210]
+  note: >
+    Reconciliation begins with Catherine's ch32 apology and offer to teach
+    Hareton to read; by the novel's close they plan to marry and move to
+    Thrushcross Grange.
+
+# ── adversarial ──────────────────────────────────────────────────────────────
+- subject: Heathcliff
+  predicate: enemy_of
+  object: Hindley Earnshaw
+  chapters: [4, 17]
+  evidence_pages: [23, 115]
+- subject: Heathcliff
+  predicate: enemy_of
+  object: Edgar Linton
+  alt_predicates: [rival_of]
+  chapters: [10, 28]
+  evidence_pages: [56, 173]
+
+# ── household / social ───────────────────────────────────────────────────────
+- subject: Ellen Dean
+  predicate: employee_of
+  object: Heathcliff
+  chapters: [28, 34]
+  evidence_pages: [173, 203]
+  note: Ends up housekeeping at Thrushcross Grange, which Heathcliff owns and lets to Lockwood, by the novel's close.
+- subject: Joseph
+  predicate: employee_of
+  object: Heathcliff
+  chapters: [17, 34]
+  evidence_pages: [105, 203]
+- subject: Zillah
+  predicate: employee_of
+  object: Heathcliff
+  chapters: [17, 34]
+  evidence_pages: [105, 203]
