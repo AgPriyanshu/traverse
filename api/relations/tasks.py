@@ -4,12 +4,18 @@ import logging
 from collections.abc import Awaitable, Callable
 from uuid import UUID
 
+from sqlalchemy import select
+from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
+
 from api.llm import PermanentLLMError, TransientLLMError
 
 from ..contracts.enums import AssertionType, StageName
+from ..contracts.graph import AggregatedRelation
 from ..db.engine import db_session
+from ..db.models.relation_model import Relation
 from ..pipeline import repository as pipeline_repository
 from ..pipeline.storage import StorageError, store
+from ..review import workflow as review_workflow
 from ..tasks import celery_app
 from ..workers.errors import PermanentError, TransientError
 from ..workers.policy import RETRY_POLICY
@@ -54,7 +60,20 @@ async def _extract_relations(book_id: UUID, record: StageRecord) -> None:
 
     Facts are staged in object storage, not Postgres: nothing is an edge until
     ``relations.aggregate`` has grouped, oriented and evidenced it.
+
+    Gated on the roster staying stable first (S7.1, F5.1): an open
+    ``merge_characters``/``merge_across_books`` task for this book means
+    alias resolution or reconciliation left an identity question unsettled,
+    and extracting against a roster that might still merge two characters
+    keys every edge on the wrong id. A book with no such ambiguity clears the
+    gate inside the same call and pays nothing for it.
     """
+    if not await review_workflow.pass_gate(book_id, review_workflow.ROSTER_GATE):
+        logger.info(
+            "book %s: relations.extract deferred, roster ambiguity still open", book_id
+        )
+        return
+
     async with db_session() as session:
         entries = await repository.load_project_roster(session, book_id)
         raw_chunks = await pipeline_repository.list_chunks_with_chapter_number(
@@ -95,8 +114,57 @@ async def _extract_relations(book_id: UUID, record: StageRecord) -> None:
     record.rows_written = len(result.facts)
 
 
+async def _uncertain_relation_entries(
+    session: SQLModelAsyncSession,
+    project_id: UUID,
+    relations: list[AggregatedRelation],
+) -> list[dict]:
+    """Flag edges backed by exactly one dialogue-only claim for human confirmation.
+
+    Not a confidence-threshold sweep (S7.2 DoD is explicit about that): a
+    hearsay claim repeated by two speakers, or narrated even once, is treated
+    as established the way the rest of the pipeline already treats it. A
+    single character's unverified word is the one case worth a second look
+    before it stands as fact in the graph.
+    """
+    entries = []
+    for relation in relations:
+        if not (relation.hearsay and len(relation.evidence) == 1):
+            continue
+
+        row_id = (
+            await session.exec(
+                select(Relation.id)
+                .where(Relation.project_id == project_id)
+                .where(Relation.subject_character_id == relation.subject_character_id)
+                .where(Relation.predicate == relation.predicate)
+                .where(Relation.object_character_id == relation.object_character_id)
+            )
+        ).first()
+        if row_id is not None:
+            entries.append(
+                {"relation_id": str(row_id), "reason": "single dialogue-sourced claim"}
+            )
+
+    return entries
+
+
 async def _aggregate_relations(book_id: UUID, record: StageRecord) -> None:
-    """Group staged facts into edges, recomputing the whole project from evidence."""
+    """Group staged facts into edges, recomputing the whole project from evidence.
+
+    Gated the same way ``relations.extract`` is (see there): if the roster
+    was still ambiguous when extraction ran, it deferred and left no staged
+    artifact, and this stage must defer too rather than treat a missing
+    artifact as the permanent "pass 1 never ran" error it means in every
+    other case.
+    """
+    if not await review_workflow.pass_gate(book_id, review_workflow.ROSTER_GATE):
+        logger.info(
+            "book %s: relations.aggregate deferred, roster ambiguity still open",
+            book_id,
+        )
+        return
+
     key = _ARTIFACT.format(book_id=book_id)
     if not await store.exists(key):
         raise PermanentError(f"{key} does not exist; relations.extract must run first")
@@ -138,8 +206,19 @@ async def _aggregate_relations(book_id: UUID, record: StageRecord) -> None:
         await repository.replace_conflict_tasks(
             session, project_id, book_id, result.conflicts
         )
+        uncertain = await _uncertain_relation_entries(
+            session, project_id, result.relations
+        )
+        await repository.replace_confirm_relation_tasks(
+            session, project_id, book_id, uncertain
+        )
 
     record.rows_written = written
+
+    # Fires the real interrupt() here, at the point aggregation actually
+    # found something to ask about, rather than silently deferring it to
+    # whenever graph.upsert next happens to run.
+    await review_workflow.pass_gate(book_id, review_workflow.CONFLICT_GATE)
 
 
 @celery_app.task(name=StageName.EXTRACT_RELATIONS.value, **RETRY_POLICY)

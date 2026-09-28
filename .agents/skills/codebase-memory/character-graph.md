@@ -294,6 +294,35 @@ subprocess, kills it at the interrupt, and resumes from a fresh one. This is
 PRD F5.1's acceptance criterion and the whole of Sprint 7 rests on it; do not
 weaken that test into an in-process cancellation.
 
+## Human review queue (Built, S7) — `api/review/`
+
+Two named LangGraph gates, not one flow per task type: `roster`
+(`ReviewTaskType.MERGE_CHARACTERS`/`MERGE_ACROSS_BOOKS` still `OPEN` for this
+book) guards `relations.extract`/`relations.aggregate`; `conflict`
+(`RESOLVE_CONFLICT` still `OPEN`) guards `graph.upsert`. Thread id is
+`f"{book_id}:{gate}"` (`api/review/workflow.py::thread_id`), derived rather
+than stored, so a paused run is findable from a book id and a gate name alone.
+A gate with nothing `OPEN` clears inside the same `ainvoke` call and never
+pauses — interrupts fire at genuine ambiguity only.
+
+| Symbol | Location | Status |
+| --- | --- | --- |
+| `pass_gate`, `resume_gate`, `gate_state` | `api/review/workflow.py` | **Built** — real `langgraph.types.interrupt()`, reusing the S1 Postgres checkpointer |
+| `hydrate` — stored lean payload → typed `ReviewTaskPayload` | `api/review/payloads.py` | **Built** — re-resolves against current character/relation state on every read, never serves a queue-time snapshot |
+| `blast_radius`, `highest_tier` | `api/review/priority.py` | **Built** (S7.3) — tier dominates; cascade count only breaks ties within a tier |
+| `resolve` — apply a `ReviewResolution`, idempotent via a conditional `UPDATE ... WHERE status='open'` | `api/review/resolution.py` | **Built** (S7.2, S7.4) — double-resolve returns the already-resolved row rather than re-running a merge |
+| `queue_classify_candidate`, `queue_confirm_chapter_split` | `api/review/queue.py` | **Built**, unused — be1's trigger sites for these two task types are S7.5+; see `plans/sprint-7/HANDOFF.md` |
+
+**A blocked gate does not fail the Celery stage it protects; it defers it.**
+`relations.extract`/`relations.aggregate`/`graph.upsert` all return early
+(no error, `rows_written` left at 0) when their gate is not clear, so the
+frozen chain does not dead-letter a book over a pending human decision.
+Resolving the blocking task calls `resume_gate`; on the clear-transition it
+re-dispatches `ingestion_chain(book_id, from_stage=...)` (`api/tasks.py`,
+frozen) to actually redo the deferred work — a review resolution triggers a
+new Celery run, it does not run pass 2 or Neo4j projection inline in the API
+request.
+
 ## Related
 
 [data-model.md](data-model.md) · [query-path.md](query-path.md) ·
