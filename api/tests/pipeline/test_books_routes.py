@@ -388,5 +388,6 @@ class TestStillFrozen:
         # (do1's SCR-16), +2 at Sprint 5's for GET /ops/reconciliation-quality
         # and GET /ops/reconciliation-order-check (do1's SCR-4), +3 at
         # Sprint 6's for GET /ops/answer-quality, GET /ops/query-latency and
-        # POST /ops/judge-answer (do1's SCR-2/SCR-3).
-        assert len(response.json()["paths"]) == 43
+        # POST /ops/judge-answer (do1's SCR-2/SCR-3), +2 at Sprint 7's for
+        # GET /ops/review-metrics and GET /ops/review-alerts (do1's SCR-2).
+        assert len(response.json()["paths"]) == 45
