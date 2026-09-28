@@ -15,11 +15,12 @@ const ROUTES: [path: string, heading: RegExp][] = [
   ["/books/abc-123", /ingestion/i],
   ["/books/abc-123/chapters", /chapters/i],
   ["/books/abc-123/pages/12", /page 12/i],
-  // The ask screens (S6.10-S6.13) resolve their scope from `useBook`/
-  // `useProject` before rendering anything else, so a 501 there surfaces the
-  // frozen contract's own error state, same as every other real screen below.
+  // The ask screens (S6.10-S6.13) and the review queue (S7.8) resolve their
+  // scope from `useBook`/`useProject` before rendering anything else, so a
+  // 501 there surfaces the frozen contract's own error state, same as every
+  // other real screen below.
   ["/books/abc-123/ask", /not built yet/i],
-  ["/books/abc-123/review", /the review queue is not built yet/i],
+  ["/books/abc-123/review", /not built yet/i],
   // Real screens as of S3.10/S3.11/S5.9-S5.12, now project-scoped — every
   // API call 501s under this test's default mock, so each surfaces the
   // frozen contract's own "not built yet" error state rather than the
