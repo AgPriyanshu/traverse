@@ -142,6 +142,14 @@ const buildStyle = (): StylesheetJson => {
   return style;
 };
 
+const familyColors = (): Map<string, string> => {
+  const colors = new Map<string, string>();
+  for (const [family, value] of Object.entries(FAMILY_COLOR_VAR)) {
+    colors.set(family, resolveColor(value));
+  }
+  return colors;
+};
+
 const toElements = (
   nodes: readonly GraphNode[],
   edges: readonly GraphEdge[],
@@ -220,6 +228,13 @@ export const GraphCanvas = ({
   const cyRef = useRef<Core | null>(null);
   const handlersRef = useRef({ onSelectEdge, onSelectNode });
   const firstVisibilityRef = useRef(true);
+  // What `cyRef.current` currently reflects — kept current by both effects
+  // below so a theme/symmetric rebuild always rebuilds from the latest data,
+  // not whatever `nodes`/`edges` this component instance first mounted with.
+  const graphRef = useRef<{ nodes: readonly GraphNode[]; edges: readonly GraphEdge[] }>({
+    nodes,
+    edges,
+  });
 
   // Context.
   const { colorMode } = useColorMode();
@@ -229,26 +244,29 @@ export const GraphCanvas = ({
     handlersRef.current = { onSelectEdge, onSelectNode };
   }, [onSelectEdge, onSelectNode]);
 
+  // Builds a fresh cy instance and lays it out from scratch. Runs on mount
+  // and on a theme/ontology change — deliberately not on every `nodes`/`edges`
+  // change, so a reading-position re-fetch never resets positions the reader
+  // already has a mental map of (see the incremental-update effect below).
   useEffect(() => {
     const container = containerRef.current;
     if (!container) { return undefined; }
 
+    const { nodes: currentNodes, edges: currentEdges } = graphRef.current;
+
     const cy = cytoscape({
       container,
-      elements: toElements(nodes, edges, symmetricPredicates),
+      elements: toElements(currentNodes, currentEdges, symmetricPredicates),
       style: buildStyle(),
       minZoom: 0.2,
       maxZoom: 3,
       textureOnViewport: true,
-      hideEdgesOnViewport: edges.length > 600,
+      hideEdgesOnViewport: currentEdges.length > 600,
       layout: { name: "preset" },
     });
     cyRef.current = cy;
 
-    const colors = new Map<string, string>();
-    for (const [family, value] of Object.entries(FAMILY_COLOR_VAR)) {
-      colors.set(family, resolveColor(value));
-    }
+    const colors = familyColors();
     cy.edges().forEach((edge) => {
       edge.data("color", colors.get(edge.data("family") as string));
     });
@@ -285,8 +303,91 @@ export const GraphCanvas = ({
       cy.destroy();
       cyRef.current = null;
     };
-    // The layout is deliberately built once per graph or theme, never per filter change.
-  }, [nodes, edges, symmetricPredicates, colorMode]);
+    // Theme and the symmetric-predicate set are the only things that force a
+    // full rebuild; a data change is handled incrementally below instead.
+  }, [symmetricPredicates, colorMode]);
+
+  // Updates the existing cy instance in place when `nodes`/`edges` change —
+  // almost always the reading-position slider re-fetching a smaller (or, on
+  // widening, larger) graph (S8.6). Elements the new fetch dropped fade out
+  // and are removed from their *existing* positions rather than the whole
+  // graph re-laying-out from scratch, so "the reader sees nodes and edges
+  // leave" is a real transition, not a jump cut to an unrelated layout.
+  useEffect(() => {
+    const cy = cyRef.current;
+    const previous = graphRef.current;
+    if (!cy || (previous.nodes === nodes && previous.edges === edges)) {
+      graphRef.current = { nodes, edges };
+      return undefined;
+    }
+
+    const newNodeIds = new Set(nodes.map((node) => node.id));
+    const newEdgeIds = new Set(edges.map((edge) => edge.id));
+    const oldNodeIds = new Set(previous.nodes.map((node) => node.id));
+    const oldEdgeIds = new Set(previous.edges.map((edge) => edge.id));
+
+    const leaving = cy
+      .elements()
+      .filter((element) => (element.isNode() ? !newNodeIds.has(element.id()) : !newEdgeIds.has(element.id())));
+    const enteringNodes = nodes.filter((node) => !oldNodeIds.has(node.id));
+    const enteringEdges = edges.filter((edge) => !oldEdgeIds.has(edge.id));
+
+    const duration = prefersReducedMotion() ? 0 : FADE_MS;
+
+    const apply = () => {
+      cy.batch(() => {
+        leaving.remove();
+        const colors = familyColors();
+        const addedNodes = cy.add(toElements(enteringNodes, [], symmetricPredicates));
+        const addedEdges = cy.add(toElements([], enteringEdges, symmetricPredicates));
+        addedEdges.forEach((edge) => { edge.data("color", colors.get(edge.data("family") as string)); });
+        if (duration > 0) {
+          addedNodes.style({ opacity: 0 });
+          addedNodes.animate({ style: { opacity: 1 } }, { duration });
+          // Target opacity matches the stylesheet's own `edge`/`edge[?hearsay]`
+          // rules per element — an inline style set via `.animate` would
+          // otherwise pin every future frame's opacity, overriding hearsay
+          // dimming permanently for a freshly-added edge.
+          addedEdges.forEach((edge) => {
+            const targetOpacity = edge.data("hearsay") ? 0.55 : 0.85;
+            edge.style({ opacity: 0 });
+            edge.animate({ style: { opacity: targetOpacity } }, { duration });
+          });
+        }
+      });
+      if (enteringNodes.length > 0) {
+        // New characters have no position yet — relaying out only unlocked
+        // (new) elements keeps everything already on screen where it was.
+        cy.layout({
+          name: "fcose",
+          animate: false,
+          randomize: false,
+          quality: "default",
+          nodeDimensionsIncludeLabels: true,
+          idealEdgeLength: 110,
+          nodeRepulsion: 9000,
+          padding: FIT_PADDING,
+        } as cytoscape.LayoutOptions).run();
+      }
+      const remaining = cy.elements();
+      if (remaining.length > 0) {
+        if (duration > 0) {
+          cy.animate({ fit: { eles: remaining, padding: FIT_PADDING } }, { duration: FIT_MS });
+        } else {
+          cy.fit(remaining, FIT_PADDING);
+        }
+      }
+      graphRef.current = { nodes, edges };
+    };
+
+    if (leaving.length > 0 && duration > 0) {
+      leaving.animate({ style: { opacity: 0 } }, { duration });
+      const timeoutId = window.setTimeout(apply, duration);
+      return () => { window.clearTimeout(timeoutId); };
+    }
+    apply();
+    return undefined;
+  }, [nodes, edges, symmetricPredicates]);
 
   useEffect(() => {
     const cy = cyRef.current;
@@ -295,8 +396,15 @@ export const GraphCanvas = ({
     const fit = prefersReducedMotion() || firstVisibilityRef.current ? 0 : FIT_MS;
     firstVisibilityRef.current = false;
 
+    // An element the data-diff effect above is mid-fade-removing for (a real
+    // reading-position re-fetch, not this client-side filter) is skipped here
+    // entirely — `display: none` is instant and would cut its fade-out short.
+    const currentNodeIds = new Set(nodes.map((node) => node.id));
+    const currentEdgeIds = new Set(edges.map((edge) => edge.id));
+
     cy.batch(() => {
       cy.nodes().forEach((node) => {
+        if (!currentNodeIds.has(node.id())) { return; }
         const shouldShow = visibleNodeIds.has(node.id());
         if (shouldShow && node.style("display") === "none") {
           node.style({ display: "element", opacity: 0 });
@@ -310,6 +418,7 @@ export const GraphCanvas = ({
         }
       });
       cy.edges().forEach((edge) => {
+        if (!currentEdgeIds.has(edge.id())) { return; }
         const shouldShow = visibleEdgeIds.has(edge.id()) &&
           visibleNodeIds.has(edge.source().id()) &&
           visibleNodeIds.has(edge.target().id());

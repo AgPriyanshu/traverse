@@ -6,6 +6,7 @@ import type { Book } from "@/lib/api";
 import { useOntology, useProject, useProjectGraph } from "@/lib/api";
 import { formatCount } from "@/lib/format";
 import { sortedBooks } from "../project-lookup";
+import { useReadingPositionContext } from "../reading-position-context";
 import { buildNodeIndex, contextFor } from "./edge-context";
 import { EvidencePanel } from "./evidence-panel";
 import { GraphCanvas } from "./graph-canvas";
@@ -14,8 +15,6 @@ import { filterGraph, parseFilters, writeFilters } from "./graph-filters";
 import type { GraphFilters } from "./graph-filters";
 import { GraphLegend } from "./graph-legend";
 import { GraphListView } from "./graph-list-view";
-import { SeriesPositionControl } from "./series-position-control";
-import type { SeriesPosition } from "./series-position-control";
 
 const EMPTY_BOOKS: Book[] = [];
 const NARROW_QUERY = "(max-width: 47.99em)";
@@ -27,18 +26,11 @@ const defaultView = (): "graph" | "list" => {
   return window.matchMedia(NARROW_QUERY).matches ? "list" : "graph";
 };
 
-const parsePosition = (params: URLSearchParams): SeriesPosition => {
-  const bookRaw = params.get("limit_book_order");
-  const chapterRaw = params.get("limit_chapter");
-  const bookOrder = bookRaw === null || bookRaw === "" ? null : Number(bookRaw);
-  const chapter = chapterRaw === null || chapterRaw === "" ? null : Number(chapterRaw);
-  return { bookOrder: Number.isFinite(bookOrder) ? bookOrder : null, chapter: Number.isFinite(chapter) ? chapter : null };
-};
-
 /**
  * The series graph: one standing graph across every ingested book, sliced by
  * a client-side book filter (animated, S5.11) and hard-cut by the reading
- * position (server-side `limit_book_order`/`limit_chapter`, spoiler-safe).
+ * position from the persistent slider in `<ProjectLayout>`
+ * (server-side `limit_book_order`/`limit_chapter`, spoiler-safe, S8.6).
  */
 export const GraphExplorer = () => {
   // Hooks.
@@ -46,13 +38,15 @@ export const GraphExplorer = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
 
+  // Context.
+  const { position } = useReadingPositionContext();
+
   // Apis.
   const project = useProject(projectId);
   const ontology = useOntology();
-  const position = useMemo(() => parsePosition(searchParams), [searchParams]);
   const graph = useProjectGraph(projectId, {
-    limit_book_order: position.bookOrder ?? undefined,
-    limit_chapter: position.chapter ?? undefined,
+    limit_book_order: position?.bookOrder ?? undefined,
+    limit_chapter: position?.chapter ?? undefined,
   });
 
   // Variables.
@@ -97,18 +91,6 @@ export const GraphExplorer = () => {
 
   const handleFilters = (next: GraphFilters) => {
     setSearchParams(writeFilters(searchParams, next), { replace: true });
-  };
-
-  const handlePosition = (next: SeriesPosition) => {
-    updateParams((params) => {
-      if (next.bookOrder === null) {
-        params.delete("limit_book_order");
-        params.delete("limit_chapter");
-      } else {
-        params.set("limit_book_order", String(next.bookOrder));
-        params.set("limit_chapter", String(next.chapter ?? 1));
-      }
-    });
   };
 
   const handleSelectEdgeId = useCallback(
@@ -184,10 +166,6 @@ export const GraphExplorer = () => {
           ))}
         </HStack>
       </HStack>
-
-      {books.length > 1 ? (
-        <SeriesPositionControl books={books} value={position} onChange={handlePosition} />
-      ) : null}
 
       <GraphFilterBar filters={filters} books={books} onChange={handleFilters} />
 

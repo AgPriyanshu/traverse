@@ -1,7 +1,11 @@
-import { Box } from "@chakra-ui/react";
+import { Box, Stack } from "@chakra-ui/react";
 import { Outlet, useParams } from "react-router";
 import { NavLinks } from "@/components/layout";
 import type { NavItem } from "@/components/layout";
+import { ReadingPositionSlider } from "@/components/spoiler";
+import { useProject } from "@/lib/api";
+import { useReadingPositionContext } from "./reading-position-context";
+import { ReadingPositionProvider } from "./reading-position-provider";
 
 const projectNav = (projectId: string): NavItem[] => [
   { to: `/projects/${projectId}`, label: "Overview", match: "exact" },
@@ -10,24 +14,45 @@ const projectNav = (projectId: string): NavItem[] => [
   { to: `/projects/${projectId}/ask`, label: "Ask", match: "prefix" },
 ];
 
+const ProjectSpoilerSlider = () => {
+  // Apis.
+  const { index, maxIndex, label, isLimited, setIndex } = useReadingPositionContext();
+
+  return (
+    <ReadingPositionSlider
+      index={index}
+      maxIndex={maxIndex}
+      label={label}
+      isLimited={isLimited}
+      onChange={setIndex}
+    />
+  );
+};
+
 /** The tab nav shared by every screen scoped to one project — the series-wide equivalent of `<BookLayout>`. */
 export const ProjectLayout = () => {
   // Hooks.
   const { projectId = "" } = useParams();
 
+  // Apis.
+  const project = useProject(projectId);
+
   return (
-    <>
-      <Box
-        marginBlockEnd="7"
-        paddingBlockEnd="1"
-        borderBottomWidth="1px"
-        borderColor="border"
-      >
-        <NavLinks items={projectNav(projectId)} direction="row" ariaLabel="This project" />
-      </Box>
+    <ReadingPositionProvider projectId={projectId} books={project.data?.books ?? []}>
+      <Stack gap="4" marginBlockEnd="7">
+        <Box
+          paddingBlockEnd="1"
+          borderBottomWidth="1px"
+          borderColor="border"
+        >
+          <NavLinks items={projectNav(projectId)} direction="row" ariaLabel="This project" />
+        </Box>
+
+        {project.data ? <ProjectSpoilerSlider /> : null}
+      </Stack>
 
       <Outlet />
-    </>
+    </ReadingPositionProvider>
   );
 };
 

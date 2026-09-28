@@ -319,13 +319,15 @@ export const useCharacters = (
   });
 };
 
-export const useCharacter = (characterId: string | undefined) => {
+export type CharacterDetailParams = QueryParams<"/api/characters/{character_id}", "get">;
+
+export const useCharacter = (characterId: string | undefined, params?: CharacterDetailParams) => {
   return useQuery({
-    queryKey: queryKeys.character(characterId ?? ""),
+    queryKey: queryKeys.character(characterId ?? "", params),
     queryFn: () =>
       request(() =>
         client.GET("/api/characters/{character_id}", {
-          params: { path: { character_id: characterId as string } },
+          params: { path: { character_id: characterId as string }, query: params },
         }),
       ),
     enabled: Boolean(characterId),

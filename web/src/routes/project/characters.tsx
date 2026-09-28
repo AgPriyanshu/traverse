@@ -8,6 +8,7 @@ import { formatCount } from "@/lib/format";
 import { CharacterRow } from "./character-row";
 import { TIER_LABEL, TIER_ORDER } from "./character-labels";
 import { bookById, sortedBooks } from "./project-lookup";
+import { useReadingPositionContext } from "./reading-position-context";
 
 type SortKey = "mentions" | "first" | "name";
 
@@ -56,9 +57,15 @@ export const Characters = () => {
   const { projectId = "" } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
 
+  // Context.
+  const { position } = useReadingPositionContext();
+
   // Apis.
   const project = useProject(projectId);
-  const characters = useCharacters(projectId);
+  const characters = useCharacters(projectId, {
+    limit_book_order: position?.bookOrder ?? undefined,
+    limit_chapter: position?.chapter ?? undefined,
+  });
 
   // Variables.
   const query = searchParams.get("q") ?? "";

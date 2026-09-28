@@ -99,6 +99,7 @@ describe("the character detail page", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    window.localStorage.clear();
   });
 
   it("shows the header, aliases with their resolution method, and cited attributes", async () => {
@@ -196,5 +197,42 @@ describe("the character detail page", () => {
     // S3.12 asks for the resolution method per mention, not just per group.
     expect(within(dialog).getAllByText(/nickname table/i).length).toBeGreaterThanOrEqual(2);
     expect(within(dialog).getByRole("link", { name: /page 5 of anne of green gables/i })).toBeInTheDocument();
+  });
+
+  it("sends the project's stored reading position on the character and mentions requests (S8.6)", async () => {
+    window.localStorage.setItem(
+      `traverse:reading-position:${PROJECT_ID}`,
+      JSON.stringify({ bookOrder: 1, chapter: 1 }),
+    );
+    const seenUrls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = input instanceof Request ? input.url : String(input);
+        seenUrls.push(url);
+        const routes: Record<string, unknown> = {
+          [`/api/books/${BOOK_1}/chapters`]: [chapter()],
+          [`/api/projects/${PROJECT_ID}`]: project(),
+          [`/api/characters/${CHARACTER_ID}/mentions`]: [mention()],
+          [`/api/characters/${CHARACTER_ID}`]: characterDetail(),
+        };
+        const match = Object.entries(routes).find(([path]) => url.includes(path));
+        return match
+          ? jsonResponse(match[1])
+          : jsonResponse({ detail: `unhandled in test: ${url}` }, 404);
+      }),
+    );
+
+    renderRoute(`/projects/${PROJECT_ID}/characters/${CHARACTER_ID}`);
+    await screen.findByRole("heading", { name: "Anne Shirley" });
+
+    await waitFor(() => {
+      expect(
+        seenUrls.some((url) => /\/characters\/char-anne\?.*limit_chapter=1/.test(url)),
+      ).toBe(true);
+      expect(
+        seenUrls.some((url) => /\/characters\/char-anne\/mentions\?.*limit_chapter=1/.test(url)),
+      ).toBe(true);
+    });
   });
 });
