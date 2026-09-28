@@ -23,9 +23,10 @@ from ..db.models import (
     Project,
     ReconciliationDecision,
     Relation,
-    ReviewTask,
 )
 from ..extraction.aliases import choose_canonical
+from ..graph.repository import appearance_orders, to_character_out
+from ..pipeline.verification import raise_disagreement
 
 logger = logging.getLogger(__name__)
 
@@ -240,9 +241,8 @@ async def queue_cross_book_review(
     *,
     project_id: UUID,
     book_id: UUID,
-    candidate_name: str,
-    target_name: str,
-    target_character_id: UUID,
+    candidate: Character,
+    target: Character,
     reason: str,
     confidence: float,
 ) -> None:
@@ -252,22 +252,37 @@ async def queue_cross_book_review(
     unmerged is visible and recoverable, a false merge is silent and
     destructive, so anything in the middle band routes here rather than
     guessing.
+
+    ``payload`` matches the frozen ``MergeAcrossBooksPayload`` shape
+    (``api/contracts/api.py``, S7.2). Deduplicated on the ordered
+    (candidate, target) pair -- a rerun of this book's reconciliation against
+    an unchanged roster reproduces the same block every time, and a human's
+    "keep separate" on it must stick (S7.5/F5.4), not queue again on the next
+    ingest.
     """
-    task = ReviewTask(
+    orders = await appearance_orders(session, [candidate.id, target.id])
+
+    await raise_disagreement(
+        session,
         project_id=project_id,
         book_id=book_id,
         task_type=ReviewTaskType.MERGE_ACROSS_BOOKS,
+        dedup_key=f"cross_book:{candidate.id}:{target.id}",
         payload={
-            "candidate_name": candidate_name,
-            "target_name": target_name,
-            "target_character_id": str(target_character_id),
+            "candidates": [
+                to_character_out(candidate, orders.get(candidate.id, [])).model_dump(
+                    mode="json"
+                ),
+                to_character_out(target, orders.get(target.id, [])).model_dump(
+                    mode="json"
+                ),
+            ],
+            "contexts": {},
+            "similarity_score": confidence,
             "reason": reason,
-            "confidence": confidence,
         },
         priority=2,
     )
-    session.add(task)
-    await session.commit()
 
 
 async def merge_character(

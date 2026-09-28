@@ -264,7 +264,10 @@ class TestDeathBlocksAutolink:
             .all()
         )
         assert len(review_tasks) == 1
-        assert review_tasks[0].payload["target_name"] == "Matthew Cuthbert"
+        candidate_names = {
+            c["canonical_name"] for c in review_tasks[0].payload["candidates"]
+        }
+        assert candidate_names == {"Matthew Cuthbert", "Old Matthew"}
 
 
 class TestGenerationalNamesake:
