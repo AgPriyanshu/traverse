@@ -56,6 +56,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from eval.ablation import (
     BLOCKED_FRONTIER_JUDGE,
+    BLOCKED_FRONTIER_MODEL,
     AblationCell,
     build_matrix,
     cache_key,
@@ -73,6 +74,19 @@ LATEST_PATH = OUT_ROOT / "latest.json"
 EXTRACTION_BOOKS = ["pride-and-prejudice", "wuthering-heights"]
 ANSWER_BOOK = "pride-and-prejudice"
 
+# One gold question's hard wall-clock budget for the direct in-process
+# narrative pipeline run (S8.8.1, _run_narrative_gold_set). Not a production
+# value -- api/llm/** sets no request timeout anywhere today (checked), so a
+# single pathological generation can otherwise stall an entire ablation cell
+# indefinitely. Real, reproducible example found running this fast-follow
+# against the shared dev stack's CPU-only vLLM: pp-031 ("Who are Mr. and Mrs.
+# Gardiner?", class=single_fact -- a graph-derived route with no expected
+# narrative generation at all) ran past 3 minutes of continuous, still-
+# growing GPU-KV-cache generation before being killed; see
+# plans/sprint-8/HANDOFF.md. A question that times out is recorded as
+# unanswered for that cell, never a guessed answer.
+QUESTION_TIMEOUT_S = 90.0
+
 
 def _log(message: str) -> None:
     print(message, flush=True)
@@ -85,6 +99,28 @@ def _get(api_base_url: str, path: str, *, timeout: float = 60.0) -> dict[str, An
             return json.loads(response.read())
     except urllib.error.URLError as exc:
         return {"_transport_error": str(exc)}
+
+
+def _post_json(
+    api_base_url: str, path: str, payload: dict[str, Any], *, timeout: float = 90.0
+) -> tuple[int | None, dict[str, Any]]:
+    """Used for the judge call only (``/api/ops/judge-answer``, do1-owned) --
+    everything else this script needs from the running API is a ``GET``."""
+    url = f"{api_base_url.rstrip('/')}{path}"
+    body = json.dumps(payload).encode()
+    req = urllib.request.Request(
+        url, data=body, method="POST", headers={"Content-Type": "application/json"}
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            return response.status, json.loads(response.read() or b"{}")
+    except urllib.error.HTTPError as exc:
+        try:
+            return exc.code, json.loads(exc.read())
+        except json.JSONDecodeError:
+            return exc.code, {}
+    except urllib.error.URLError as exc:
+        return None, {"_transport_error": str(exc)}
 
 
 def git_sha() -> str | None:
@@ -143,6 +179,23 @@ def resolve_book_id(api_base_url: str, book_key: str) -> str | None:
     return candidates[0]["id"]
 
 
+def resolve_project_id(api_base_url: str, book_key: str) -> str | None:
+    """Same lookup as ``resolve_book_id``, but returns the book's
+    ``project_id`` -- what the in-process narrative pipeline run
+    (``_run_narrative_gold_set``) needs to build a ``QueryRequest``."""
+    books = _get(api_base_url, "/api/books")
+    if not isinstance(books, list):
+        return None
+
+    candidates = [b for b in books if _slugify_title(b.get("title", "")) == book_key]
+    if not candidates:
+        return None
+
+    candidates.sort(key=lambda b: b.get("ingested_at") or "", reverse=True)
+
+    return candidates[0]["project_id"]
+
+
 def load_state(state_path: Path) -> dict[str, Any]:
     if state_path.exists():
         return json.loads(state_path.read_text())
@@ -176,11 +229,46 @@ def blocked_result(cell: AblationCell) -> dict[str, Any]:
     }
 
 
+def _build_ablation_config(cell: AblationCell):
+    """One ``AblationConfig`` (``api/contracts/api.py``) for ``cell`` --
+    ``cell.config``'s keys already match that model's field names one for one
+    (``eval/ablation.py``'s own ``build_matrix``), so no translation table."""
+    from api.contracts.api import AblationConfig
+
+    return AblationConfig(axis=cell.axis, label=cell.label, **cell.config)
+
+
 def measure_extraction_cell(
     api_base_url: str, cell: AblationCell, manifest: dict[str, Any], *, force: bool
 ) -> list[dict[str, Any]]:
     """One result per gold-labelled book -- the only configuration this
-    pipeline can currently produce is ``RECOMMENDED_EXTRACTION``."""
+    pipeline can currently produce is ``RECOMMENDED_EXTRACTION``.
+
+    Calls ``resolve()`` first, purely as a live canary on the fast-follow's
+    documented gap (S8.8.1): the extraction axis has no runtime switch in
+    ``api/eval/ablation.py`` (be1/api-review territory, not be2's or this
+    script's to build), so ``resolve()`` is expected to raise
+    ``AblationAxisNotOwned`` for every extraction cell, including this one --
+    that exception is *not* what makes this cell measurable or not (roster
+    precision/recall/F1 is read straight off ``/ops/extraction-quality``,
+    no retrieval/model switch involved). If ``resolve()`` ever stops raising
+    here, an extraction config-switch has landed and this function -- and
+    ``eval/ablation.py``'s ``BLOCKED_CONFIG_SWITCH`` rows -- are stale.
+    """
+    from api.eval.ablation import AblationAxisNotOwned, resolve
+
+    try:
+        resolve(_build_ablation_config(cell))
+    except AblationAxisNotOwned:
+        pass
+    else:
+        raise AssertionError(
+            "api.eval.ablation.resolve() no longer raises AblationAxisNotOwned "
+            "for axis='extraction' -- an extraction config-switch has landed. "
+            "Update eval/ablation.py's non-recommended extraction rows "
+            "(currently BLOCKED_CONFIG_SWITCH) and this function to use it."
+        )
+
     results = []
     sha = git_sha()
     for book_key in EXTRACTION_BOOKS:
@@ -217,26 +305,270 @@ def measure_extraction_cell(
     return results
 
 
+async def _run_narrative_gold_set(
+    api_base_url: str,
+    book_key: str,
+    *,
+    retrieval_mode: Any,
+    inference_mode: Any,
+) -> dict[str, Any]:
+    """Drive every gold question through the real, in-process query pipeline
+    once, with ``retrieval_mode``/``inference_mode`` (``ResolvedAblation``,
+    ``api/eval/ablation.py::resolve()``) applied to the narrative
+    retrieval/generation calls a question happens to take (S8.8.1).
+
+    This replaces reading a shared, already-judged ``answer_judgements.json``
+    for every retrieval/model cell: each cell now gets its own real answers,
+    not a copy of whichever cell ran first. Only the ``narrative`` route
+    (``api/query/pipeline.py::_answer_narrative``) ever calls
+    ``retrieve_for_narrative``/``stream_narrative_draft``, so a
+    ``relationship``/``path``/``aggregation``/``single_fact`` gold question
+    answers identically across every retrieval/model cell, exactly like
+    production -- only the subset of questions that actually route to
+    ``narrative`` differs cell to cell, which is the true, honest scope of
+    these two axes.
+
+    The override is applied by monkeypatching ``api.query.retrieval`` /
+    ``api.query.generation`` module attributes for the duration of this call
+    and restoring them in a ``finally`` -- ``api/query/pipeline.py`` (be2-
+    owned, this script must not edit it) looks these two functions up by
+    module attribute at call time, so this reaches every call site
+    ``answer_question`` takes without touching a single line of that file,
+    exactly the "pass the resolved mode into these two functions directly"
+    shape ``api/eval/ablation.py::resolve()``'s own docstring names.
+    """
+    from uuid import UUID
+
+    from eval.answer_metrics import (
+        AnsweredCitation,
+        AnsweredQuery,
+        JudgeVerdict,
+        gold_questions,
+        score_answers,
+    )
+    from eval.loaders import CorpusChecksumMismatch, RosterSchemaError, load_gold_answers
+
+    from api.contracts.api import QueryRequest
+    from api.db.engine import db_session
+    from api.query import generation as generation_mod
+    from api.query import retrieval as retrieval_mod
+    from api.query.grounding import ABSTENTION_TEXT
+    from api.query.pipeline import answer_question
+
+    try:
+        document = load_gold_answers(book_key)
+    except FileNotFoundError:
+        return {"gold_available": False}
+    except (RosterSchemaError, CorpusChecksumMismatch) as exc:
+        return {"gold_available": False, "error": str(exc)}
+
+    gold = gold_questions(document)
+    sample_limit = os.environ.get("ABLATION_GOLD_SET_LIMIT")
+    if sample_limit:
+        # Stand-in for a real constraint hit running this fast-follow against
+        # this shared dev stack's CPU-only vLLM (no GPU profile up): a full
+        # 38-question narrative pass can run into multi-minute single
+        # generations (see QUESTION_TIMEOUT_S's docstring). Not a permanent
+        # flag -- unset, this measures the real, full gold set, which is what
+        # a GPU-backed or more patient run should do. The caller
+        # (measure_answer_backed_cell) skips the on-disk cache whenever this
+        # is set, so a capped sample can never masquerade as -- or block --
+        # a later full run under the same cache key.
+        gold = gold[: int(sample_limit)]
+        _log(f"    ABLATION_GOLD_SET_LIMIT={sample_limit}: measuring a partial sample, not the full gold set")
+
+    project_id = resolve_project_id(api_base_url, book_key)
+    if project_id is None:
+        return {"gold_available": False, "error": f"{book_key} is not ingested in this environment"}
+
+    orig_retrieve = retrieval_mod.retrieve_for_narrative
+    orig_stream = generation_mod.stream_narrative_draft
+
+    async def _patched_retrieve(*args: Any, **kwargs: Any) -> Any:
+        kwargs["mode"] = retrieval_mode
+
+        return await orig_retrieve(*args, **kwargs)
+
+    async def _patched_stream(*args: Any, **kwargs: Any):
+        kwargs["mode"] = inference_mode
+        async for delta in orig_stream(*args, **kwargs):
+            yield delta
+
+    answered: list[AnsweredQuery] = []
+    verdicts: list[JudgeVerdict] = []
+
+    retrieval_mod.retrieve_for_narrative = _patched_retrieve
+    generation_mod.stream_narrative_draft = _patched_stream
+    try:
+        for question in gold:
+            tokens: list[str] = []
+            citations_raw: list[dict[str, Any]] = []
+            abstained = False
+            request = QueryRequest(project_id=UUID(project_id), question=question.question)
+
+            async def _drive() -> None:
+                async with db_session() as session:
+                    async for event in answer_question(session, request):
+                        etype = getattr(event, "type", None)
+                        if etype == "token":
+                            tokens.append(event.text)
+                        elif etype == "citation":
+                            citations_raw.append(event.citation.model_dump(mode="json"))
+                        elif etype == "done":
+                            nonlocal abstained
+                            abstained = event.abstained
+
+            # A fresh session per question, exactly like the real
+            # ``get_session`` FastAPI dependency (``api/db/engine.py``) --
+            # never one shared session for the whole gold set, so a mid-
+            # transaction exception on one question can't poison the next.
+            # Bounded by QUESTION_TIMEOUT_S: no request timeout exists
+            # anywhere in api/llm/** today, so one pathological generation
+            # would otherwise stall the whole cell (see that constant's
+            # docstring for the real example this caught).
+            try:
+                await asyncio.wait_for(_drive(), timeout=QUESTION_TIMEOUT_S)
+            except TimeoutError:
+                _log(f"    [{question.id}] timed out after {QUESTION_TIMEOUT_S}s -- recorded as unanswered")
+                tokens.clear()
+                citations_raw.clear()
+            except Exception as exc:  # noqa: BLE001 -- mirrors api/routes/query.py::
+                # _event_stream's own boundary: a stream that breaks
+                # partway through still keeps whatever text/citations it
+                # already produced, same as a real client would see.
+                _log(f"    [{question.id}] pipeline error after partial output: {exc}")
+
+            answer_text = "".join(tokens) or None
+            if answer_text and answer_text.startswith(ABSTENTION_TEXT):
+                # A real, pre-existing bug independent of this ablation
+                # (api/query/pipeline.py::_finish raises "greenlet_spawn has
+                # not been called" while persisting the query log/turn, on
+                # every route, in this environment -- see
+                # plans/sprint-8/HANDOFF.md) can prevent the `done` event
+                # above from ever being yielded. The abstention text is still
+                # authoritative regardless: grounding.abstain() always pairs
+                # it with citations=[], for both call sites that produce it.
+                abstained = True
+
+            if answer_text is None:
+                continue
+
+            answered.append(
+                AnsweredQuery(
+                    question_id=question.id,
+                    answer=answer_text,
+                    abstained=abstained,
+                    citations=tuple(
+                        AnsweredCitation(
+                            book_id=str(c.get("book_id", "")),
+                            page_start=c["page_start"],
+                            page_end=c.get("page_end", c["page_start"]),
+                            quote=c.get("quote"),
+                        )
+                        for c in citations_raw
+                    ),
+                )
+            )
+
+            status_code, verdict = _post_json(
+                api_base_url,
+                "/api/ops/judge-answer",
+                {
+                    "question_id": question.id,
+                    "question": question.question,
+                    "expected_answer": question.expected_answer,
+                    "expect_abstain": question.expect_abstain,
+                    "system_answer": answer_text,
+                    "abstained": abstained,
+                    "citations": citations_raw,
+                },
+            )
+            if status_code == 200 and verdict:
+                verdicts.append(
+                    JudgeVerdict(
+                        question_id=question.id,
+                        correct=verdict.get("correct"),
+                        citation_supported=tuple(verdict.get("citation_supported", [])),
+                    )
+                )
+    finally:
+        retrieval_mod.retrieve_for_narrative = orig_retrieve
+        generation_mod.stream_narrative_draft = orig_stream
+
+    scores = score_answers(gold, answered, verdicts)
+
+    return {
+        "gold_available": True,
+        "answered": scores.answered,
+        "total_gold": scores.total_gold,
+        "accuracy": {"rate": scores.accuracy.rate},
+        "citation_precision": {"rate": scores.citation_precision.rate},
+    }
+
+
 def measure_answer_backed_cell(
     api_base_url: str, cell: AblationCell, manifest: dict[str, Any], *, force: bool
 ) -> list[dict[str, Any]]:
-    """Retrieval/model recommended cells share the one live query configuration
-    -- there is nothing yet that distinguishes "retrieval=graph_constrained"
-    from "model=local" at the measurement layer, since both describe the same
-    (and only) code path. Both axes read the same S6.14 answer-quality run."""
+    """Resolve this cell's retrieval/model switch (S8.2's ``resolve()``) and
+    measure it independently by driving the real gold set through the
+    pipeline once with that switch applied -- retrieval and model cells no
+    longer share one live run (S8.8.1; see ``_run_narrative_gold_set``)."""
+    from api.eval.ablation import AblationAxisNotOwned, resolve
+
+    # A capped sample (see _run_narrative_gold_set's ABLATION_GOLD_SET_LIMIT
+    # docstring) must never be read back as, or overwrite, a full run's
+    # cached result under the same cache_key.
+    sample_limit = os.environ.get("ABLATION_GOLD_SET_LIMIT")
     sha = git_sha()
     checksum = corpus_checksum(manifest, ANSWER_BOOK)
     key = cache_key(cell, book_key=ANSWER_BOOK, corpus_checksum=checksum or "", git_sha=sha or "")
-    cached = None if force else load_cache(key)
+    cached = None if (force or sample_limit) else load_cache(key)
     if cached is not None:
         _log(f"  [{cell.label}] {ANSWER_BOOK}: cached")
         return [{**cached, "book_key": ANSWER_BOOK, "cache_key": key}]
 
-    quality = _get(api_base_url, f"/api/ops/answer-quality?book_key={ANSWER_BOOK}")
+    try:
+        resolved = resolve(_build_ablation_config(cell))
+    except AblationAxisNotOwned as exc:
+        payload = {
+            "status": "blocked",
+            "blocked_reason": f"blocked: {exc}",
+            "metrics": {"sample_size": 0},
+        }
+        save_cache(key, payload)
+        _log(f"  [{cell.label}] {ANSWER_BOOK}: {payload['status']}")
+
+        return [{**payload, "book_key": ANSWER_BOOK, "cache_key": key}]
+
+    if resolved.inference_mode is not None:
+        from api.contracts.enums import InferenceMode
+
+        if resolved.inference_mode == InferenceMode.API:
+            from api.config import settings
+
+            if not settings.frontier_model:
+                payload = {
+                    "status": "blocked",
+                    "blocked_reason": BLOCKED_FRONTIER_MODEL,
+                    "metrics": {"sample_size": 0},
+                }
+                save_cache(key, payload)
+                _log(f"  [{cell.label}] {ANSWER_BOOK}: {payload['status']}")
+
+                return [{**payload, "book_key": ANSWER_BOOK, "cache_key": key}]
+
+    quality = asyncio.run(
+        _run_narrative_gold_set(
+            api_base_url,
+            ANSWER_BOOK,
+            retrieval_mode=resolved.retrieval_mode,
+            inference_mode=resolved.inference_mode,
+        )
+    )
     if not quality.get("gold_available"):
         payload = {
             "status": "blocked",
-            "blocked_reason": f"blocked: no gold answer set for {ANSWER_BOOK}",
+            "blocked_reason": f"blocked: {quality.get('error') or f'no gold answer set for {ANSWER_BOOK}'}",
             "metrics": {"sample_size": 0},
         }
     else:
@@ -258,7 +590,20 @@ def measure_answer_backed_cell(
         else:
             payload = {"status": "measured", "blocked_reason": partial_note, "metrics": metrics}
 
-    save_cache(key, payload)
+    if sample_limit:
+        cap_note = (
+            f"gold set capped to {sample_limit} questions via "
+            "ABLATION_GOLD_SET_LIMIT (a CPU-only-vLLM compute-cost stand-in "
+            "for this run, not a code limitation) -- see plans/sprint-8/HANDOFF.md"
+        )
+        if payload["status"] == "measured":
+            payload["status"] = "partial"
+            payload["blocked_reason"] = f"partial: {cap_note}"
+        elif payload["blocked_reason"]:
+            payload["blocked_reason"] = f"{payload['blocked_reason']} ({cap_note})"
+
+    if not sample_limit:
+        save_cache(key, payload)
     _log(f"  [{cell.label}] {ANSWER_BOOK}: {payload['status']}")
 
     return [{**payload, "book_key": ANSWER_BOOK, "cache_key": key}]

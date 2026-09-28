@@ -180,20 +180,58 @@ matrix and regenerates the README). `scripts/publish_ablation_readme.py`
 (`make eval-ablation-readme`) splices a freshly rendered table into
 README.md between marker comments, idempotently.
 
+**Fast-follow (S8.8.1, do1):** be2's S8.2 `api/eval/ablation.py::resolve()`
+landed, giving the retrieval and model axes a real runtime switch.
+`scripts/run_ablation.py` now calls `resolve()` per cell and measures
+retrieval (`vector_only`/`bm25`/`rerank`/`graph_constrained`) and model
+(`local`/`routed`) cells **independently** — each its own `cache_key`, each
+its own real gold-set pass — instead of every non-recommended cell reading
+`n=0` or two cells sharing one static file. Mechanism:
+`_run_narrative_gold_set` drives `api.query.pipeline.answer_question`
+directly in-process (no HTTP, no edits to `api/query/**`), monkeypatching
+`api.query.retrieval.retrieve_for_narrative`/
+`api.query.generation.stream_narrative_draft` at the module-attribute level
+for the cell's resolved mode, restored after. Only the `narrative` route
+calls either function, so this only affects the subset of gold questions
+that actually route there, exactly like production. The extraction axis is
+**unchanged and still blocked** — no switch exists for it, out of scope.
+
 Two real environment gaps this sprint's numbers are honest about, not silent
 on (see `plans/sprint-8/HANDOFF.md`): **no `FRONTIER_MODEL`/`FRONTIER_API_KEY`
 is configured**, so `LLMPurpose.JUDGE` calls fail outright (`api/llm/routing.py`
 refuses local-only judging by design) and answer accuracy/citation precision
 report `None`, never a fabricated number, for every cell that needs them —
-verified live: a real S6.14 run exists (19/30 Pride and Prejudice gold
-questions answered) with `judge: null` on every row. **be2's S8.2 ablation
-config-switch had not landed as of this run**, so every non-recommended cell
-(single-pass extraction, vector-only/BM25/rerank retrieval, frontier/routed
-model) is recorded `blocked` with that specific reason — the pipeline can
-currently produce exactly one configuration, and both retrieval and model's
-"recommended" cells are that same one live run, not independently measured.
+still true after the fast-follow, checked directly against
+`api.config.settings.frontier_model`, not assumed. The model axis's
+`frontier` cell is also blocked, but now for a *different, more precise*
+reason than before: `route_for(mode=InferenceMode.API)` has a real code path
+now (S8.2), it just raises `PermanentLLMError` because the key is absent —
+`BLOCKED_FRONTIER_MODEL`, distinct from `BLOCKED_FRONTIER_JUDGE`.
 Extraction axis numbers (the one axis genuinely measurable end to end) are
-real: Pride and Prejudice roster F1 0.701, Wuthering Heights 0.642.
+real: Pride and Prejudice roster F1 0.701, Wuthering Heights 0.642. Retrieval/
+model axis sample sizes (`n` in README.md's table) are real too, but capped
+to 12 of the 38 Pride and Prejudice gold questions per cell
+(`ABLATION_GOLD_SET_LIMIT`, a `scripts/run_ablation.py`-only env var) — this
+shared stack's `vllm` container runs Qwen3-8B-AWQ on CPU with no request
+timeout anywhere in `api/llm/**` (a real gap, not fixed here), and one gold
+question drove a single generation past 3 minutes before being killed by
+hand. `scripts/run_ablation.py` now has its own `QUESTION_TIMEOUT_S = 90.0`
+safety net so one bad question can't stall a whole cell; a capped run is
+never written to the on-disk cache, so it can't masquerade as, or block, a
+later full run.
+
+Also found and fixed live (do1-owned, not a workaround): `.env.example`'s
+`VLLM_BASE_URL=http://localhost:8080/v1/` doesn't resolve from inside the
+`api` container (`docker-compose.yml`'s own default is
+`http://vllm:8080/v1/`) — every LLM call, including routing, 500'd until
+this was corrected. Also found, **not fixed** (be2-owned,
+`api/query/pipeline.py::_finish`, out of do1's edit scope):
+`greenlet_spawn has not been called` fires on *every* route, every question,
+in this environment, after the answer's `token`/`citation` events are
+already yielded but before the `done` event — real answers and citations are
+still captured, but `abstained`/`latency_ms` are lost server-side and the
+query log/conversation turn is silently never persisted. See
+`plans/sprint-8/HANDOFF.md`'s S8.8.1 section for the full detail on both.
 
 **Not built:** anything else in Sprint 5+.
 

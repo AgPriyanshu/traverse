@@ -1,6 +1,5 @@
 from eval.ablation import (
     BLOCKED_CONFIG_SWITCH,
-    BLOCKED_NO_MODEL_ROUTE,
     build_matrix,
     cache_key,
     matrix_summary,
@@ -37,13 +36,15 @@ def test_non_recommended_extraction_cells_are_blocked_on_config_switch():
             assert cell.blocked_reason == BLOCKED_CONFIG_SWITCH
 
 
-def test_model_axis_frontier_and_routed_cells_are_blocked():
+def test_model_and_retrieval_axis_non_recommended_cells_are_not_statically_blocked():
+    # S8.2 landed a real runtime switch for these two axes (api/eval/ablation.py
+    # ::resolve()) -- scripts/run_ablation.py decides at run time whether a
+    # cell can actually be measured (e.g. a missing frontier key), not
+    # build_matrix() up front.
     matrix = build_matrix()
-    frontier = next(c for c in matrix if c.axis == "model" and c.config.get("model_mode") == "frontier")
-    routed = next(c for c in matrix if c.axis == "model" and c.config.get("model_mode") == "routed")
-
-    assert frontier.blocked_reason == BLOCKED_NO_MODEL_ROUTE
-    assert routed.blocked_reason == BLOCKED_NO_MODEL_ROUTE
+    for cell in matrix:
+        if cell.axis in ("model", "retrieval"):
+            assert cell.blocked_reason is None, cell.label
 
 
 def test_matrix_is_a_partial_matrix_not_the_full_cross_product():

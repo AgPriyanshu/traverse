@@ -286,6 +286,173 @@ that — `scripts/run_ablation.py`'s cache/resumability means a second run
 against unchanged cells costs nothing, so the number to report is the first
 cold run's.
 
+## S8.8.1 fast-follow (do1) — wired to be2's landed S8.2 `resolve()`
+
+be2's S8.2 merged (`ai-master` @ `7962b17`). `api/eval/ablation.py::resolve()`
+now gives real `RetrievalMode`/`InferenceMode` switches for the retrieval and
+model axes. `eval/ablation.py::build_matrix()` no longer statically blocks
+those axes' non-recommended rows, and `scripts/run_ablation.py` calls
+`resolve()` per cell (`measure_answer_backed_cell`, and, defensively,
+`measure_extraction_cell` — see its docstring) before measuring. Re-ran `make
+eval-ablation` for real against the shared `int` dev stack (`ai-master`
+containers on this host, not a mock).
+
+**What's actually independently measured now vs. still genuinely blocked:**
+
+| Axis | Cell | Before this fast-follow | Now |
+|---|---|---|---|
+| Retrieval | vector-only / BM25 / +rerank | `blocked: no config-switch` | **real, independent run** (own `cache_key`, own sample) — `precision`/`citation precision` still `None` (frontier judge gap, unchanged) |
+| Retrieval | graph-constrained (recommended) | same live run as model's recommended cell | **its own independent run** |
+| Model | local (recommended) | same live run as retrieval's recommended cell | **its own independent run** |
+| Model | routed | `blocked: no answering path exists` | **real run** — `route_for` now has a real `ROUTED` path, but it's currently defined as identical to `LOCAL` (be2's HANDOFF, deliberate placeholder), so its numbers are expected to match `local`'s, not a bug in this measurement |
+| Model | frontier | `blocked: no answering path exists` | still `blocked`, but for the *correct*, current reason now: the route exists (`route_for(mode=InferenceMode.API)` no longer raises "no route"), it raises `PermanentLLMError` because `settings.frontier_model` is blank. New constant `BLOCKED_FRONTIER_MODEL` (`eval/ablation.py`) makes this distinct from `BLOCKED_FRONTIER_JUDGE` (the judge is a separate call, blocked for the same underlying reason but a different code path) |
+| Extraction | all non-recommended rows | `blocked: no config-switch` | **unchanged, still blocked** — no switch exists, out of scope for this fast-follow, confirmed live: `resolve()` still raises `AblationAxisNotOwned` for `axis="extraction"` (see `measure_extraction_cell`'s canary, which would now fail loudly if that ever stopped being true) |
+
+**Accuracy and citation precision are still `None` on every single cell.**
+`FRONTIER_MODEL`/`FRONTIER_API_KEY` are still blank in this environment's
+`.env` — checked directly (`api.config.settings.frontier_model is None`) —
+so `POST /ops/judge-answer` 500s (`PermanentLLMError: purpose=judge requires
+settings.frontier_model`) for every gold question, on every cell, exactly as
+designed. No number was guessed to fill that gap. This was true before this
+fast-follow and is unchanged by it; the real change is that **every cell now
+has its own real, independently-run sample** (see `n` in README.md's table)
+instead of every non-recommended cell reading `n=0` or two different cells
+silently sharing one static judgements file.
+
+**How the retrieval/model cells are actually measured (new in this
+fast-follow, `scripts/run_ablation.py::_run_narrative_gold_set`):** rather
+than re-reading `eval/gold/<book>/answer_judgements.json` (written by a
+separate, manually-run `scripts/eval_answers.py` against the frozen `POST
+/api/query` HTTP contract, which has no ablation-mode parameter and is
+be2-owned/frozen), the runner now drives `api.query.pipeline.answer_question`
+**directly, in-process**, once per cell, with
+`api.query.retrieval.retrieve_for_narrative` and
+`api.query.generation.stream_narrative_draft` monkeypatched (module-attribute
+swap, restored in a `finally`) to force in the cell's resolved
+`retrieval_mode`/`inference_mode`. Zero lines of `api/query/**` changed to do
+this — `answer_question` looks those two functions up by module attribute at
+call time, so the patch reaches every call site it takes. Only the
+`narrative` route ever calls either function, so a `relationship`/`path`/
+`aggregation`/`single_fact` gold question is unaffected by either axis,
+exactly like production; only the subset that actually routes to `narrative`
+differs cell to cell, which is the true, honest scope of these two axes. This
+also means `scripts/eval_answers.py`'s separately-run judgements file is no
+longer a prerequisite for `make eval-ablation` at all.
+
+**Two real bugs found running this live, not worked around:**
+
+1. **`.env.example`'s `VLLM_BASE_URL=http://localhost:8080/v1/` is wrong for
+   every containerized caller** (`docker-compose.yml`'s own default is
+   `http://vllm:8080/v1/`, and `docker-compose.gpu.yml` hardcodes the same).
+   `localhost` inside the `api` container does not route to the `vllm`
+   container, so every LLM call (including the router's `classify_question`,
+   which runs regardless of `INFERENCE_MODE`/ablation cell) failed outright
+   with `openai.APIConnectionError` before this fix — `POST /api/query`
+   500'd on every single question in this shared stack. Fixed in
+   `.env.example` (do1-owned) to `http://vllm:8080/v1/`; also fixed the local,
+   gitignored `.env` used for this run. This one is a genuine, previously-
+   undiscovered fix, not a workaround — every prior sprint's live query-path
+   testing in this environment would have hit this, so it's worth a quick
+   check of how earlier partial `answer_judgements.json` runs (e.g. the
+   "19/30" in this doc's earlier section) actually got as far as they did —
+   possibly a different, correctly-configured `.env` was in place at the time
+   and later overwritten.
+2. **`api/query/pipeline.py::_finish` raises `greenlet_spawn has not been
+   called; can't call await_only() here` while persisting the query
+   log/conversation turn, on *every* route, for *every* question, in this
+   environment** — a real, reproducible SQLAlchemy async/lazy-load bug,
+   100% reproducible via a plain `curl -X POST /api/query`, unrelated to this
+   ablation's own code. It fires *after* the `token`/`citation` events are
+   already yielded, so an answer's text and citations are still captured
+   correctly (`scripts/run_ablation.py`'s new harness treats it exactly like
+   `api/routes/query.py::_event_stream`'s own exception boundary), but the
+   `done` event (and therefore the real `abstained` flag and `latency_ms`)
+   never arrives. Worked around in the harness only: `abstained` is inferred
+   from the answer text matching `api.query.grounding.ABSTENTION_TEXT`
+   exactly (always true when `grounding.abstain()` produced it, since that
+   function always pairs it with `citations=[]`) rather than trusting a
+   `done` event that never comes. **Not fixed** — `api/query/pipeline.py`,
+   `api/query/repository.py`, `api/query/conversation.py` are all be2-owned
+   and out of this fast-follow's edit scope (BRANCH.md). This is a real
+   regression risk for the actual product (conversation memory / query logs
+   are silently never persisted in this environment right now), not just an
+   eval-harness inconvenience — flagging loudly for be2/the orchestrator
+   rather than filing a quiet SCR, since it isn't a schema/shared-file change,
+   it's a bug in code do1 cannot touch.
+
+**A third, operational finding — not a bug, a cost:** this shared dev stack's
+`vllm` container runs Qwen3-8B-AWQ on CPU (no GPU profile up), and at least
+one gold question (`pp-031`, "Who are Mr. and Mrs. Gardiner?",
+class=`single_fact` — a graph-derived route with *no* expected narrative
+generation at all) drove a single generation call past 3 minutes of
+continuous, still-growing GPU-KV-cache usage before being killed by hand.
+`api/llm/**` sets no request timeout anywhere (grepped `timeout` in
+`api/llm/client.py`/`api/config/settings.py`: none) — a real gap that would
+let one pathological question hang a production request indefinitely today,
+not just this eval run. Added `QUESTION_TIMEOUT_S = 90.0` in
+`scripts/run_ablation.py` (this script's own safety net only, not a fix to
+`api/llm/**`) so one bad question can no longer stall an entire ablation
+cell; a question that times out is recorded as unanswered, never guessed.
+
+Because of that cost, the real run behind README.md's current table used
+**`ABLATION_GOLD_SET_LIMIT=12`** (a `scripts/run_ablation.py`-only env var,
+documented in `_run_narrative_gold_set`'s docstring) — 12 of the 38 Pride and
+Prejudice gold questions per retrieval/model cell, not the full set. This is
+an honest, explicit sample cap: it's recorded in each affected cell's
+`blocked_reason`/status (`n=12` or `n=11` in the table, never silently shown
+as if it were the full 38), and cells measured this way are **never written
+to the on-disk cache** (`measure_answer_backed_cell` skips `save_cache` when
+the env var is set) — so they can never be read back as, or block, a real
+full-set run under the same `cache_key` later. Unset the env var (or just
+don't set it — the default is the real, full gold set) and re-run
+`make eval-ablation` once there's GPU time or more wall-clock budget to get
+the full-set numbers; no code change is needed, same "starts asserting for
+real" pattern as every other gap in this doc.
+
+**Nightly CI cost, flagged, not changed:** `.github/workflows/
+regression-gate.yml`'s `nightly-full-matrix` job (`timeout-minutes: 120`)
+runs `make eval-ablation` unconditionally on a schedule. Before this
+fast-follow, that job's retrieval/model cells were near-instant blocked
+reads; now four of them (`vector_only`/`bm25`/`rerank`/`graph_constrained`)
+plus two model cells (`local`/`routed`) each drive a real, LLM-backed gold-
+set pass. On this host's CPU-only vLLM, a 12-question capped sample across
+those six cells took several minutes; the *full* 38-question set, uncapped,
+at the `pp-031`-style worst case, could plausibly approach or exceed the
+120-minute budget on a similarly GPU-less CI runner. I did not change the
+workflow's timeout or add `ABLATION_GOLD_SET_LIMIT` to it — guessing a new
+number for a CI-only cost I haven't measured on CI's actual hardware would be
+exactly the kind of fabricated number this sprint's rules forbid. Whoever
+owns the nightly runner's GPU/timeout budget should look at this before it
+next fires on a real schedule.
+
+**Variance — still not measurable, for the same reason as before, checked
+directly rather than assumed:** every retrieval/model cell's `accuracy`/
+`citation precision` is `None` (frontier judge gap, above) — there is no
+numeric quality score to compute run-to-run spread over yet, wiring the real
+cells didn't change that, and it wouldn't have: the judge is the actual
+blocker, not the config-switch. What *did* become newly visible: the
+retrieval axis's recommended cell (`graph_constrained`) and the model axis's
+recommended cell (`local`) are, per PRD Appendix A, the *same* underlying
+configuration, but are now two independently-executed 12-question runs
+(different `cache_key`s, different LLM calls) rather than one shared file —
+a crude proxy for run-to-run noise exists the moment there's a real number to
+compare (right now both report `n=12`, `accuracy=None`, so there's nothing to
+diff yet). Once a frontier key exists, comparing those two cells' `accuracy`
+numbers on an unchanged commit is a free, zero-extra-cost variance sample
+this fast-follow's wiring now provides, on top of the retro action item
+already on file (run the full matrix 3-5 times).
+
+**Tests:** `eval/tests/test_ablation.py` updated for the new, no-longer-
+statically-blocked retrieval/model rows (dropped the stale
+`test_model_axis_frontier_and_routed_cells_are_blocked`, added
+`test_model_and_retrieval_axis_non_recommended_cells_are_not_statically_blocked`).
+`scripts/test_run_ablation.py` unchanged and still green. Full suite
+(`api/tests eval/tests scripts/test_label_roster.py
+scripts/test_ingest_series.py scripts/test_run_ablation.py
+scripts/test_regression_gate_cli.py scripts/test_publish_ablation_readme.py`)
+via `docker compose --profile test run --rm test`: 779 passed, 1 skipped
+(pre-existing), same as before this fast-follow.
+
 # Sprint 8 — fe1 HANDOFF
 
 ## S8.6 — checked be2's `ai/be2/sprint-8-spoiler-calibration` before finishing; one real follow-up
