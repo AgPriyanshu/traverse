@@ -1,11 +1,19 @@
 # Gold question set for the S6.14 answer-quality harness.
 #
-# 30 questions across the PRD's six query classes (devops-1.md S6.14):
+# 38 questions across the PRD's six query classes (devops-1.md S6.14):
 # single_fact, relationship, path, aggregation, temporal, unanswerable. Five
 # unanswerable items deliberately name something that does not exist in this
 # novel's graph (a sibling Elizabeth does not have, a marriage that never
 # happens) -- abstention there is the correct answer, not a gap in the gold
 # set.
+#
+# pp-031..038 were added in S8.4 (backend-1.md) to grow the combined
+# Pride-and-Prejudice + Wuthering-Heights set from 30 to 63 questions, matching
+# the sprint-8 README's composition table (single-fact 12, relationship 15,
+# path 8, aggregation 10, temporal 8, unanswerable 10 across both novels).
+# They cover the Gardiners, Georgiana Darcy, Colonel Fitzwilliam and the
+# Darcy/de Bourgh family ties -- real named relations this novel establishes
+# that pp-001..030 didn't yet exercise.
 #
 # expected_answer is a short reference an LLM judge (api/ops/answer_judge.py,
 # a frontier model, never the same 8B that generated the answer under test)
@@ -19,8 +27,8 @@
 book_key: pride-and-prejudice
 corpus_pdf_sha256: 9d16f8644fb30853da423ea1797133a04fbc1be0064dc874093c213a38d86959
 page_count: 245
-labelled_by: do1 (from relations.yaml and the public-domain text, S6.14)
-labelled_at: "2026-09-27T00:00:00+00:00"
+labelled_by: do1 (from relations.yaml and the public-domain text, S6.14); be1 (pp-031..038, S8.4)
+labelled_at: "2026-09-28T00:00:00+00:00"
 judge_prompt_version: answer_judge_v1
 questions:
   # ── single_fact ────────────────────────────────────────────────────────
@@ -305,3 +313,66 @@ questions:
     expect_abstain: true
     min_citations: 0
     notes: "Darcy has no brother — only a younger sister, Georgiana."
+
+  # ── single_fact (added S8.4) ──────────────────────────────────────────────
+  - id: pp-031
+    question: "Who are Mr. and Mrs. Gardiner?"
+    class: single_fact
+    expect_abstain: false
+    expected_answer: >
+      Mr. Gardiner is Mrs. Bennet's brother, a sensible, well-bred London
+      merchant; his wife Mrs. Gardiner is a favourite of Elizabeth and Jane.
+      They host Elizabeth on her tour of Derbyshire and are central to
+      resolving Lydia's elopement.
+
+  - id: pp-032
+    question: "Who is Georgiana Darcy?"
+    class: single_fact
+    expect_abstain: false
+    expected_answer: "Mr. Darcy's much younger sister."
+
+  - id: pp-033
+    question: "What is Colonel Fitzwilliam's role in the story?"
+    class: single_fact
+    expect_abstain: false
+    expected_answer: >
+      He is Mr. Darcy's cousin, the younger son of an earl, whom Elizabeth
+      meets at Rosings; he unwittingly reveals to her that Darcy took credit
+      for separating Bingley and Jane.
+
+  # ── relationship (added S8.4) ─────────────────────────────────────────────
+  - id: pp-034
+    question: "How is Mrs. Gardiner related to Elizabeth Bennet?"
+    class: relationship
+    expect_abstain: false
+    expected_answer: >
+      She is Elizabeth's aunt by marriage: her husband, Mr. Gardiner, is
+      Mrs. Bennet's brother.
+
+  - id: pp-035
+    question: "What is Georgiana Darcy's relationship to Mr. Darcy?"
+    class: relationship
+    expect_abstain: false
+    expected_answer: "She is his younger sister."
+
+  - id: pp-036
+    question: "How is Lady Catherine de Bourgh related to Mr. Darcy?"
+    class: relationship
+    expect_abstain: false
+    expected_answer: >
+      She is his aunt: her sister, the late Lady Anne Darcy, was Mr. Darcy's
+      mother.
+
+  - id: pp-037
+    question: "What is Anne de Bourgh's relationship to Mr. Darcy?"
+    class: relationship
+    expect_abstain: false
+    expected_answer: >
+      She is his first cousin, Lady Catherine de Bourgh's daughter; Lady
+      Catherine wishes the two of them to marry, though Darcy never intends to.
+
+  - id: pp-038
+    question: "How is Caroline Bingley related to Charles Bingley?"
+    class: relationship
+    expect_abstain: false
+    expected_answer: "She is his sister."

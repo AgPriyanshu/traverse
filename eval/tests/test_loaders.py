@@ -29,23 +29,53 @@ def test_gold_answers_are_schema_valid_and_checksum_pinned():
     books = available_gold_answer_books()
 
     assert "pride-and-prejudice" in books
-    document = load_gold_answers("pride-and-prejudice")
-    assert document["book_key"] == "pride-and-prejudice"
-    questions = document["questions"]
-    assert len(questions) == 30
-    classes = {q["class"] for q in questions}
-    assert classes == {
-        "single_fact",
-        "relationship",
-        "path",
-        "aggregation",
-        "temporal",
-        "unanswerable",
+    assert "wuthering-heights" in books
+    for book_key, expected_count in (
+        ("pride-and-prejudice", 38),
+        ("wuthering-heights", 25),
+    ):
+        document = load_gold_answers(book_key)
+        assert document["book_key"] == book_key
+        questions = document["questions"]
+        assert len(questions) == expected_count
+        classes = {q["class"] for q in questions}
+        assert classes == {
+            "single_fact",
+            "relationship",
+            "path",
+            "aggregation",
+            "temporal",
+            "unanswerable",
+        }
+        # F4.1: abstention is a first-class expectation, not an afterthought --
+        # every unanswerable question must actually say so.
+        for q in questions:
+            assert q["expect_abstain"] == (q["class"] == "unanswerable")
+
+
+def test_gold_answer_set_is_60_plus_across_both_novels_all_six_classes():
+    """S8.4: the combined set meets the sprint-8 README's composition table."""
+    from collections import Counter
+
+    totals: Counter[str] = Counter()
+    for book_key in ("pride-and-prejudice", "wuthering-heights"):
+        document = load_gold_answers(book_key)
+        totals.update(q["class"] for q in document["questions"])
+
+    assert sum(totals.values()) >= 60
+    # The README's per-class targets are a floor, not an exact count -- an
+    # eval set that is 80% single-fact lookups reports a flattering number
+    # that means nothing (sprint-8/backend-1.md).
+    minimums = {
+        "single_fact": 12,
+        "relationship": 15,
+        "path": 8,
+        "aggregation": 10,
+        "temporal": 8,
+        "unanswerable": 10,
     }
-    # F4.1: abstention is a first-class expectation, not an afterthought --
-    # every unanswerable question must actually say so.
-    for q in questions:
-        assert q["expect_abstain"] == (q["class"] == "unanswerable")
+    for cls, minimum in minimums.items():
+        assert totals[cls] >= minimum, (cls, totals[cls], minimum)
 
 
 def test_wuthering_heights_gold_roster_keeps_the_two_catherines_separate():
