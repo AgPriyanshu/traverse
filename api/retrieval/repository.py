@@ -17,6 +17,7 @@ from ..db.models.character_model import CharacterMention
 from ..db.models.chunk_model import DocumentChunk
 from ..db.models.project_model import Book, Chapter
 from ..pipeline.chunking import resolve_device
+from ..query.scope import ReadingScope
 
 DENSE_LIMIT = 50
 LEXICAL_LIMIT = 50
@@ -54,9 +55,7 @@ def embed_query(text: str) -> list[float]:
     return vector.tolist()
 
 
-def _reading_position_filter(
-    statement, *, limit_book_order: int | None, limit_chapter: int | None
-):
+def _reading_position_filter(statement, *, scope: ReadingScope):
     """Restrict a chunk query to a reading position, series-position style.
 
     A chunk with no chapter (front matter, before the first heading) is never
@@ -67,7 +66,7 @@ def _reading_position_filter(
     nullable, so the comparison must fall through to "no restriction" rather
     than exclude every chunk in a standalone book.
     """
-    if limit_book_order is None:
+    if scope.book_order is None:
         return statement
 
     chapter_number = (
@@ -79,12 +78,12 @@ def _reading_position_filter(
     return statement.where(
         or_(
             Book.series_order.is_(None),
-            Book.series_order < limit_book_order,
-            (Book.series_order == limit_book_order)
+            Book.series_order < scope.book_order,
+            (Book.series_order == scope.book_order)
             & (
                 chapter_number.is_(None)
-                if limit_chapter is None
-                else chapter_number <= limit_chapter
+                if scope.chapter is None
+                else chapter_number <= scope.chapter
             ),
         )
     )
@@ -117,10 +116,9 @@ async def dense_search(
     *,
     project_id: UUID,
     query_embedding: list[float],
+    scope: ReadingScope,
     book_id: UUID | None = None,
     character_ids: list[UUID] | None = None,
-    limit_book_order: int | None = None,
-    limit_chapter: int | None = None,
     limit: int = DENSE_LIMIT,
 ) -> list[tuple[DocumentChunk, float]]:
     """Return the ``limit`` chunks closest to ``query_embedding`` by cosine.
@@ -129,12 +127,13 @@ async def dense_search(
         session: An open database session.
         project_id: Scopes the search to one project.
         query_embedding: A normalised BGE-M3 vector, from ``embed_query``.
+        scope: The reader's position. ``ReadingScope.unlimited()`` for no
+            restriction — never a default, an explicit choice at the call
+            site (S8.1, PRD F4.5).
         book_id: Restrict to one book.
         character_ids: S6.3's graph-constrained retrieval — restrict to
             chunks mentioning at least one of these characters. ``None`` or
             empty searches every chunk in scope, unconstrained.
-        limit_book_order: Reading position — book. ``None`` means no limit.
-        limit_chapter: Reading position — chapter within that book.
         limit: Top-N to return.
 
     Returns:
@@ -155,9 +154,7 @@ async def dense_search(
     if book_id is not None:
         statement = statement.where(DocumentChunk.book_id == book_id)
 
-    statement = _reading_position_filter(
-        statement, limit_book_order=limit_book_order, limit_chapter=limit_chapter
-    )
+    statement = _reading_position_filter(statement, scope=scope)
     statement = _character_filter(statement, character_ids=character_ids)
     statement = statement.order_by(distance).limit(limit)
 
@@ -171,10 +168,9 @@ async def lexical_search(
     *,
     project_id: UUID,
     query: str,
+    scope: ReadingScope,
     book_id: UUID | None = None,
     character_ids: list[UUID] | None = None,
-    limit_book_order: int | None = None,
-    limit_chapter: int | None = None,
     limit: int = LEXICAL_LIMIT,
 ) -> list[tuple[DocumentChunk, float]]:
     """Return the ``limit`` chunks best matching ``query`` by ``ts_rank_cd``.
@@ -183,10 +179,9 @@ async def lexical_search(
         session: An open database session.
         project_id: Scopes the search to one project.
         query: Free-text query, parsed with ``websearch_to_tsquery``.
+        scope: The reader's position. See ``dense_search``.
         book_id: Restrict to one book.
         character_ids: See ``dense_search``.
-        limit_book_order: Reading position — book. ``None`` means no limit.
-        limit_chapter: Reading position — chapter within that book.
         limit: Top-N to return.
 
     Returns:
@@ -208,9 +203,7 @@ async def lexical_search(
     if book_id is not None:
         statement = statement.where(DocumentChunk.book_id == book_id)
 
-    statement = _reading_position_filter(
-        statement, limit_book_order=limit_book_order, limit_chapter=limit_chapter
-    )
+    statement = _reading_position_filter(statement, scope=scope)
     statement = _character_filter(statement, character_ids=character_ids)
     statement = statement.order_by(rank.desc()).limit(limit)
 

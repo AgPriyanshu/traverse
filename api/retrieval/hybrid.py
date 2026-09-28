@@ -11,6 +11,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
 from ..contracts.api import ChunkOut, SearchResultOut
 from ..db.models.chunk_model import DocumentChunk
+from ..query.scope import ReadingScope
 from . import repository
 
 RRF_K = 60
@@ -81,11 +82,10 @@ async def hybrid_search(
     *,
     project_id: UUID,
     query: str,
+    scope: ReadingScope,
     book_id: UUID | None = None,
     character_ids: list[UUID] | None = None,
     limit: int = 20,
-    limit_book_order: int | None = None,
-    limit_chapter: int | None = None,
     rerank: bool | None = None,
 ) -> SearchResultOut:
     """Run both retrieval arms and fuse them with reciprocal rank fusion.
@@ -94,15 +94,14 @@ async def hybrid_search(
         session: An open database session.
         project_id: Scopes the search to one project.
         query: Free-text search query.
+        scope: The reader's position. ``ReadingScope.unlimited()`` for no
+            restriction — never a default, an explicit choice at the call
+            site (S8.1, PRD F4.5, query-path.md).
         book_id: Restrict to one book. ``None`` searches the whole project.
         character_ids: S6.3's graph-constrained retrieval filter — restricts
             both arms to chunks mentioning at least one of these characters.
             ``None`` searches the whole project, unconstrained.
         limit: Chunks to return after fusion.
-        limit_book_order: Reading position — book. ``None`` means no limit
-            and must be an explicit choice at the call site (the Sprint 8
-            spoiler hook — PRD F8, query-path.md).
-        limit_chapter: Reading position — chapter within that book.
         rerank: Force the cross-encoder reranker on or off for this call,
             overriding ``settings.reranker_enabled``. ``None`` defers to the
             setting (S2.10).
@@ -125,19 +124,17 @@ async def hybrid_search(
         session,
         project_id=project_id,
         query_embedding=query_embedding,
+        scope=scope,
         book_id=book_id,
         character_ids=character_ids,
-        limit_book_order=limit_book_order,
-        limit_chapter=limit_chapter,
     )
     lexical_results = await repository.lexical_search(
         session,
         project_id=project_id,
         query=query,
+        scope=scope,
         book_id=book_id,
         character_ids=character_ids,
-        limit_book_order=limit_book_order,
-        limit_chapter=limit_chapter,
     )
 
     fused = _reciprocal_rank_fusion(dense_results, lexical_results)

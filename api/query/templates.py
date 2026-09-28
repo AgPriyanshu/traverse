@@ -127,9 +127,24 @@ def resolve_aggregation_predicate(hint: str | None) -> str | None:
 # does for whole-graph rendering, to avoid drawing a fact twice) would instead
 # hide half of exactly the rows a directional aggregation query needs.
 
-_RELATIONSHIP_LOOKUP_QUERY = """
-MATCH (a:Character {id: $subject_id, project_id: $project_id})
-      -[r:RELATED]-(b:Character {id: $object_id, project_id: $project_id})
+# The visibility clause below mirrors ``graph/queries.py``'s ``_VISIBLE``
+# (S8.1, PRD F4.5): a reader mid-book asking about a relationship must not
+# get back an edge first asserted after their reading position, even though
+# ``graph/repository.py::relations_out`` re-checks the same thing in Postgres
+# before the answer is rendered. Written out rather than imported — a shared
+# constant across ``api/graph`` and ``api/query`` buys less than the risk of
+# the two modules' Cypher dialects drifting apart under one shared string.
+_LBO_LCH_VISIBLE = """(
+  $lbo IS NULL OR r.first_book_order IS NULL OR r.first_book_order < $lbo
+  OR (r.first_book_order = $lbo
+      AND (r.first_chapter IS NULL
+           OR ($lch IS NOT NULL AND r.first_chapter <= $lch)))
+)"""
+
+_RELATIONSHIP_LOOKUP_QUERY = f"""
+MATCH (a:Character {{id: $subject_id, project_id: $project_id}})
+      -[r:RELATED]-(b:Character {{id: $object_id, project_id: $project_id}})
+WHERE {_LBO_LCH_VISIBLE}
 RETURN DISTINCT r.id AS relation_id
 ORDER BY relation_id
 LIMIT 20
@@ -139,10 +154,11 @@ LIMIT 20
 # from untrusted text — the caller (`api/query/pipeline.py`) validates
 # `predicate` against `ontology.is_predicate` before it ever reaches this
 # template.
-_AGGREGATION_QUERY = """
-MATCH (anchor:Character {id: $anchor_id, project_id: $project_id})
+_AGGREGATION_QUERY = f"""
+MATCH (anchor:Character {{id: $anchor_id, project_id: $project_id}})
       -[r:RELATED]-(other:Character)
 WHERE r.predicate IN [$predicate, $inverse_predicate]
+  AND {_LBO_LCH_VISIBLE}
 RETURN DISTINCT r.id AS relation_id, other.id AS other_id
 ORDER BY other_id
 LIMIT 500
@@ -167,12 +183,14 @@ TEMPLATES: dict[TemplateId, CypherTemplate] = {
     TemplateId.RELATIONSHIP_LOOKUP: CypherTemplate(
         id=TemplateId.RELATIONSHIP_LOOKUP,
         query=_RELATIONSHIP_LOOKUP_QUERY,
-        params=frozenset({"subject_id", "object_id", "project_id"}),
+        params=frozenset({"subject_id", "object_id", "project_id", "lbo", "lch"}),
     ),
     TemplateId.AGGREGATION: CypherTemplate(
         id=TemplateId.AGGREGATION,
         query=_AGGREGATION_QUERY,
-        params=frozenset({"anchor_id", "project_id", "predicate", "inverse_predicate"}),
+        params=frozenset(
+            {"anchor_id", "project_id", "predicate", "inverse_predicate", "lbo", "lch"}
+        ),
     ),
 }
 

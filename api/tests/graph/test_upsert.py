@@ -12,6 +12,7 @@ from api.db.models import (
 )
 from api.db.models.chunk_model import DocumentChunk
 from api.graph import client, projection, queries, repository, upsert
+from api.query.scope import ReadingScope
 
 
 def test_edge_without_evidence_raises_before_anything_is_projected():
@@ -94,18 +95,19 @@ async def test_projection_reads_and_rebuild_is_byte_identical(session, project, 
             ).single()
         assert record["n"] == 0
 
-        graph = await queries.get_graph(session, project.id)
+        scope = ReadingScope.unlimited()
+        graph = await queries.get_graph(session, project.id, scope=scope)
         assert len(graph.edges) == 2 and len(graph.nodes) == 3
         assert graph.edges[0].page_refs[0].page == 7
 
-        hood = await queries.get_neighbourhood(george.id, 2)
+        hood = await queries.get_neighbourhood(session, george.id, 2, scope=scope)
         assert {n.canonical_name for n in hood.nodes} == {
             "Darcy",
             "Elizabeth",
             "Georgiana",
         }
 
-        path = await queries.shortest_path(session, george.id, eliza.id, 4)
+        path = await queries.shortest_path(session, george.id, eliza.id, 4, scope=scope)
         assert path.found and len(path.hops) == 2
 
         await projection.reset_project(project.id)
@@ -113,10 +115,10 @@ async def test_projection_reads_and_rebuild_is_byte_identical(session, project, 
         assert await upsert.snapshot(project.id) == first
 
         evidence = await repository.list_evidence(
-            session, rels[0].id, limit=10, offset=0
+            session, rels[0].id, limit=10, offset=0, scope=scope
         )
         assert evidence and evidence[0].page_start == 7
-        arc = await repository.relation_arc(session, eliza.id, darcy.id)
+        arc = await repository.relation_arc(session, eliza.id, darcy.id, scope=scope)
         assert len(arc.states) == 1
     finally:
         await projection.reset_project(project.id)

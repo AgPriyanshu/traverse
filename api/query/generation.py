@@ -27,6 +27,7 @@ from ..llm import get_llm, semaphore
 from ..llm.tracing import trace_generation
 from . import citations, repository
 from .grounding import GroundedAnswer, abstain
+from .scope import ReadingScope
 
 _MAX_MENTION_CITATIONS = 5
 _MAX_AGGREGATION_RESULTS = 200
@@ -37,11 +38,15 @@ def _humanize(predicate: str) -> str:
 
 
 async def _relation_sentence(
-    session: SQLModelAsyncSession, relation: RelationOut, *, top_n: int = 2
+    session: SQLModelAsyncSession,
+    relation: RelationOut,
+    *,
+    scope: ReadingScope,
+    top_n: int = 2,
 ) -> tuple[str, list[CitationOut]]:
     """One cited sentence for a relation, hearsay-attributed when it applies."""
     evidence_rows = await repository.top_evidence_for_relation(
-        session, relation.id, limit=top_n
+        session, relation.id, scope=scope, limit=top_n
     )
     citation_list: list[CitationOut] = []
     for row in evidence_rows:
@@ -109,16 +114,24 @@ async def render_character_lookup(
 
 
 async def render_relationship_lookup(
-    session: SQLModelAsyncSession, relations: list[RelationOut]
+    session: SQLModelAsyncSession, relations: list[RelationOut], *, scope: ReadingScope
 ) -> GroundedAnswer:
-    """Render the direct edge(s) between two characters, or abstain."""
+    """Render the direct edge(s) between two characters, or abstain.
+
+    ``relations`` is assumed already spoiler-filtered by ``scope``
+    (``graph.repository.relations_out``); ``scope`` is still needed here to
+    keep each cited sentence's *own* evidence from reaching past it too (a
+    visible edge can carry evidence from a later reassertion — S8.1).
+    """
     if not relations:
         return abstain("No established relationship between them in this project.")
 
     sentences: list[str] = []
     citation_list: list[CitationOut] = []
     for relation in relations:
-        sentence, relation_citations = await _relation_sentence(session, relation)
+        sentence, relation_citations = await _relation_sentence(
+            session, relation, scope=scope
+        )
         sentences.append(sentence)
         citation_list.extend(relation_citations)
 
@@ -128,7 +141,7 @@ async def render_relationship_lookup(
 
 
 async def render_path(
-    session: SQLModelAsyncSession, hops: list[RelationOut]
+    session: SQLModelAsyncSession, hops: list[RelationOut], *, scope: ReadingScope
 ) -> GroundedAnswer:
     """Render a shortest-path chain, one cited sentence per hop, or abstain."""
     if not hops:
@@ -137,7 +150,7 @@ async def render_path(
     sentences: list[str] = []
     citation_list: list[CitationOut] = []
     for hop in hops:
-        sentence, hop_citations = await _relation_sentence(session, hop)
+        sentence, hop_citations = await _relation_sentence(session, hop, scope=scope)
         sentences.append(sentence)
         citation_list.extend(hop_citations)
 
@@ -153,6 +166,7 @@ async def render_aggregation(
     predicate: str,
     relations: list[RelationOut],
     other_names: dict[UUID, str],
+    scope: ReadingScope,
 ) -> GroundedAnswer:
     """Render an exhaustive set answer, every member cited, or abstain.
 
@@ -160,11 +174,19 @@ async def render_aggregation(
         session: An open database session.
         anchor_name: The subject of the aggregation ("Mr Bennet").
         predicate: The ontology predicate the question was mapped to.
-        relations: Every matching relation, already deduplicated by id.
+        relations: Every matching relation, already deduplicated by id and
+            already spoiler-filtered by ``scope``
+            (``graph.repository.relations_out``).
         other_names: The other endpoint's canonical name, by character id —
             needed because a relation's ``subject``/``object`` naming depends
             on which direction it happened to be stored in, not on which side
-            the anchor is.
+            the anchor is. Callers must derive this from the same filtered
+            ``relations``, never from an unfiltered id list — the sentence
+            below names every id in ``other_names`` regardless of whether
+            it appears in ``relations``, so an unfiltered caller would name a
+            character whose edge to the anchor was just spoiler-filtered out.
+        scope: The reader's position, applied again to each cited sentence's
+            own evidence (see ``render_relationship_lookup``).
     """
     if not relations:
         return abstain(
@@ -181,7 +203,7 @@ async def render_aggregation(
     citation_list: list[CitationOut] = []
     for relation in relations[:_MAX_AGGREGATION_RESULTS]:
         _sentence, relation_citations = await _relation_sentence(
-            session, relation, top_n=1
+            session, relation, scope=scope, top_n=1
         )
         citation_list.extend(relation_citations)
 
@@ -189,16 +211,24 @@ async def render_aggregation(
 
 
 async def render_series_arc(
-    session: SQLModelAsyncSession, arc: RelationArcOut
+    session: SQLModelAsyncSession, arc: RelationArcOut, *, scope: ReadingScope
 ) -> GroundedAnswer:
-    """Render a relationship's states over series position, in order, or abstain."""
+    """Render a relationship's states over series position, in order, or abstain.
+
+    ``arc.states`` is assumed already trimmed to ``scope`` by
+    ``graph.repository.relation_arc`` — a later state must be absent
+    entirely, not appended and then hidden, or "how did their relationship
+    change?" would still betray that it *does* change (S8.1).
+    """
     if not arc.states:
         return abstain("No established relationship between them in this project.")
 
     sentences: list[str] = []
     citation_list: list[CitationOut] = []
     for state in arc.states:
-        sentence, state_citations = await _relation_sentence(session, state, top_n=1)
+        sentence, state_citations = await _relation_sentence(
+            session, state, scope=scope, top_n=1
+        )
         book_note = (
             f" (from book {state.first_book_order})" if state.first_book_order else ""
         )

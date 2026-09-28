@@ -13,6 +13,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
 from ..contracts.api import ChunkOut
 from ..retrieval import hybrid_search
+from .scope import ReadingScope
 
 NARRATIVE_RETRIEVAL_LIMIT = 12
 
@@ -31,8 +32,7 @@ async def retrieve_for_narrative(
     project_id: UUID,
     question: str,
     character_ids: list[UUID],
-    limit_book_order: int | None,
-    limit_chapter: int | None,
+    scope: ReadingScope,
 ) -> RetrievalResult:
     """Run graph-constrained retrieval, falling back to unconstrained search.
 
@@ -44,8 +44,9 @@ async def retrieve_for_narrative(
             when the question named nobody the resolver could match — the
             search then starts unconstrained rather than constrained to
             nothing, which would return zero results by construction.
-        limit_book_order: Reading position — book. ``None`` means no limit.
-        limit_chapter: Reading position — chapter within that book.
+        scope: The reader's position. ``ReadingScope.unlimited()`` for no
+            restriction — never a default, an explicit choice at the call
+            site (S8.1, PRD F4.5).
 
     Returns:
         The chunks to generate from, and which tier answered:
@@ -59,10 +60,9 @@ async def retrieve_for_narrative(
             session,
             project_id=project_id,
             query=question,
+            scope=scope,
             character_ids=character_ids,
             limit=NARRATIVE_RETRIEVAL_LIMIT,
-            limit_book_order=limit_book_order,
-            limit_chapter=limit_chapter,
         )
         if constrained.chunks:
             return RetrievalResult(tier="graph_constrained", chunks=constrained.chunks)
@@ -71,10 +71,9 @@ async def retrieve_for_narrative(
         session,
         project_id=project_id,
         query=question,
+        scope=scope,
         character_ids=None,
         limit=NARRATIVE_RETRIEVAL_LIMIT,
-        limit_book_order=limit_book_order,
-        limit_chapter=limit_chapter,
     )
     tier = "unconstrained" if unconstrained.chunks else "none"
 

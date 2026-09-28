@@ -25,6 +25,7 @@ from ..db.models.character_model import Character, CharacterAppearance, Characte
 from ..db.models.chunk_model import DocumentChunk
 from ..db.models.project_model import Book, Chapter, Project
 from ..db.models.relation_model import Relation, RelationEvidence
+from ..query.scope import ReadingScope
 
 # A force-directed view stops being readable long before this, and an uncapped
 # graph query on a dense project is a self-inflicted denial of service.
@@ -118,23 +119,22 @@ async def list_characters(
     session: SQLModelAsyncSession,
     project_id: UUID,
     *,
+    scope: ReadingScope,
     tier: ImportanceTier | None = None,
     q: str | None = None,
     book_id: UUID | None = None,
-    limit_book_order: int | None = None,
-    limit_chapter: int | None = None,
 ) -> list[CharacterOut]:
     """Return a project's roster, filtered.
 
     Args:
         session: An open database session.
         project_id: The project whose roster is returned.
+        scope: The reader's position. ``ReadingScope.unlimited()`` for no
+            restriction — never a default, an explicit choice at the call
+            site (S8.1, PRD F4.5).
         tier: Restrict to one importance tier.
         q: Alias-aware substring search over canonical name and aliases.
         book_id: Restrict to characters appearing in one book.
-        limit_book_order: Reading position — book. ``None`` means no limit and
-            must be an explicit choice at the call site.
-        limit_chapter: Reading position — chapter within that book.
 
     Returns:
         Matching characters, ordered by mention count then name.
@@ -161,7 +161,7 @@ async def list_characters(
             .exists()
         )
 
-    if limit_book_order is not None:
+    if scope.book_order is not None:
         # Reading position is a series position, compared as a row: a character
         # first seen in book 3 must not surface for a reader on book 2, and one
         # first seen later in the current book must not surface either.
@@ -174,12 +174,12 @@ async def list_characters(
         statement = statement.where(
             or_(
                 first_book.scalar_subquery().is_(None),
-                first_book.scalar_subquery() < limit_book_order,
-                (first_book.scalar_subquery() == limit_book_order)
+                first_book.scalar_subquery() < scope.book_order,
+                (first_book.scalar_subquery() == scope.book_order)
                 & (
                     Character.first_chapter.is_(None)
-                    if limit_chapter is None
-                    else Character.first_chapter <= limit_chapter
+                    if scope.chapter is None
+                    else Character.first_chapter <= scope.chapter
                 ),
             )
         )
@@ -202,14 +202,13 @@ async def _character_visible(
     session: SQLModelAsyncSession,
     character: Character,
     *,
-    limit_book_order: int | None,
-    limit_chapter: int | None,
+    scope: ReadingScope,
 ) -> bool:
     """Whether ``character`` is visible at a reading position.
 
-    ``None`` (no reading position) is always visible.
+    ``scope.book_order is None`` (no reading position) is always visible.
     """
-    if limit_book_order is None:
+    if scope.book_order is None:
         return True
 
     first_order = None
@@ -220,27 +219,46 @@ async def _character_visible(
     visible = _within_reading_position(
         first_order,
         character.first_chapter,
-        limit_book_order=limit_book_order,
-        limit_chapter=limit_chapter,
+        limit_book_order=scope.book_order,
+        limit_chapter=scope.chapter,
     )
 
     return visible
+
+
+async def is_character_visible(
+    session: SQLModelAsyncSession, character_id: UUID, scope: ReadingScope
+) -> bool:
+    """Whether a character exists and is visible at a reading position.
+
+    Used to spoiler-filter name resolution (``api/query/pipeline.py``)
+    *before* ambiguity is resolved — a character not yet met must not even
+    appear as a candidate, or a clarifying question ("Which X do you mean?")
+    would itself confirm a future character's existence. A nonexistent
+    character is indistinguishable from a not-yet-visible one, deliberately:
+    either shape of "no" must look the same to a caller (S8.1, PRD F4.5).
+    """
+    character = await session.get(Character, character_id)
+    if character is None:
+        return False
+
+    return await _character_visible(session, character, scope=scope)
 
 
 async def list_appearances(
     session: SQLModelAsyncSession,
     character_id: UUID,
     *,
-    limit_book_order: int | None = None,
-    limit_chapter: int | None = None,
+    scope: ReadingScope,
 ) -> list[AppearanceOut] | None:
     """Return one character's per-book appearances, series-ordered.
 
     Args:
         session: An open database session.
         character_id: The character whose appearances are listed.
-        limit_book_order: Reading position — book. ``None`` means no limit.
-        limit_chapter: Reading position — chapter within that book.
+        scope: The reader's position. ``ReadingScope.unlimited()`` for no
+            restriction — never a default, an explicit choice at the call
+            site (S8.1, PRD F4.5).
 
     Returns:
         Appearances visible at the reading position, or ``None`` if the
@@ -252,12 +270,7 @@ async def list_appearances(
     if character is None:
         return None
 
-    if not await _character_visible(
-        session,
-        character,
-        limit_book_order=limit_book_order,
-        limit_chapter=limit_chapter,
-    ):
+    if not await _character_visible(session, character, scope=scope):
         return None
 
     result = await session.exec(
@@ -281,8 +294,8 @@ async def list_appearances(
         if _within_reading_position(
             book.series_order,
             appearance.first_chapter,
-            limit_book_order=limit_book_order,
-            limit_chapter=limit_chapter,
+            limit_book_order=scope.book_order,
+            limit_chapter=scope.chapter,
         )
     ]
 
@@ -293,20 +306,19 @@ async def get_character(
     session: SQLModelAsyncSession,
     character_id: UUID,
     *,
-    limit_book_order: int | None = None,
-    limit_chapter: int | None = None,
+    scope: ReadingScope,
 ) -> CharacterDetailOut | None:
     """Return one character with its per-book appearances, or ``None``.
 
     Args:
         session: An open database session.
         character_id: The character to fetch.
-        limit_book_order: Reading position — book. ``None`` means no limit.
-            A character not yet met at this position is hidden entirely
-            (returns ``None``), the same as it would be filtered out of
-            ``list_characters``, so a deep link cannot leak a future
-            character past the roster filter.
-        limit_chapter: Reading position — chapter within that book.
+        scope: The reader's position. A character not yet met at this
+            position is hidden entirely (returns ``None``), the same as it
+            would be filtered out of ``list_characters``, so a deep link
+            cannot leak a future character past the roster filter.
+            ``ReadingScope.unlimited()`` for no restriction — never a
+            default, an explicit choice at the call site (S8.1, PRD F4.5).
 
     Returns:
         The character with alias detail, attributes, appearances and a
@@ -317,37 +329,16 @@ async def get_character(
     if character is None:
         return None
 
-    if not await _character_visible(
-        session,
-        character,
-        limit_book_order=limit_book_order,
-        limit_chapter=limit_chapter,
-    ):
+    if not await _character_visible(session, character, scope=scope):
         return None
 
     orders = await appearance_orders(session, [character.id])
-    appearances = (
-        await list_appearances(
-            session,
-            character_id,
-            limit_book_order=limit_book_order,
-            limit_chapter=limit_chapter,
-        )
-        or []
-    )
+    appearances = await list_appearances(session, character_id, scope=scope) or []
 
     alias_detail = await _alias_detail(session, character.project_id, character.id)
-    attributes = await _visible_attributes(
-        session,
-        character.attributes,
-        limit_book_order=limit_book_order,
-        limit_chapter=limit_chapter,
-    )
+    attributes = await _visible_attributes(session, character.attributes, scope=scope)
     mentions_per_chapter = await _mentions_per_chapter(
-        session,
-        character.id,
-        limit_book_order=limit_book_order,
-        limit_chapter=limit_chapter,
+        session, character.id, scope=scope
     )
 
     base = to_character_out(character, orders.get(character.id, []))
@@ -449,19 +440,18 @@ async def _visible_attributes(
     session: SQLModelAsyncSession,
     raw: dict[str, Any] | None,
     *,
-    limit_book_order: int | None,
-    limit_chapter: int | None,
+    scope: ReadingScope,
 ) -> list[AttributeOut]:
     """Parse and, at a reading position, spoiler-filter a character's attributes.
 
     Args:
         session: An open database session.
         raw: The character's ``attributes`` column, or ``None``.
-        limit_book_order: Reading position — book. ``None`` means no limit.
-        limit_chapter: Reading position — chapter within that book.
+        scope: The reader's position. ``ReadingScope.unlimited()`` for no
+            restriction.
     """
     entries = _parse_attributes(raw)
-    if limit_book_order is None or not entries:
+    if scope.book_order is None or not entries:
         return entries
 
     book_ids = {entry.book_id for entry in entries if entry.book_id is not None}
@@ -475,13 +465,13 @@ async def _visible_attributes(
         # not a chapter, so resolving visibility needs one lookup — cheap here
         # since a character has at most a handful of attributes, unlike the
         # thousands of mentions the histogram below has to stay one query for.
-        if order == limit_book_order:
+        if order == scope.book_order:
             chapter = await _chapter_number_for_page(session, entry.book_id, entry.page)
         if _within_reading_position(
             order,
             chapter,
-            limit_book_order=limit_book_order,
-            limit_chapter=limit_chapter,
+            limit_book_order=scope.book_order,
+            limit_chapter=scope.chapter,
         ):
             visible.append(entry)
 
@@ -561,29 +551,27 @@ async def _ambiguous_surface_forms(
     return set(result.all())
 
 
-def _mention_reading_position_filter(
-    statement, *, limit_book_order: int | None, limit_chapter: int | None
-):
+def _mention_reading_position_filter(statement, *, scope: ReadingScope):
     """Restrict a ``CharacterMention``/``Book``/``Chapter`` join to a reading position.
 
     Args:
         statement: A statement that has already joined ``Book`` (on
             ``CharacterMention.book_id``) and outer-joined ``Chapter``.
-        limit_book_order: Reading position — book. ``None`` means no limit.
-        limit_chapter: Reading position — chapter within that book.
+        scope: The reader's position. ``ReadingScope.unlimited()`` for no
+            restriction.
     """
-    if limit_book_order is None:
+    if scope.book_order is None:
         return statement
 
     return statement.where(
         or_(
             Book.series_order.is_(None),
-            Book.series_order < limit_book_order,
-            (Book.series_order == limit_book_order)
+            Book.series_order < scope.book_order,
+            (Book.series_order == scope.book_order)
             & (
                 Chapter.number.is_(None)
-                if limit_chapter is None
-                else Chapter.number <= limit_chapter
+                if scope.chapter is None
+                else Chapter.number <= scope.chapter
             ),
         )
     )
@@ -593,8 +581,7 @@ async def _mentions_per_chapter(
     session: SQLModelAsyncSession,
     character_id: UUID,
     *,
-    limit_book_order: int | None = None,
-    limit_chapter: int | None = None,
+    scope: ReadingScope,
 ) -> dict[str, int]:
     """Return a character's mention count per chapter, in one grouped query.
 
@@ -604,8 +591,8 @@ async def _mentions_per_chapter(
     Args:
         session: An open database session.
         character_id: The character to histogram.
-        limit_book_order: Reading position — book. ``None`` means no limit.
-        limit_chapter: Reading position — chapter within that book.
+        scope: The reader's position. ``ReadingScope.unlimited()`` for no
+            restriction.
 
     Returns:
         Chapter number (as a string) to mention count. A mention whose chunk
@@ -620,9 +607,7 @@ async def _mentions_per_chapter(
         .outerjoin(Chapter, Chapter.id == DocumentChunk.chapter_id)
         .where(CharacterMention.character_id == character_id)
     )
-    statement = _mention_reading_position_filter(
-        statement, limit_book_order=limit_book_order, limit_chapter=limit_chapter
-    )
+    statement = _mention_reading_position_filter(statement, scope=scope)
     statement = statement.group_by(Chapter.number)
 
     result = await session.exec(statement)
@@ -659,22 +644,22 @@ async def list_mentions(
     session: SQLModelAsyncSession,
     character_id: UUID,
     *,
+    scope: ReadingScope,
     limit: int = 50,
     offset: int = 0,
-    limit_book_order: int | None = None,
-    limit_chapter: int | None = None,
 ) -> list[MentionOut] | None:
     """Return one character's mentions, page-ordered and paginated.
 
     Args:
         session: An open database session.
         character_id: The character whose mentions are listed.
+        scope: The reader's position. ``ReadingScope.unlimited()`` for no
+            restriction — never a default, an explicit choice at the call
+            site (S8.1, PRD F4.5).
         limit: Rows to return.
         offset: Rows to skip — pagination is ``LIMIT``/``OFFSET`` in SQL, not
             a fetch-all-then-slice, so a 2,000-mention character never loads
             more than one page into memory.
-        limit_book_order: Reading position — book. ``None`` means no limit.
-        limit_chapter: Reading position — chapter within that book.
 
     Returns:
         Mentions ordered by page, or ``None`` if the character does not exist.
@@ -690,9 +675,7 @@ async def list_mentions(
         .outerjoin(Chapter, Chapter.id == DocumentChunk.chapter_id)
         .where(CharacterMention.character_id == character_id)
     )
-    statement = _mention_reading_position_filter(
-        statement, limit_book_order=limit_book_order, limit_chapter=limit_chapter
-    )
+    statement = _mention_reading_position_filter(statement, scope=scope)
     statement = (
         statement.order_by(
             CharacterMention.page,
@@ -725,11 +708,10 @@ async def get_graph_from_postgres(
     session: SQLModelAsyncSession,
     project_id: UUID,
     *,
+    scope: ReadingScope,
     book_id: UUID | None = None,
     families: list[RelationFamily] | None = None,
     min_confidence: float = 0.0,
-    limit_book_order: int | None = None,
-    limit_chapter: int | None = None,
 ) -> GraphOut:
     """Return the project's graph as nodes and edges.
 
@@ -740,11 +722,12 @@ async def get_graph_from_postgres(
     Args:
         session: An open database session.
         project_id: The project to render.
+        scope: The reader's position. ``ReadingScope.unlimited()`` for no
+            restriction — never a default, an explicit choice at the call
+            site (S8.1, PRD F4.5).
         book_id: Restrict to the slice of the standing graph one book evidences.
         families: Restrict to these predicate families.
         min_confidence: Drop edges below this confidence.
-        limit_book_order: Reading position — book. ``None`` means no limit.
-        limit_chapter: Reading position — chapter within that book.
 
     Returns:
         Nodes and edges, with ``truncated`` set when the edge cap was hit.
@@ -765,15 +748,15 @@ async def get_graph_from_postgres(
             .exists()
         )
 
-    if limit_book_order is not None:
+    if scope.book_order is not None:
         edge_statement = edge_statement.where(
             or_(
-                Relation.first_book_order < limit_book_order,
-                (Relation.first_book_order == limit_book_order)
+                Relation.first_book_order < scope.book_order,
+                (Relation.first_book_order == scope.book_order)
                 & (
                     Relation.first_chapter.is_(None)
-                    if limit_chapter is None
-                    else Relation.first_chapter <= limit_chapter
+                    if scope.chapter is None
+                    else Relation.first_chapter <= scope.chapter
                 ),
             )
         )
@@ -787,14 +770,11 @@ async def get_graph_from_postgres(
     truncated = len(relations) > GRAPH_EDGE_LIMIT
     relations = relations[:GRAPH_EDGE_LIMIT]
 
-    page_refs = await _page_refs(session, [relation.id for relation in relations])
-
-    nodes = await list_characters(
-        session,
-        project_id,
-        limit_book_order=limit_book_order,
-        limit_chapter=limit_chapter,
+    page_refs = await page_refs_for_relations(
+        session, [relation.id for relation in relations], scope=scope
     )
+
+    nodes = await list_characters(session, project_id, scope=scope)
     node_ids = {node.id for node in nodes}
     # An edge whose endpoint the reading position hides must not leak the
     # hidden character back in as a dangling node id.
@@ -837,19 +817,55 @@ async def get_graph_from_postgres(
     return payload
 
 
-async def _page_refs(
-    session: SQLModelAsyncSession, relation_ids: list[UUID]
+def _evidence_reading_position_filter(statement, *, scope: ReadingScope):
+    """Restrict a ``RelationEvidence`` query to a reading position.
+
+    A relation reasserted with new evidence later in the series (the edge
+    itself is aggregated project-wide, ``character-graph.md``'s "aggregation
+    is project-wide") must not surface that later evidence's page or quote to
+    a reader who has not reached it, even when the edge as a whole is already
+    visible. Unlike ``Character``/``Book``, ``RelationEvidence.book_order`` is
+    never null — every evidence row is tied to a real book.
+    """
+    if scope.book_order is None:
+        return statement
+
+    return statement.where(
+        or_(
+            RelationEvidence.book_order < scope.book_order,
+            (RelationEvidence.book_order == scope.book_order)
+            & (
+                RelationEvidence.chapter_no.is_(None)
+                if scope.chapter is None
+                else RelationEvidence.chapter_no <= scope.chapter
+            ),
+        )
+    )
+
+
+async def page_refs_for_relations(
+    session: SQLModelAsyncSession, relation_ids: list[UUID], *, scope: ReadingScope
 ) -> dict[UUID, list[PageRefOut]]:
     """Return the evidence pages of each relation, ascending, naming their book.
+
+    Public (not ``_``-prefixed): ``graph/queries.py::get_graph`` also calls
+    this to overwrite Neo4j's own denormalised ``page_refs`` edge property,
+    which is written unfiltered at projection time
+    (``graph/upsert.py::_page_refs``, from *every* evidence row) and would
+    otherwise cite a page from a reassertion beyond the reader's position on
+    an edge that is itself already visible (S8.1, PRD F4.5).
 
     Args:
         session: An open database session.
         relation_ids: Relations to collect pages for.
+        scope: The reader's position — pages from evidence beyond it are
+            dropped, not just the edge as a whole (see
+            ``_evidence_reading_position_filter``).
     """
     if not relation_ids:
         return {}
 
-    result = await session.exec(
+    statement = (
         select(
             RelationEvidence.relation_id,
             RelationEvidence.book_id,
@@ -859,6 +875,9 @@ async def _page_refs(
         .where(RelationEvidence.relation_id.in_(relation_ids))
         .order_by(RelationEvidence.book_order, RelationEvidence.page_start)
     )
+    statement = _evidence_reading_position_filter(statement, scope=scope)
+
+    result = await session.exec(statement)
 
     pages: dict[UUID, list[PageRefOut]] = {}
     for relation_id, book_id, book_order, page in result.all():
@@ -971,13 +990,27 @@ async def book_project_id(session: SQLModelAsyncSession, book_id: UUID) -> UUID 
 
 
 async def relations_out(
-    session: SQLModelAsyncSession, relation_ids: list[UUID]
+    session: SQLModelAsyncSession, relation_ids: list[UUID], *, scope: ReadingScope
 ) -> list[RelationOut]:
     """Hydrate relations into API rows with names and cited pages, in id order.
 
+    This is the one place every graph-derived query class (relationship
+    lookup, path, aggregation, series arc) turns Neo4j-selected relation ids
+    into the rows generation renders from — filtering here, against
+    ``Relation`` in Postgres (the source of truth), is what closes the gap a
+    Cypher template's own visibility clause cannot alone: an edge whose
+    ``first_book_order``/``first_chapter`` is beyond ``scope`` is dropped
+    silently, not surfaced with a "you can't see this yet" marker (S8.1, PRD
+    F4.5) — a relation not yet returned looks the same as one that does not
+    exist.
+
     Args:
         session: An open database session.
-        relation_ids: The relations to load; the result keeps this order.
+        relation_ids: The relations to load; the result keeps this order,
+            minus any not yet visible at ``scope``.
+        scope: The reader's position. ``ReadingScope.unlimited()`` for no
+            restriction — never a default, an explicit choice at the call
+            site.
     """
     if not relation_ids:
         return []
@@ -987,6 +1020,12 @@ async def relations_out(
         for r in (
             await session.exec(select(Relation).where(Relation.id.in_(relation_ids)))
         ).all()
+        if _within_reading_position(
+            r.first_book_order,
+            r.first_chapter,
+            limit_book_order=scope.book_order,
+            limit_chapter=scope.chapter,
+        )
     }
     character_ids = {
         cid
@@ -1002,7 +1041,7 @@ async def relations_out(
             )
         ).all()
     )
-    pages = await _page_refs(session, list(relations))
+    pages = await page_refs_for_relations(session, list(relations), scope=scope)
 
     out = [
         RelationOut(
@@ -1032,13 +1071,22 @@ async def relations_out(
 
 
 async def relation_arc(
-    session: SQLModelAsyncSession, a: UUID, b: UUID
+    session: SQLModelAsyncSession, a: UUID, b: UUID, *, scope: ReadingScope
 ) -> RelationArcOut:
     """Return every state of the pair ``(a, b)`` in temporal order.
 
     Direction-agnostic: ``parent_of(a, b)`` and ``child_of`` extraction
     direction never change which rows come back. A pair that never changes
     yields a single state, so callers have one code path.
+
+    Args:
+        session: An open database session.
+        a: One endpoint.
+        b: The other endpoint.
+        scope: The reader's position — a later state of the pair is dropped
+            from the arc entirely, not shown redacted, so "how has their
+            relationship changed?" never previews an ending
+            (``relations_out``, S8.1, PRD F4.5).
     """
     ids = (
         await session.exec(
@@ -1059,7 +1107,7 @@ async def relation_arc(
             )
         )
     ).all()
-    states = await relations_out(session, list(ids))
+    states = await relations_out(session, list(ids), scope=scope)
 
     return RelationArcOut(subject_character_id=a, object_character_id=b, states=states)
 
@@ -1070,14 +1118,34 @@ async def list_evidence(
     *,
     limit: int,
     offset: int,
+    scope: ReadingScope,
 ) -> list[EvidenceOut] | None:
     """Return one relation's evidence, chapter-ordered with a stable tiebreak.
 
+    Args:
+        session: An open database session.
+        relation_id: The relation whose evidence to list.
+        limit: Rows to return.
+        offset: Rows to skip.
+        scope: The reader's position. A relation not yet visible at ``scope``
+            returns ``None`` (indistinguishable from "does not exist"); one
+            that is visible still has its own evidence rows filtered, since a
+            relation reasserted later in the series carries evidence beyond
+            what made it first true (S8.1, PRD F4.5).
+
     Returns:
-        ``None`` when the relation does not exist.
+        ``None`` when the relation does not exist or is not yet visible.
     """
     relation = await session.get(Relation, relation_id)
     if relation is None:
+        return None
+
+    if not _within_reading_position(
+        relation.first_book_order,
+        relation.first_chapter,
+        limit_book_order=scope.book_order,
+        limit_chapter=scope.chapter,
+    ):
         return None
 
     speaker = None
@@ -1090,21 +1158,20 @@ async def list_evidence(
             )
         ).first()
 
-    rows = (
-        await session.exec(
-            select(RelationEvidence, Book.title, Book.series_order)
-            .join(Book, Book.id == RelationEvidence.book_id)
-            .where(RelationEvidence.relation_id == relation_id)
-            .order_by(
-                RelationEvidence.book_order,
-                func.coalesce(RelationEvidence.chapter_no, 0),
-                RelationEvidence.page_start,
-                RelationEvidence.id,
-            )
-            .limit(limit)
-            .offset(offset)
-        )
-    ).all()
+    statement = (
+        select(RelationEvidence, Book.title, Book.series_order)
+        .join(Book, Book.id == RelationEvidence.book_id)
+        .where(RelationEvidence.relation_id == relation_id)
+    )
+    statement = _evidence_reading_position_filter(statement, scope=scope)
+    statement = statement.order_by(
+        RelationEvidence.book_order,
+        func.coalesce(RelationEvidence.chapter_no, 0),
+        RelationEvidence.page_start,
+        RelationEvidence.id,
+    ).limit(limit).offset(offset)
+
+    rows = (await session.exec(statement)).all()
 
     evidence = [
         EvidenceOut(

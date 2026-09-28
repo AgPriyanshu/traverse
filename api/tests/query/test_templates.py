@@ -64,6 +64,8 @@ async def test_relationship_lookup_template_finds_edge_either_direction(
             subject_id=str(bennet.id),
             object_id=str(jane.id),
             project_id=str(project.id),
+            lbo=None,
+            lch=None,
         )
         assert len(rows) >= 1
 
@@ -72,6 +74,8 @@ async def test_relationship_lookup_template_finds_edge_either_direction(
             subject_id=str(jane.id),
             object_id=str(bennet.id),
             project_id=str(project.id),
+            lbo=None,
+            lch=None,
         )
         assert {r["relation_id"] for r in rows} == {
             r["relation_id"] for r in reversed_rows
@@ -128,9 +132,57 @@ async def test_aggregation_template_is_exhaustive_and_predicate_scoped(
             project_id=str(project.id),
             predicate="parent_of",
             inverse_predicate="child_of",
+            lbo=None,
+            lch=None,
         )
         other_ids = {r["other_id"] for r in rows}
         assert other_ids == {str(d.id) for d in daughters}
         assert str(friend.id) not in other_ids
+    finally:
+        await projection.reset_project(project.id)
+
+
+@pytest.mark.asyncio
+async def test_relationship_lookup_template_hides_edge_beyond_reading_position(
+    session, project, book
+):
+    """S8.1: the Cypher itself filters, not just the Postgres rehydration."""
+    bennet = await make_character(session, project, name="Mr Bennet")
+    jane = await make_character(session, project, name="Jane Bennet")
+    await make_relation(
+        session,
+        project,
+        book,
+        subject=jane,
+        predicate="child_of",
+        obj=bennet,
+        family=RelationFamily.KINSHIP,
+        quote="Jane is Mr Bennet's daughter.",
+        first_book_order=1,
+        first_chapter=10,
+    )
+
+    try:
+        await project_now(session, project.id)
+
+        rows = await run_template(
+            TemplateId.RELATIONSHIP_LOOKUP,
+            subject_id=str(bennet.id),
+            object_id=str(jane.id),
+            project_id=str(project.id),
+            lbo=1,
+            lch=5,
+        )
+        assert rows == []
+
+        visible_rows = await run_template(
+            TemplateId.RELATIONSHIP_LOOKUP,
+            subject_id=str(bennet.id),
+            object_id=str(jane.id),
+            project_id=str(project.id),
+            lbo=1,
+            lch=10,
+        )
+        assert len(visible_rows) == 1
     finally:
         await projection.reset_project(project.id)
