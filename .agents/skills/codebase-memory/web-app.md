@@ -136,6 +136,61 @@ all passing; `pnpm typecheck`, `pnpm lint`, `pnpm build` all clean. See
 `plans/sprint-7/HANDOFF.md` for the full decision/payload table be2's
 resolution handlers need to match.
 
+**Built (S8.6, fe1):** the persistent reading-position slider (F4.5) —
+`lib/reading-position.ts` (pure: `SeriesPosition`, `buildPositionSteps` — one
+step per chapter, every project book laid end to end in series order,
+`indexForPosition`/`positionForIndex`, `positionLabel`, `limitsForBook` for a
+single book's own cap) plus `lib/use-reading-position.ts` (the
+`localStorage`-backed hook, keyed per **project**, `traverse:reading-position:
+<projectId>`). `<ReadingPositionSlider>` (`components/spoiler/`) is mounted
+once in `<ProjectLayout>`, wrapped in `<ReadingPositionProvider>`
+(`routes/project/reading-position-provider.tsx` +
+`reading-position-context.ts`, split across two files so the
+`only-export-components` lint rule stays quiet) — every screen under a
+project (`graph/graph-explorer.tsx`, `characters.tsx`, `project/ask.tsx`)
+reads the same slider via `useReadingPositionContext()` and passes
+`limit_book_order`/`limit_chapter` to its own query. `book/ask.tsx` sits
+outside `<ProjectLayout>`, so it reads the same `localStorage` entry directly
+through `limitsForBook` rather than keeping a second, divergent position.
+**This superseded `graph/series-position-control.tsx` (S5.11), which is
+deleted** — one persistent control, not a URL-param one only the graph
+explorer had. `graph-canvas.tsx` was restructured so a `nodes`/`edges` prop
+change (the slider re-fetching) updates the *existing* cy instance in place —
+diffing ids, fading elements the new fetch dropped from their current
+position before removing them, adding any new ones with a fade-in — instead
+of destroying and relaying out the whole graph from scratch; a full rebuild
+is now reserved for a theme or ontology change only. See
+`web/tests/reading-position.test.ts` (pure logic) and
+`web/tests/spoiler-slider.test.tsx` (a real keyboard-driven slider move
+shrinking a rendered list and persisting to `localStorage`) for the proof.
+`plans/sprint-8/HANDOFF.md` flags that be2's `ReadingScope` (S8.1) is an
+internal server-side refactor only as of this writing — the wire shape
+(`limit_book_order`/`limit_chapter`, independently optional) this slider
+depends on was unchanged.
+
+**Built (S8.7, fe1):** `/ops/evals` (`routes/ops/evals/`) — the ablation
+matrix grouped by axis (`ablation-table.tsx`, `ablation-config.ts`'s
+`groupByAxis`/`isRecommended`/`isBaseline`/`deltaFor`, structural — not a
+`label`-text match — since the contract carries no `is_recommended` field),
+a per-cell drill-down into the full `MetricSet` (`metric-drawer.tsx`, same
+`Drawer.Root` pattern as `mention-inspector-drawer.tsx`), a calibration
+reliability diagram with the diagonal labelled, not just drawn
+(`calibration-chart.tsx` — custom SVG, one accent hue, marker radius carries
+sample size, a `<table>` equivalent always rendered beneath it), and a
+metric trend across runs as two single-series mini line charts rather than
+one dual-axis chart (`metric-trend-chart.tsx` — F1 and spoiler-leakage sit on
+genuinely different scales, dataviz's #1 anti-pattern is one chart with two
+y-axes). **`types.ts` hand-mirrors `EvalRunOut`/`EvalResultOut`/
+`AblationConfig`/`MetricSet`/`CalibrationModelOut`** from
+`api/contracts/api.py` — no live route serves them yet (do1's S8.8 runner),
+so `openapi-typescript` has nothing to generate from; `fixtures.ts` is
+clearly-marked placeholder data in the exact contract shape, three runs deep
+so the trend chart has something to plot. Delete `types.ts` for the
+generated `Schemas[...]` types the moment a real route exists —
+`plans/sprint-8/HANDOFF.md` has the exact swap point (`evals-screen.tsx`'s
+two imports from `./fixtures`). 233 Vitest tests, all passing; `pnpm
+tsc --noEmit`, `pnpm lint`, `pnpm build` all clean.
+
 **Known gap:** `MentionOut` and `EvidenceOut` carry a page but no `SpanBox`, so their click-through lands on the page without a highlight (Sprint 3 SCR-9, Sprint 4 SCR-10). The roster sparkline gap (Sprint 3 SCR-1) is closed for the single-book roster; its series-roster descendant reopens a version of it (Sprint 5 SCR-1 — see above).
 
 `web/src/design-system/tokens.ts` **exists** (DCR-1, landed at the Sprint 2
@@ -454,9 +509,10 @@ project roster.
 | `/projects/:id` | books in series order, drag to reorder, add book | Built (S5) |
 | `/projects/:id/characters` | series roster + appearance strip (moved from `/books/:id/characters`, S3.10) | Built (S5) |
 | `/projects/:id/characters/:cid` | character detail + appearances section (moved from `/books/:id/...`, S3.11) | Built (S5) |
-| `/projects/:id/graph` | series graph, book filter, series-position control (moved from `/books/:id/graph`, S4) | Built (S5) |
-| `/projects/:id/ask` | Q&A with citations, whole series | Built (S6) |
-| `/ops`, `/ops/evals` | dashboard, ablations | S8/S9 |
+| `/projects/:id/graph` | series graph, book filter, reading-position slider (moved from `/books/:id/graph`, S4) | Built (S5) |
+| `/projects/:id/ask` | Q&A with citations, scoped to the project's reading position (S8.6) | Built (S6) |
+| `/ops` | operations dashboard | S9 |
+| `/ops/evals` | ablation table + calibration + trend, fixture-backed pending a live route | Built (S8.7) |
 
 ## Key components
 
@@ -470,7 +526,7 @@ project roster.
 | `<RelationArc>` | temporal sequence; a 1-state arc renders through the same path as a 3-state one, and a 3-book arc through the same path as a 1-book one | S4, S5 |
 | `<AppearanceStrip>` | Built (`routes/project/appearance-strip.tsx`). Per-book presence band with an always-visible text caption ("books 1–3") — a coloured band alone is not an answer. `intensity` is uniform on the roster row (SCR-1 gap), real on the character detail page. | S5 |
 | Graph explorer | Cytoscape.js + `fcose`, project-scoped since S5 (`routes/project/graph/`). Layout cached — recomputing on every filter makes it jump; the S5.11 book filter reuses this, so it animates too. **List view is an equal, not a stub.** | S4, S5 |
-| `<SeriesPositionControl>` | Built (`routes/project/graph/series-position-control.tsx`). The spoiler gate — picking `(book, chapter)` always pins a real chapter (defaults to that book's last), never a book with an undefined one. A hard server re-fetch (`limit_book_order`/`limit_chapter`), not a client filter. | S5 |
+| `<ReadingPositionSlider>` | Built (`components/spoiler/reading-position-slider.tsx`). The spoiler gate — one slider step per chapter across every project book, `localStorage`-backed via `<ReadingPositionProvider>` (`routes/project/reading-position-provider.tsx`), mounted once in `<ProjectLayout>` so graph/characters/ask all read it. A hard server re-fetch (`limit_book_order`/`limit_chapter`), not a client filter. Replaced S5.11's `<SeriesPositionControl>` (deleted). | S5, S8.6 |
 | Review queue | Built (`routes/review/`). `j/k` move, `a/e/m/s/r/t/1-9/c/p/o/n` decide (per task type — see HANDOFF.md), `x` bulk-select, `u` undo, `?` legend. Prefetch next 3; optimistic with a real 5s-grace undo. 50 tasks, 50 keystrokes, no mouse — see `review-speed.test.tsx`. | S7 |
 | `<CharacterTierBadge>` | Built (`routes/project/character-tier-badge.tsx`). Accent treatment only for `protagonist`; every other tier is a neutral `bg.sunken`/`fg.muted` badge — there is no per-tier token, and one was not invented for this. | S3 |
 | `<SparklineBars>` | Built (`routes/project/sparkline-bars.tsx`). A single-hue magnitude bar chart, `interactive` (keyboard-operable `rect`s, click-to-select, a stroke ring on the selected bar) or not (the roster row's mini chart). `responsive` stretches to its container at a fixed height via `viewBox` + `preserveAspectRatio="none"`. | S3 |

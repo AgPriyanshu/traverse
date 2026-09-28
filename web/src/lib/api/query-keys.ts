@@ -24,7 +24,8 @@ export const queryKeys = {
     ["books", bookId, "pages", page] as const,
 
   characters: () => ["characters"] as const,
-  character: (characterId: string) => ["characters", characterId] as const,
+  character: (characterId: string, params?: Params) =>
+    ["characters", characterId, params ?? {}] as const,
   characterMentions: (characterId: string, params?: Params) =>
     ["characters", characterId, "mentions", params ?? {}] as const,
   characterAppearances: (characterId: string) =>

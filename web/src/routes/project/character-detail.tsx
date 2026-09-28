@@ -14,6 +14,7 @@ import { CharacterRelationships } from "./graph/character-relationships";
 import { MentionInspectorDrawer } from "./mention-inspector-drawer";
 import { MentionsTimeline } from "./mentions-timeline";
 import { bookById, sortedBooks } from "./project-lookup";
+import { useReadingPositionContext } from "./reading-position-context";
 import { usePagedMentions } from "./use-paged-mentions";
 
 const Select = chakra("select");
@@ -31,12 +32,20 @@ export const CharacterDetail = () => {
   const { projectId = "", characterId = "" } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
 
+  // Context.
+  const { position } = useReadingPositionContext();
+
   // Apis.
   const project = useProject(projectId);
-  const character = useCharacter(characterId);
+  const character = useCharacter(characterId, {
+    limit_book_order: position?.bookOrder ?? undefined,
+    limit_chapter: position?.chapter ?? undefined,
+  });
   const mentions = usePagedMentions(characterId, {
     pageSize: MENTION_PAGE_SIZE,
     expectedTotal: character.data?.mention_count,
+    limitBookOrder: position?.bookOrder ?? undefined,
+    limitChapter: position?.chapter ?? undefined,
   });
 
   // Variables.

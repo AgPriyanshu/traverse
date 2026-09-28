@@ -139,7 +139,9 @@ export const routes: RouteObject[] = [
           },
           {
             path: "evals",
-            element: <NotYetBuilt screen="Eval ablations" sprint={8} />,
+            lazy: async () => ({
+              Component: (await import("./ops/evals/evals-screen")).EvalsScreen,
+            }),
           },
         ],
       },

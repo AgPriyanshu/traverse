@@ -8,6 +8,9 @@ export type UsePagedMentionsOptions = {
   pageSize?: number;
   /** `character.mention_count` — stop paging once we have at least this many, same idea as the chunk inspector's `chunk_count` stop condition. */
   expectedTotal?: number;
+  /** The reading-position gate (S8.6) — a mention past this point is a citation, and an ungated one would leak exactly like an ungated graph node. */
+  limitBookOrder?: number;
+  limitChapter?: number;
 };
 
 /**
@@ -19,15 +22,16 @@ export type UsePagedMentionsOptions = {
  */
 export const usePagedMentions = (
   characterId: string | undefined,
-  { pageSize = DEFAULT_PAGE_SIZE, expectedTotal }: UsePagedMentionsOptions = {},
+  { pageSize = DEFAULT_PAGE_SIZE, expectedTotal, limitBookOrder, limitChapter }: UsePagedMentionsOptions = {},
 ) => {
   // States.
   const [pageCount, setPageCount] = useState(1);
   // Not an effect — React's own render-phase pattern for resetting state when
   // a prop changes (see chunk-inspector.tsx / page-viewer.tsx).
-  const [trackedId, setTrackedId] = useState(characterId);
-  if (characterId !== trackedId) {
-    setTrackedId(characterId);
+  const [trackedKey, setTrackedKey] = useState(`${characterId}:${limitBookOrder}:${limitChapter}`);
+  const key = `${characterId}:${limitBookOrder}:${limitChapter}`;
+  if (key !== trackedKey) {
+    setTrackedKey(key);
     setPageCount(1);
   }
 
@@ -38,6 +42,8 @@ export const usePagedMentions = (
           ...mentionsQueryOptions(characterId, {
             limit: pageSize,
             offset: index * pageSize,
+            limit_book_order: limitBookOrder,
+            limit_chapter: limitChapter,
           }),
         }))
       : [],
