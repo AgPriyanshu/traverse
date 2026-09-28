@@ -1,0 +1,49 @@
+# Sprint 7 Retrospective
+
+**Dates:** 2026-09-27 → 2026-09-28
+**Goal:** the pipeline pauses when it is unsure, a human answers in seconds, and the correction cascades through the graph and never gets overwritten.
+**Outcome:** Met, with one DoD line item downgraded from "timed and recorded" to "mechanically proxied" and one narrow F5.4 gap deferred to the next freeze (SCR-1).
+
+## 1. Delivered
+
+| Story | Owner | Status | Notes |
+|---|---|---|---|
+| S7.1–S7.4 | be2 | Built, merged, verified | LangGraph interrupt gates (`roster`, `conflict`) on the Sprint 1 Postgres checkpointer; five typed resolution handlers matching fe1's wire vocabulary exactly; blast-radius task priority recomputed live on every read; resolve-and-resume proven idempotent under concurrent double-resolve and across six simultaneously-paused books. |
+| S7.5–S7.7 | be1 | Built, merged, verified | `human_verified` guards closed on every extraction write path, including two real gaps found mid-sprint (`replace_candidates` deleting verified rejections on rerun; `queue_collision_review`/`queue_cross_book_review` writing a payload shape that predates the Sprint 7 freeze). Disagreement-to-task dedup (`api/pipeline/verification.py`) wired into chapter re-detection, merge collision, and candidate reclassification. Correction-feedback store built and tested. |
+| S7.8–S7.10 | fe1 | Built, merged, verified | Keyboard-first review queue (`j`/`k`/`a`/`e`/`m`, full shortcut legend), five renderers (merge/confirm_relation/resolve_conflict/classify_candidate/confirm_chapter_split — six task types, one shared merge renderer), prefetch, optimistic resolve with a real 5s-grace undo, bulk accept with a confidence-range display and a confirmation step above 5 tasks. |
+| S7.11–S7.12 | do1 | Built, merged, verified | Review-queue throughput metrics and alerting (`/ops/review-metrics`, `/ops/review-alerts`, orphaned-thread detection reading `checkpoint_writes` directly). Chaos test suite run for real against the shared dev stack with actual container kills, not simulation. |
+
+**Demo result:** Not run as a single live end-to-end pass (no fresh *Wuthering Heights* ingestion this sprint to reproduce the "two Catherines" scenario specifically). Each demo-script beat was verified independently instead — see §2.
+
+## 2. Verified (real infra, real container kills, no mocked infra)
+
+| DoD line item | Status | Evidence |
+|---|---|---|
+| Worker kill mid-review loses nothing | **Met** | do1 killed `celery-worker`, `db`, and `api` on the live shared stack (`INTEGRATION_HOST=1`, real `docker compose kill` + restart) and confirmed zero state loss on all three via `api/tests/graph/checkpoint_probe.py`'s real interrupt/resume mechanism against real Postgres-backed checkpoints. be2 additionally proved concurrent-double-resolve and six-books-paused-simultaneously restart safety in `api/tests/review/test_restart_safety.py`. |
+| Re-run preserves 100% of `human_verified` records | **Met, with one documented gap** | be1's guards cover `Character`, `Chapter`, and candidate rejection writes, with two real pre-existing bugs found and fixed along the way (see §3). The one uncovered case — a verified `Character`'s own field disagreeing with a same-book rerun — is still guarded (never silently overwritten) but falls back to a warning log rather than a review task, since no frozen payload shape fits a single-entity field correction. Filed as SCR-1, non-blocking, proposed for the next freeze. |
+| Merge cascade leaves zero orphaned mentions or duplicate edges | **Met (inherited, re-exercised)** | Sprint 3's transactional merge is called unchanged by be2's new `merge`/`keep_separate` resolution handlers; not independently re-audited this sprint beyond the existing merge/split test coverage passing under the new call path. |
+| Every correction lands in the feedback store with enough context to calibrate on in Sprint 8 | **Met** | `CorrectionFeedback` is written on every resolution (`api/review/resolution.py`), carrying `model_value`/`human_value`/`model_confidence`/`resolution_method`/`evidence`. do1's outcome-mix metric already derives accepted/corrected/rejected from this rather than from the free-string `decision` field, confirming it's queryable in the shape Sprint 8 needs. |
+| 50 tasks cleared in under 8 minutes, keyboard only — **timed and recorded** | **Downgraded — mechanically proxied, not literally timed** | `web/tests/review-speed.test.tsx` drives 50 mixed-type tasks to empty with exactly 50 keystrokes and zero navigation keys, and passes. This proves the keyboard path has no structural friction (no forced mouse interaction, no wasted keystrokes), but it is not a literal stopwatch-timed human session. No human ran the 50-task drill against a live backend this sprint. **Recommend an actual timed session before this line item is called fully done** — likely a five-minute task for whoever picks up Sprint 8, not a new story. |
+| `RETRO.md` written | Met | This file. |
+
+## 3. Real bugs found and fixed this sprint
+
+1. **`replace_candidates` deleted every `RejectedCandidate` row on each rerun, including verified ones** (be1) — a verified rejection would silently re-enter the candidate pool on the next pipeline run. Fixed to preserve verified rows.
+2. **`queue_collision_review`/`queue_cross_book_review` wrote a payload shape that predated the Sprint 7 contract freeze** (be1) — would have failed `ReviewTaskOut` validation the first time `GET /review/tasks` read one back, since the freeze changed `payload` from a bare dict to a discriminated union after these call sites were originally written. Fixed to the frozen `MergeCharactersPayload`/`MergeAcrossBooksPayload` shape.
+3. **A real LangGraph interrupt/resume quirk** (be2): `Command(resume=None)` crashes the library outright, and a resumed node's `interrupt()` does not reliably re-pause mid-loop. `resume_gate` now re-verifies via a plain query before resuming rather than trusting the framework's resume semantics blindly — documented inline per this repo's comment convention (a non-obvious workaround for an external gotcha).
+4. **Neo4j driver has no bounded timeout on a network partition** (do1, chaos test scenario 6) — disconnecting the `neo4j` container from the compose network and calling `api.graph.client.execute` hangs past a 20-second bound instead of failing fast. Not fixed this sprint (be2's `api/graph/client.py` is outside do1's owned paths); documented as a runbook item in `plans/sprint-7/HANDOFF.md` for Sprint 8 or the next available be2 slot. A real production partition to Neo4j today would hang whatever request triggered it rather than surfacing a retryable error.
+5. **`docker network connect` without `--alias` drops a container's compose service-name DNS alias** (do1, found while building the chaos harness) — reconnecting a container after a simulated partition left every other container unable to resolve it by service name until reconnected with `--alias` explicitly. Fixed in `scripts/chaos_test.py`; worth remembering for anyone else scripting a network-partition test against this compose stack.
+6. **The orchestrator's own first full-suite run after the merge train reported 241 failed / 141 errors** — not a real regression. The bare `pytest -q` invocation used for verification omitted the path arguments baked into the test image's own default command (`pytest api/tests eval/tests scripts/test_label_roster.py scripts/test_ingest_series.py -q`), which changed pytest's config-file discovery and silently dropped `asyncio_mode = auto` for anything collected from the wrong rootdir. Rerunning with the correct default paths gave a clean 686 passed / 1 skipped. No code change — an orchestrator process note for future sprint closes: always use the image's own default test command, or `make test-api`, rather than a bare `pytest -q`.
+
+## 4. Process notes
+
+- **`ReviewResolution.decision` is a free string, not an enum, in the frozen contract.** This worked out cleanly this sprint only because fe1 (S7.8) fixed a wire vocabulary first and documented it in `plans/sprint-7/HANDOFF.md`, and be2 (S7.2) cross-checked and matched it exactly before finalizing resolution handlers — including one documented mid-task correction where be2's first-pass vocabulary didn't match fe1's and was rewritten. This is fragile: two agents built to a frozen contract that under-specifies the actual wire shape, and it only converged because both sides wrote it down and one read the other's notes before finishing. **Recommend promoting `decision` to a proper discriminated union in a future freeze** (mirroring the `ReviewTaskPayload` pattern already established) so this class of drift is caught by the type system rather than by an agent remembering to cross-check a HANDOFF.md.
+- **SCR numbering held at two entries this sprint** (be1's SCR-1, do1's SCR-2, renumbered from a collision at the merge train — both agents independently picked "SCR-1" since their branches diverged from the same freeze point before seeing each other's filings). Same recurring pattern as every prior sprint; still no process fix in place beyond catching it at merge time.
+- **Sprint 5 and Sprint 6 retrospectives were never written** (both closed and merged without one, an orchestrator process gap predating this sprint). Not backfilled here — flagging so it doesn't silently repeat. This sprint's own `RETRO.md` was written before starting Sprint 8, per the DoD checklist's own requirement.
+
+## 5. Carried into Sprint 8
+
+- SCR-1 (`confirm_field` payload type) — batch into the next contract freeze.
+- Neo4j driver timeout on partition (§3.4) — needs a bounded `verify_connectivity()`/`session.run()` timeout in `get_driver()`/`execute()`.
+- A literal timed human 50-task session, to fully close the S7.8 DoD line item rather than relying on the mechanical proxy.
+- Consider promoting `ReviewResolution.decision` to a typed union at the next freeze (§4).
