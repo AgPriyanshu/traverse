@@ -6,6 +6,7 @@ place instead of at forty call sites.
 """
 
 import logging
+from dataclasses import dataclass
 from uuid import UUID
 
 from sqlalchemy import delete, func, insert, select, update
@@ -13,7 +14,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
 from ..contracts.api import BookOut, ChapterOut, ChunkOut, ProjectDetailOut, ProjectOut
-from ..contracts.enums import BookStatus, StageName, StageState
+from ..contracts.enums import (
+    BookStatus,
+    DetectionMethod,
+    ReviewTaskType,
+    StageName,
+    StageState,
+)
 from ..contracts.pipeline import ChapterInfo, ChunkPayload, StageStatus
 from ..db.models import (
     Book,
@@ -26,6 +33,7 @@ from ..db.models import (
     Project,
     Relation,
 )
+from .verification import raise_disagreement
 
 logger = logging.getLogger(__name__)
 
@@ -209,7 +217,7 @@ async def upsert_chapters(
     # Never overwrite a human-verified chapter (F5.4): only unverified rows are
     # replaced, and a re-detection for an already-verified number is dropped
     # rather than colliding with it on the (book_id, number) unique constraint.
-    verified_numbers = await _verified_chapter_numbers(session, book_id)
+    verified = await _verified_chapters(session, book_id)
     await session.execute(
         delete(Chapter)  # type: ignore[arg-type]
         .where(Chapter.book_id == book_id)  # type: ignore[arg-type]
@@ -228,7 +236,7 @@ async def upsert_chapters(
             "confidence": info.confidence,
         }
         for info in chapters
-        if info.number not in verified_numbers
+        if info.number not in verified
     ]
 
     if rows:
@@ -248,22 +256,139 @@ async def upsert_chapters(
     if book is not None:
         await session.refresh(book)
 
+    if book is not None:
+        for info in chapters:
+            snapshot = verified.get(info.number)
+            if snapshot is not None:
+                await _raise_chapter_disagreement(
+                    session,
+                    project_id=book.project_id,
+                    book_id=book_id,
+                    verified_chapter=snapshot,
+                    proposed=info,
+                    proposed_range=ranges[info.number],
+                )
+
     persisted = await list_chapters(session, book_id)
 
     return persisted
 
 
-async def _verified_chapter_numbers(
+@dataclass(frozen=True)
+class _VerifiedChapterSnapshot:
+    """The fields of a verified ``Chapter`` needed after the commit that expires it.
+
+    Read once, before ``upsert_chapters``' commit expires every object in the
+    session (``pipeline/tasks.py`` documents the same gotcha for ``Character``
+    rows) -- touching the live ORM object afterwards raises
+    ``sqlalchemy.exc.MissingGreenlet`` the first time a lazy-refresh runs
+    outside the caller's own awaited call.
+    """
+
+    id: UUID
+    number: int | None
+    title: str | None
+    heading_text: str | None
+    page_start: int
+    page_end: int
+    detection_method: DetectionMethod
+
+
+async def _verified_chapters(
     session: SQLModelAsyncSession, book_id: UUID
-) -> set[int | None]:
+) -> dict[int | None, _VerifiedChapterSnapshot]:
     statement = (
-        select(Chapter.number)
+        select(Chapter)
         .where(Chapter.book_id == book_id)  # type: ignore[arg-type]
         .where(Chapter.human_verified.is_(True))  # type: ignore[union-attr]
     )
-    numbers = set((await session.execute(statement)).scalars().all())
+    rows = (await session.execute(statement)).scalars().all()
 
-    return numbers
+    return {
+        chapter.number: _VerifiedChapterSnapshot(
+            id=chapter.id,
+            number=chapter.number,
+            title=chapter.title,
+            heading_text=chapter.heading_text,
+            page_start=chapter.page_start,
+            page_end=chapter.page_end,
+            detection_method=chapter.detection_method,
+        )
+        for chapter in rows
+    }
+
+
+def _chapter_disagrees(
+    verified_chapter: _VerifiedChapterSnapshot,
+    proposed: ChapterInfo,
+    proposed_range: tuple[int, int],
+) -> bool:
+    """Whether a fresh detection's structural fields differ from a verified chapter.
+
+    Confidence is deliberately excluded: run-to-run LLM sampling variance
+    moves it even when nothing about the actual boundary changed
+    (``.agents/skills/codebase-memory/character-graph.md``), and treating that
+    alone as a disagreement would flood the queue with nothing for a human to
+    decide.
+    """
+    return (
+        verified_chapter.title != proposed.title
+        or verified_chapter.heading_text != proposed.text
+        or (verified_chapter.page_start, verified_chapter.page_end) != proposed_range
+        or verified_chapter.detection_method != proposed.detection_method
+    )
+
+
+async def _raise_chapter_disagreement(
+    session: SQLModelAsyncSession,
+    *,
+    project_id: UUID,
+    book_id: UUID,
+    verified_chapter: _VerifiedChapterSnapshot,
+    proposed: ChapterInfo,
+    proposed_range: tuple[int, int],
+) -> None:
+    """Queue a ``confirm_chapter_split`` task instead of dropping a re-detection.
+
+    ``upsert_chapters`` already refuses to write over ``verified_chapter`` --
+    this only decides whether the refusal is worth telling a human about
+    (S7.6). One task per verified chapter number, deduplicated so a rerun that
+    reproduces the same proposal does not requeue it.
+    """
+    if not _chapter_disagrees(verified_chapter, proposed, proposed_range):
+        return
+
+    await raise_disagreement(
+        session,
+        project_id=project_id,
+        book_id=book_id,
+        task_type=ReviewTaskType.CONFIRM_CHAPTER_SPLIT,
+        dedup_key=f"chapter:{verified_chapter.id}",
+        payload={
+            "chapter": {
+                "id": str(verified_chapter.id),
+                "book_id": str(book_id),
+                "number": verified_chapter.number,
+                "title": verified_chapter.title,
+                "page_start": verified_chapter.page_start,
+                "page_end": verified_chapter.page_end,
+                "detection_method": verified_chapter.detection_method,
+                "chunk_count": 0,
+            },
+            "preceding_text": (
+                f"Verified: {verified_chapter.title!r}, pages "
+                f"{verified_chapter.page_start}-{verified_chapter.page_end} "
+                f"({verified_chapter.detection_method})"
+            ),
+            "following_text": (
+                f"Model now proposes: {proposed.title!r}, pages "
+                f"{proposed_range[0]}-{proposed_range[1]} "
+                f"({proposed.detection_method})"
+            ),
+            "confidence": proposed.confidence,
+        },
+        priority=1,
+    )
 
 
 async def list_chapters(session: SQLModelAsyncSession, book_id: UUID) -> list[Chapter]:
