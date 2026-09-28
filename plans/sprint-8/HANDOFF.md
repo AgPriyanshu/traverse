@@ -118,4 +118,71 @@ override behaviour).
 
 ## S8.3 — Confidence calibration
 
-(filled in once landed — see commit for this story)
+**Entry point:** `api/eval/calibration.py::fit_all(session)` — fits every
+`ReviewTaskType` this module knows how to label
+(`merge_characters`/`merge_across_books`/`confirm_relation`) plus one pooled
+`"overall"` fit, persists each to `CalibrationModel`, and returns a
+`{task_type: CalibrationModelOut | None}` mapping (`None` where there was not
+enough labelled feedback — see `MIN_SAMPLES_TO_FIT`, currently 10). For one
+task type, call `fit_and_store(session, task_type=...)` directly.
+
+**Real numbers, measured against this worktree's actual database
+(`traverse_be2`) — not fitted:**
+
+```
+$ docker compose exec -T db psql -U postgres -d traverse_be2 -c \
+    "SELECT count(*) FROM correctionfeedback;"
+relation "correctionfeedback" does not exist   -- migrations never run against
+                                                -- this DB; traverse_be1,
+                                                -- traverse_int, traverse_test_*
+                                                -- all checked too: 0 rows,
+                                                -- every one of them.
+```
+
+**There is no real Sprint 7 human-review feedback in this environment to
+calibrate against.** `CorrectionFeedback` rows only exist once a person
+resolves an actual `ReviewTask` through the frontend queue; nothing in any
+agent's worktree or the integration DB has done that yet. `fit_and_store`
+correctly returns `None` for every task type against real data right now —
+that is the honest measurement, not a bug: `load_labelled_feedback` reports
+`fitted_on_n=0`. **ECE before/after: not defined (0 samples).** Whoever runs
+the Sprint 8 demo end to end (real pipeline run → real ambiguous merges → a
+real reviewer resolving them) will have real rows for `fit_all` to pick up
+with zero code changes.
+
+**The mechanism itself is verified against synthetic data**
+(`api/tests/eval/test_calibration.py`, 16 tests, all passing) so its
+correctness is not in question — only the absence of real input is. On a
+deliberately-overconfident synthetic set (50 samples, 5 confidence levels
+0.5–0.9, each level's true accuracy exactly 0.2 below its stated confidence —
+the textbook miscalibration shape):
+
+| | value |
+|---|---|
+| `fitted_on_n` | 50 |
+| `ece_before` | **0.200** |
+| `ece_after` (Platt) | 0.083 |
+| `ece_after` (isotonic) | **0.000** |
+| `ece_after` (reported, best of the two) | 0.000 |
+
+Isotonic regression recovers the true (monotonic, step-wise) relationship
+exactly on this synthetic set because the set was constructed to be exactly
+monotonic — a real feedback distribution will be noisier and isotonic's
+advantage over Platt will likely narrow; `CalibrationModel` records both
+`ece_after_platt`/`ece_after_isotonic` implicitly through `CalibrationFit`
+(not currently separate columns on the frozen `CalibrationModel` table — only
+the better of the two is persisted as `ece_after`; if do1's S8.10 published
+table wants both numbers shown, that needs an SCR to add the columns, not a
+code change here).
+
+**Tests:** `api/tests/eval/test_calibration.py` — `label_correctness` per
+task type/decision (including the deliberate `resolve_conflict` exclusion),
+`reliability_diagram`'s ECE on hand-computable inputs, both calibrators'
+monotonicity and ECE reduction, the `MIN_SAMPLES_TO_FIT` floor, and
+`fit_and_store`'s persistence + versioning (a re-fit is a new version, never
+an overwrite). Along the way, found and fixed a real test-isolation gap:
+`api/tests/conftest.py`'s `TABLES_TOUCHED_BY_TESTS` truncate list predates
+migration `0011` and was missing `calibrationmodel`/`evalresult`/`evalrun` —
+version numbers were climbing across unrelated test runs. Fixed in the same
+commit (three names added, shared fixture, not S8.3-specific — every agent's
+tests benefit).

@@ -32,6 +32,12 @@ TABLES_TOUCHED_BY_TESTS = (
     "correctionfeedback",
     "reviewtask",
     "correctionfeedback",
+    # Sprint 8 tables (migration 0011) — found missing here while adding
+    # S8.3's calibration tests: a fitted model's version number kept
+    # climbing across test runs because nothing truncated it between them.
+    "calibrationmodel",
+    "evalresult",
+    "evalrun",
     "book",
     "project",
 )
