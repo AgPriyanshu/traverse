@@ -1,37 +1,49 @@
 # Sprint 8 — fe1 HANDOFF
 
-## S8.6 — the reading-position slider depends on be2's S8.1 wire shape
+## S8.6 — checked be2's `ai/be2/sprint-8-spoiler-calibration` before finishing; one real follow-up
 
 The persistent reading-position slider (`web/src/components/spoiler/`,
-`ProjectLayout`) is built against **today's** `limit_book_order`/
-`limit_chapter` shape: two independently optional `int | None` query params on
+`ProjectLayout`) is built against `limit_book_order`/`limit_chapter`: two
+independently optional `int | None` query params on
 `GET /api/projects/{id}/graph`, `GET /api/projects/{id}/characters`,
 `GET /api/characters/{id}`, `GET /api/characters/{id}/mentions`, and
 `QueryRequest.limit_book_order`/`limit_chapter`.
 
-As of this commit, `ai/be2/sprint-8-spoiler-calibration` had **not** touched
-`api/contracts/api.py` or any `api/routes/*.py` — be2's `api/query/scope.py`
-(`ReadingScope`, a frozen dataclass with `.unlimited()`) is an internal
-refactor of the graph/query/retrieval layer's own function signatures, not a
-wire-format change. The frontend sends exactly the same two query params it
-always has.
+**be2 landed S8.1 (`b796938`, "required ReadingScope enforces spoiler cutoff
+everywhere") on their branch while this was being built.** Checked the actual
+commit, not just the branch name: `ReadingScope` (`api/query/scope.py`) is
+built at the route boundary from those exact same two query params
+(`ReadingScope(book_order=limit_book_order, chapter=limit_chapter)`) — **the
+wire shape is unchanged**, so nothing above needs updating once that branch
+merges.
 
-**If S8.1 lands with a different wire shape** (e.g. a single combined
-`reading_position` param, or promoting it to a required field with no
-"omit for no limit" option), the frontend call sites to update are:
+**What did change, and matters for fe1 the moment it merges to `ai-master`:**
+`limit_book_order`/`limit_chapter` are now *also* accepted (and enforced) on
+four endpoints that never had them before — `GET
+/characters/{id}/neighbourhood`, `GET /relations/arc`, `GET
+/relations/{id}/evidence`, and `GET /graph/path`. The frontend hooks for all
+four (`useNeighbourhood`, `useRelationArc`, `useEvidence`, `useGraphPath` in
+`web/src/lib/api/hooks.ts`) predate this and **do not send the reading
+position** — `useEvidence` already forwards a generic `params` object
+(nothing to change there beyond the call site), but `useNeighbourhood`/
+`useRelationArc`/`useGraphPath` don't even accept params yet. Concretely,
+`routes/project/graph/evidence-panel.tsx`/`evidence-item.tsx` (evidence
+quotes — literal citations) and `relation-arc.tsx` (a pair's relationship
+across chapters — literally "how did this change over time") are surfaces
+the S8.6 brief's "nothing from chapter 6+ present as node, edge, or citation"
+covers and this build did not close, because the server had nowhere to
+enforce it until this commit.
 
-- `web/src/lib/api/hooks.ts` — `useProjectGraph`, `useCharacters`,
-  `useCharacter`, `mentionsQueryOptions` all forward whatever `params` shape
-  `openapi-typescript` generates from the live contract; `pnpm gen:api` picks
-  up the new shape automatically once it's frozen and committed.
-- Every call site currently doing `{ limit_book_order: position?.bookOrder ??
-  undefined, limit_chapter: position?.chapter ?? undefined }` — `grep -rn
-  "limit_book_order:" web/src` finds them all: `graph-explorer.tsx`,
-  `characters.tsx`, `character-detail.tsx`, `project/ask.tsx`.
-- `web/src/lib/reading-position.ts`'s `limitsForBook` (used by `book/ask.tsx`,
-  which sits outside `<ProjectLayout>`'s reading-position context) — its
-  return shape (`{ limitBookOrder, limitChapter }`) would need to match
-  whatever the new params are called.
+**Action once be2 merges:** rebase, `pnpm gen:api` (schema.d.ts doesn't have
+these four endpoints' new params yet — checked, they're absent as of this
+writing), then thread `limit_book_order`/`limit_chapter` from
+`useReadingPositionContext()` through `useEvidence`'s existing `params`, and
+add a `params` argument to `useNeighbourhood`/`useRelationArc`/`useGraphPath`
+the same way `useCharacter` already does it, then pass them from
+`evidence-panel.tsx` and `relation-arc.tsx`. Not done in this sprint's
+S8.6 commit because the backend enforcement didn't exist yet when that work
+started and landed mid-sprint — flagging rather than guessing at an unmerged
+branch's contract.
 
 None of this touches the slider's own model (`SeriesPosition`,
 `buildPositionSteps`, `localStorage`) — that's a pure frontend concept and is
