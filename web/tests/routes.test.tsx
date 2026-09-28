@@ -35,7 +35,9 @@ const ROUTES: [path: string, heading: RegExp][] = [
   ["/projects/p-1/graph", /not built yet/i],
   ["/projects/p-1/ask", /not built yet/i],
   ["/ops", /the operations dashboard is not built yet/i],
-  ["/ops/evals", /eval ablations is not built yet/i],
+  // Real as of S8.7 — fixture-backed (no live route yet, see
+  // plans/sprint-8/HANDOFF.md), so it renders without an API call at all.
+  ["/ops/evals", /evaluation results/i],
   ["/nowhere", /there is no page here/i],
 ];
 

@@ -168,6 +168,29 @@ internal server-side refactor only as of this writing — the wire shape
 (`limit_book_order`/`limit_chapter`, independently optional) this slider
 depends on was unchanged.
 
+**Built (S8.7, fe1):** `/ops/evals` (`routes/ops/evals/`) — the ablation
+matrix grouped by axis (`ablation-table.tsx`, `ablation-config.ts`'s
+`groupByAxis`/`isRecommended`/`isBaseline`/`deltaFor`, structural — not a
+`label`-text match — since the contract carries no `is_recommended` field),
+a per-cell drill-down into the full `MetricSet` (`metric-drawer.tsx`, same
+`Drawer.Root` pattern as `mention-inspector-drawer.tsx`), a calibration
+reliability diagram with the diagonal labelled, not just drawn
+(`calibration-chart.tsx` — custom SVG, one accent hue, marker radius carries
+sample size, a `<table>` equivalent always rendered beneath it), and a
+metric trend across runs as two single-series mini line charts rather than
+one dual-axis chart (`metric-trend-chart.tsx` — F1 and spoiler-leakage sit on
+genuinely different scales, dataviz's #1 anti-pattern is one chart with two
+y-axes). **`types.ts` hand-mirrors `EvalRunOut`/`EvalResultOut`/
+`AblationConfig`/`MetricSet`/`CalibrationModelOut`** from
+`api/contracts/api.py` — no live route serves them yet (do1's S8.8 runner),
+so `openapi-typescript` has nothing to generate from; `fixtures.ts` is
+clearly-marked placeholder data in the exact contract shape, three runs deep
+so the trend chart has something to plot. Delete `types.ts` for the
+generated `Schemas[...]` types the moment a real route exists —
+`plans/sprint-8/HANDOFF.md` has the exact swap point (`evals-screen.tsx`'s
+two imports from `./fixtures`). 233 Vitest tests, all passing; `pnpm
+tsc --noEmit`, `pnpm lint`, `pnpm build` all clean.
+
 **Known gap:** `MentionOut` and `EvidenceOut` carry a page but no `SpanBox`, so their click-through lands on the page without a highlight (Sprint 3 SCR-9, Sprint 4 SCR-10). The roster sparkline gap (Sprint 3 SCR-1) is closed for the single-book roster; its series-roster descendant reopens a version of it (Sprint 5 SCR-1 — see above).
 
 `web/src/design-system/tokens.ts` **exists** (DCR-1, landed at the Sprint 2
@@ -488,7 +511,8 @@ project roster.
 | `/projects/:id/characters/:cid` | character detail + appearances section (moved from `/books/:id/...`, S3.11) | Built (S5) |
 | `/projects/:id/graph` | series graph, book filter, reading-position slider (moved from `/books/:id/graph`, S4) | Built (S5) |
 | `/projects/:id/ask` | Q&A with citations, scoped to the project's reading position (S8.6) | Built (S6) |
-| `/ops`, `/ops/evals` | dashboard, ablations | S8/S9 |
+| `/ops` | operations dashboard | S9 |
+| `/ops/evals` | ablation table + calibration + trend, fixture-backed pending a live route | Built (S8.7) |
 
 ## Key components
 

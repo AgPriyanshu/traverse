@@ -116,6 +116,12 @@ export const formatCount = (
   return `${value.toLocaleString()} ${value === 1 ? singular : plural}`;
 };
 
+/** "84.2%" from a 0–1 ratio — eval metrics are fractions on the wire, never pre-multiplied by 100. */
+export const formatPercent = (value: number | null | undefined, digits = 1): string => {
+  if (value === null || value === undefined) { return "—"; }
+  return `${(value * 100).toFixed(digits)}%`;
+};
+
 const KILOBYTE = 1024;
 
 export const formatBytes = (bytes: number): string => {

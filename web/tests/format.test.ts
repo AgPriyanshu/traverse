@@ -6,6 +6,7 @@ import {
   formatCount,
   formatDuration,
   formatPageRange,
+  formatPercent,
   formatRelativeTime,
   formatSecondsRemaining,
   pageRefLabel,
@@ -130,6 +131,19 @@ describe("formatCount", () => {
 
   it("marks an unknown count rather than printing zero", () => {
     expect(formatCount(null, "page")).toBe("— pages");
+  });
+});
+
+describe("formatPercent", () => {
+  it("renders a 0-1 ratio as a percentage", () => {
+    expect(formatPercent(0.842)).toBe("84.2%");
+    expect(formatPercent(1)).toBe("100.0%");
+    expect(formatPercent(0)).toBe("0.0%");
+  });
+
+  it("prints an em dash for a metric that doesn't apply", () => {
+    expect(formatPercent(null)).toBe("—");
+    expect(formatPercent(undefined)).toBe("—");
   });
 });
 

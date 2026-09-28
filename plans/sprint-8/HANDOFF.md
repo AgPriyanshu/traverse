@@ -37,4 +37,51 @@ None of this touches the slider's own model (`SeriesPosition`,
 `buildPositionSteps`, `localStorage`) — that's a pure frontend concept and is
 shape-agnostic to how the API spells "the reading position" on the wire.
 
-## S8.7 — see the section below (added once the screen landed)
+## For do1 (S8.8 — the ablation runner) and be2 (S8.2/S8.3)
+
+`/ops/evals` (`web/src/routes/ops/evals/`) renders the ablation table,
+calibration chart, and metric trend, built against the frozen
+`EvalRunOut`/`EvalResultOut`/`AblationConfig`/`MetricSet`/
+`CalibrationModelOut` contracts — but **there is no live route serving them
+yet** as of this commit. `openapi-typescript` only generates a schema for a
+type some route actually returns, so with no route, there's nothing to
+generate; `web/src/routes/ops/evals/types.ts` hand-mirrors the five contract
+classes field-for-field instead (comment at the top explains why this is an
+exception to "never hand-write API types"), and `fixtures.ts` stands in with
+three runs of realistic-looking, entirely invented numbers.
+
+**When a real route lands**, the swap is contained to `evals-screen.tsx`'s
+two imports — `EVAL_RUNS`/`LATEST_RUN` and `CALIBRATION` from `./fixtures` —
+everything downstream (`AblationTable`, `CalibrationChart`,
+`MetricTrendChart`, `MetricDrawer`, `ablation-config.ts`'s helpers) already
+renders off the typed contract shape, not the fixture module. Once the route
+exists, also delete `types.ts` and import the generated `Schemas["EvalRunOut"]`
+etc. from `@/lib/api` instead (regenerate via `pnpm gen:api` first).
+
+A few assumptions this screen makes that the real route should either match
+or tell fe1 to change:
+
+- **One `GET` returns (at least) the latest run**, `EvalRunOut`-shaped, with
+  `results` populated — the table groups those by `axis` client-side.
+  `EVAL_RUNS` (plural, sorted by `created_at`) feeds the trend chart; if the
+  real API only ever returns the latest run, the trend chart needs a second
+  endpoint or a `?history=` param rather than inventing one.
+- **`EvalResultOut.book_key`** is rendered as a plain string label in the
+  drill-down drawer — there's no contract link from it to a `Book`/`Project`
+  id, so it isn't a citation or a clickable reference anywhere on this screen.
+- **`CalibrationModelOut` is fetched/rendered as a separate concern**, not
+  nested inside `EvalRunOut` — the contract doesn't nest it either, so this
+  should already match, but flagging it in case the real route composes them
+  together.
+- **"Recommended" and "baseline" are derived structurally** from
+  `AblationConfig`'s own fields (`ablation-config.ts`'s `isRecommended`/
+  `isBaseline`), matching PRD Appendix A's named recommendation per axis —
+  not read off any contract field, since there isn't one. If the runner adds
+  an explicit `is_recommended`/`is_baseline` flag, prefer that over the
+  structural guess.
+- **No per-question breakdown** — `EvalResultOut` is one aggregate `MetricSet`
+  per matrix cell, not a list of question-level results, so "drill into a
+  cell" (frontend-1.md's brief) surfaces the full `MetricSet` (every field,
+  including the ones the table's headline columns omit) rather than a
+  per-question table. If a per-question contract lands, `metric-drawer.tsx`
+  is where that list would go.
