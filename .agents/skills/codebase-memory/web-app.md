@@ -105,6 +105,37 @@ before the fetch aborts, rather than leaving a stuck spinner or surfacing the
 abort as an error. 193 Vitest tests, all passing; `pnpm typecheck`, `pnpm
 lint`, `pnpm build` all clean.
 
+**Built (S7, fe1):** the review queue (`routes/review/`, mounted at
+`/books/:id/review` via `routes/book/review.tsx`, which resolves `project_id`
+from `useBook` — review tasks are project-wide, not book-scoped).
+`use-review-queue.ts` fetches `GET /api/review/tasks?project_id=&status=open`
+once and does everything else client-side: sort (priority/confidence/age/
+character importance — `task-meta.ts`'s `compareTasks`), the active task and
+sort mode as URL state (`?task=`, `?sort=`) so a `<PageRef>` click-through and
+a browser-back land back on the same task, and **optimistic resolution with a
+real undo** — a decision hides the task and shows an undo toast immediately,
+but the actual `POST /api/review/tasks/{id}/resolve` is deferred behind a 5s
+`setTimeout` and only fires if `u`/"Undo" isn't pressed first, so undo never
+has to reverse an already-sent request. The next three tasks' first citation
+page is prefetched (`pageRenderQueryOptions`) on every move. Five renderers
+(`renderers/`), one per `ReviewTaskPayload` variant (`merge_characters`/
+`merge_across_books` share one) — see the gotcha below for the `decision`
+string vocabulary each one sends, which is **not part of the frozen
+contract**. Per-renderer keyboard handlers register through a ref written
+during render (`shortcuts-context.ts`), not React state, so a keystroke
+inside one renderer's own input (the predicate `<select>`) never re-renders
+the rest of the queue — same pattern as `use-conversation.ts`'s `turnsRef`.
+Bulk accept (S7.10, `bulk-accept-bar.tsx` + `bulk-decisions.ts`) only queues
+tasks whose decision needs no per-task judgment (`merge_*` bulks to
+`keep_separate`, never a blind merge) and requires a second click above 5
+tasks. `web/tests/review-speed.test.tsx` is the automated proxy for the "50
+tasks in under 8 minutes, keyboard only" DoD line — 50 mixed-type tasks
+resolved with exactly 50 keystrokes (one fast-path key each, no `j`/`k`
+needed — resolving the active task auto-advances). 202 Vitest tests total,
+all passing; `pnpm typecheck`, `pnpm lint`, `pnpm build` all clean. See
+`plans/sprint-7/HANDOFF.md` for the full decision/payload table be2's
+resolution handlers need to match.
+
 **Known gap:** `MentionOut` and `EvidenceOut` carry a page but no `SpanBox`, so their click-through lands on the page without a highlight (Sprint 3 SCR-9, Sprint 4 SCR-10). The roster sparkline gap (Sprint 3 SCR-1) is closed for the single-book roster; its series-roster descendant reopens a version of it (Sprint 5 SCR-1 — see above).
 
 `web/src/design-system/tokens.ts` **exists** (DCR-1, landed at the Sprint 2
@@ -373,6 +404,27 @@ src/
                               `series_order` (spoiler-safe default, never
                               left unset for a book page); the project route
                               leaves both limits `null` (whole series).
+  review/                      S7. `types.ts` (`Decision`, `SortMode`,
+                              `TaskShortcutMap`), `task-meta.ts` (per-payload
+                              confidence/importance/summary/first-citation
+                              derivation + `compareTasks`), `bulk-decisions.ts`
+                              (the one no-judgment-needed decision per task
+                              type), `shortcuts-context.ts` (the ref-based key
+                              handler registration — see the gotcha),
+                              `use-review-queue.ts` (fetch, sort, URL state,
+                              optimistic resolve/undo, prefetch),
+                              `use-review-shortcuts.ts` (the one document
+                              keydown listener), `review-queue.tsx` (the split
+                              view), `task-list.tsx`/`task-list-item.tsx`,
+                              `task-detail.tsx` (switches on
+                              `payload.task_type`, focuses a stable heading on
+                              every task change so a screen reader announces
+                              it), `bulk-accept-bar.tsx`, `shortcuts-overlay.tsx`
+                              (the `?` legend, Chakra `Dialog`), `renderers/`
+                              (one file per `ReviewTaskPayload` variant).
+  book/review.tsx               resolves `project_id` from `useBook` (review
+                              tasks are project-wide) and renders
+                              `<ReviewQueue>`.
 ```
 
 ## Routes
@@ -396,7 +448,7 @@ project roster.
 | `/books/:id/chapters` | chapters + chunk inspector | Built |
 | `/books/:id/pages/:n` | page viewer | Built |
 | `/books/:id/ask` | Q&A with citations, scoped to this book's reading position | Built (S6) |
-| `/books/:id/review` | review queue | S7 |
+| `/books/:id/review` | review queue | Built (S7) |
 | `/projects` | project list — name, kind, book/character/relation counts | Built (S5) |
 | `/projects/new` | create project (standalone \| series) | Built (S5) |
 | `/projects/:id` | books in series order, drag to reorder, add book | Built (S5) |
@@ -419,7 +471,7 @@ project roster.
 | `<AppearanceStrip>` | Built (`routes/project/appearance-strip.tsx`). Per-book presence band with an always-visible text caption ("books 1–3") — a coloured band alone is not an answer. `intensity` is uniform on the roster row (SCR-1 gap), real on the character detail page. | S5 |
 | Graph explorer | Cytoscape.js + `fcose`, project-scoped since S5 (`routes/project/graph/`). Layout cached — recomputing on every filter makes it jump; the S5.11 book filter reuses this, so it animates too. **List view is an equal, not a stub.** | S4, S5 |
 | `<SeriesPositionControl>` | Built (`routes/project/graph/series-position-control.tsx`). The spoiler gate — picking `(book, chapter)` always pins a real chapter (defaults to that book's last), never a book with an undefined one. A hard server re-fetch (`limit_book_order`/`limit_chapter`), not a client filter. | S5 |
-| Review queue | `j/k/a/e/m/s/x/u`. Prefetch next 3; optimistic with undo. Target: 50 tasks in <8 min, no mouse. | S7 |
+| Review queue | Built (`routes/review/`). `j/k` move, `a/e/m/s/r/t/1-9/c/p/o/n` decide (per task type — see HANDOFF.md), `x` bulk-select, `u` undo, `?` legend. Prefetch next 3; optimistic with a real 5s-grace undo. 50 tasks, 50 keystrokes, no mouse — see `review-speed.test.tsx`. | S7 |
 | `<CharacterTierBadge>` | Built (`routes/project/character-tier-badge.tsx`). Accent treatment only for `protagonist`; every other tier is a neutral `bg.sunken`/`fg.muted` badge — there is no per-tier token, and one was not invented for this. | S3 |
 | `<SparklineBars>` | Built (`routes/project/sparkline-bars.tsx`). A single-hue magnitude bar chart, `interactive` (keyboard-operable `rect`s, click-to-select, a stroke ring on the selected bar) or not (the roster row's mini chart). `responsive` stretches to its container at a fixed height via `viewBox` + `preserveAspectRatio="none"`. | S3 |
 | `<MentionsTimeline>` | Built (`routes/project/mentions-timeline.tsx`). Wraps `<SparklineBars>` with a client-derived per-book histogram (S5 — see the SCR-2 gotcha; no longer trusts the aggregate `mentions_per_chapter` directly) → sorted points and a handful of evenly-spaced axis labels, never one per chapter. | S3, S5 |
@@ -546,6 +598,18 @@ project roster.
   implies. Don't fake this from client-side heuristics (e.g. guessing from
   the question text) — wait for the backend to add it to `DoneEvent` or
   similar.
+- **`ReviewResolution.decision` is `str`, not an enum** — the exact strings
+  each review renderer sends (`merge`/`keep_separate`/`accept`/
+  `change_predicate`/`reject`/`temporal_transition`/`classify`) are this
+  codebase's own convention, documented in `plans/sprint-7/HANDOFF.md`, not
+  the frozen contract. If be2's resolution handlers expect different strings,
+  that's a two-way reconciliation, not a unilateral fix on either side.
+- **A ref mutated during render, not in an effect, is this codebase's pattern
+  for "always-current value a listener elsewhere reads on its own schedule"**
+  — `use-conversation.ts`'s `turnsRef` and the review queue's
+  `shortcuts-context.ts` both do this on purpose (`oxlint`'s `react(refs)`
+  warning on both is expected and accepted, not a bug to fix). Don't
+  "fix" one without checking whether it's this pattern first.
 
 ## Related
 
@@ -558,4 +622,5 @@ project roster.
 [plans/sprint-5/SCR.md](../../../plans/sprint-5/SCR.md) ·
 [plans/sprint-5/HANDOFF.md](../../../plans/sprint-5/HANDOFF.md) ·
 [plans/sprint-6/SCR.md](../../../plans/sprint-6/SCR.md) ·
-[plans/sprint-6/HANDOFF.md](../../../plans/sprint-6/HANDOFF.md)
+[plans/sprint-6/HANDOFF.md](../../../plans/sprint-6/HANDOFF.md) ·
+[plans/sprint-7/HANDOFF.md](../../../plans/sprint-7/HANDOFF.md)

@@ -37,6 +37,7 @@ export const isAlreadyIngested = (
 };
 
 export type Chapter = Schemas["ChapterOut"];
+export type DetectionMethod = Schemas["DetectionMethod"];
 export type Chunk = Schemas["ChunkOut"];
 export type PageRender = Schemas["PageRenderOut"];
 export type SpanBox = Schemas["SpanBox"];
@@ -83,6 +84,17 @@ export type ReviewTask = Schemas["ReviewTaskOut"];
 export type ReviewTaskType = Schemas["ReviewTaskType"];
 export type ReviewStatus = Schemas["ReviewStatus"];
 export type ReviewResolution = Schemas["ReviewResolution"];
+export type ReviewTaskPayload = ReviewTask["payload"];
+export type MergeCharactersPayload = Schemas["MergeCharactersPayload"];
+export type MergeAcrossBooksPayload = Schemas["MergeAcrossBooksPayload"];
+export type ConfirmRelationPayload = Schemas["ConfirmRelationPayload"];
+export type ResolveConflictPayload = Schemas["ResolveConflictPayload"];
+export type ClassifyCandidatePayload = Schemas["ClassifyCandidatePayload"];
+export type ConfirmChapterSplitPayload = Schemas["ConfirmChapterSplitPayload"];
+export type CandidateKind = Schemas["CandidateKind"];
+
+/** Either merge payload — they share every field, differing only in scope (one book vs. the whole project) via `task_type`. */
+export type MergePayload = MergeCharactersPayload | MergeAcrossBooksPayload;
 
 export type Health = Schemas["HealthOut"];
 export type DependencyHealth = Schemas["DependencyHealth"];
