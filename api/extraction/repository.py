@@ -12,15 +12,17 @@ from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
 from ..contracts.enums import CandidateKind, RelationStatus, ReviewTaskType
 from ..db.models import (
+    Book,
     BookCharacterCandidate,
     Character,
     CharacterAppearance,
     CharacterMention,
     RejectedCandidate,
     Relation,
-    ReviewTask,
 )
 from ..graph import ontology
+from ..graph.repository import appearance_orders, to_character_out
+from ..pipeline.verification import raise_disagreement
 from .discovery import MentionCandidate
 
 logger = logging.getLogger(__name__)
@@ -83,9 +85,20 @@ async def replace_candidates(
 ) -> int:
     """Replace a book's pass-1 candidates, so a re-run overwrites rather than appends.
 
-    Also clears this book's prior rejections: a re-run of discovery is a full
-    re-classification, and a stale rejection from a previous prompt version
-    should not linger once discovery has produced a fresh candidate set.
+    Also clears this book's prior *unverified* rejections: a re-run of
+    discovery is a full re-classification, and a stale rejection from a
+    previous prompt version should not linger once discovery has produced a
+    fresh candidate set.
+
+    A rejection a human has verified (F5.4) is never deleted here, and a
+    surface form discovery proposes again despite one is never re-inserted as
+    a fresh candidate -- the human already answered "is this a person", and
+    silently reopening it by feeding it back into pass-1 clustering would be
+    exactly the kind of overwrite-by-a-later-automated-pass this story exists
+    to close. Instead it raises one deduplicated ``classify_candidate`` task
+    (S7.6) carrying the new evidence, so a human decides whether the fresh
+    signal changes anything -- the model does not get a second vote on its
+    own.
 
     Args:
         session: Open session; this function commits.
@@ -95,22 +108,61 @@ async def replace_candidates(
     Returns:
         The number of candidate rows written.
     """
+    verified_rejections = await session.execute(
+        select(RejectedCandidate).where(
+            RejectedCandidate.book_id == book_id,  # type: ignore[arg-type]
+            RejectedCandidate.human_verified.is_(True),  # type: ignore[union-attr]
+        )
+    )
+    verified_forms = {row.surface_form for row in verified_rejections.scalars().all()}
+
+    kept, reopened = [], []
+    for row in aggregated:
+        (reopened if row["surface_form"] in verified_forms else kept).append(row)
+
     await session.execute(
         delete(BookCharacterCandidate).where(  # type: ignore[arg-type]
             BookCharacterCandidate.book_id == book_id  # type: ignore[arg-type]
         )
     )
     await session.execute(
-        delete(RejectedCandidate).where(RejectedCandidate.book_id == book_id)  # type: ignore[arg-type]
+        delete(RejectedCandidate)
+        .where(RejectedCandidate.book_id == book_id)  # type: ignore[arg-type]
+        .where(RejectedCandidate.human_verified.is_(False))  # type: ignore[union-attr]
     )
 
-    if aggregated:
-        rows = [{"book_id": book_id, **row} for row in aggregated]
+    if kept:
+        rows = [{"book_id": book_id, **row} for row in kept]
         await session.execute(insert(BookCharacterCandidate), rows)
 
     await session.commit()
 
-    return len(aggregated)
+    if reopened:
+        book = await session.get(Book, book_id)
+        project_id = book.project_id if book is not None else None
+        if project_id is not None:
+            for row in reopened:
+                await raise_disagreement(
+                    session,
+                    project_id=project_id,
+                    book_id=book_id,
+                    task_type=ReviewTaskType.CLASSIFY_CANDIDATE,
+                    dedup_key=f"reclassify:{book_id}:{row['surface_form']}",
+                    payload={
+                        "surface_form": row["surface_form"],
+                        "book_id": str(book_id),
+                        "kind_guess": row["kind"],
+                        "mention_count": row["mention_count"],
+                        "contexts": [],
+                        "reason": (
+                            "a human classified this surface form as not a "
+                            "person; a later run's discovery found it again"
+                        ),
+                    },
+                    priority=1,
+                )
+
+    return len(kept)
 
 
 async def list_candidates(
@@ -421,6 +473,29 @@ async def persist_characters(
         elif character.human_verified:
             # A human's own edit is never overwritten by a rerun
             # (``api/AGENTS.md``) -- only its appearance and mentions refresh.
+            #
+            # S7.6 wants a fresh review task raised whenever the rerun's own
+            # proposal for `aliases`/`importance_tier` disagrees with what is
+            # stored here, not just a silent skip. None of the six frozen
+            # `ReviewTaskType` payload shapes (`api/contracts/api.py`, S7.2)
+            # can carry "one character, old value vs. proposed value" --
+            # `merge_characters` requires two *distinct* persisted characters,
+            # and reusing it with the same id twice risks a resolution handler
+            # actually merging the row into itself. Logged instead of guessed
+            # at; SCR-1 in `plans/sprint-7/SCR.md` asks for a `confirm_field`
+            # payload type at the next freeze to close this properly.
+            if (
+                set(character.aliases or []) != set(entry["aliases"])
+                or character.importance_tier != entry["importance_tier"]
+            ):
+                logger.warning(
+                    "verified character %s (%s) disagrees with rerun proposal "
+                    "for book %s -- kept verified values, no review task "
+                    "raised (see plans/sprint-7/SCR.md SCR-1)",
+                    character.id,
+                    character.canonical_name,
+                    book_id,
+                )
             session.add(character)
             await session.flush()
             await _replace_appearance_and_mentions(session, character, book_id, entry)
@@ -523,8 +598,8 @@ async def queue_collision_review(
     *,
     project_id: UUID,
     book_id: UUID,
-    name_a: str,
-    name_b: str,
+    character_a_id: UUID,
+    character_b_id: UUID,
     reason: str,
 ) -> None:
     """Write the ``merge_characters`` row a blocked merge owes Sprint 7's queue.
@@ -532,13 +607,56 @@ async def queue_collision_review(
     Writing the row now (rather than waiting for the review UI to exist) is
     the point: nothing about this suspected collision is recoverable later if
     it is only logged.
+
+    ``payload`` matches the frozen ``MergeCharactersPayload`` shape
+    (``api/contracts/api.py``, S7.2) -- ``candidates`` must be real, distinct,
+    persisted characters. Both sides of a collision call this (S3.4 flags
+    ``collision_suspected`` on both clusters), so this is deduplicated on the
+    sorted character-id pair: without it, one collision would queue two
+    mirror-image tasks, and a rerun of an already-reviewed pair would queue a
+    third.
     """
-    task = ReviewTask(
+    dedup_key = (
+        f"collision:{min(character_a_id, character_b_id)}:"
+        f"{max(character_a_id, character_b_id)}"
+    )
+
+    characters = (
+        (
+            await session.execute(
+                select(Character).where(
+                    Character.id.in_([character_a_id, character_b_id])
+                )  # type: ignore[union-attr]
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if len(characters) < 2:
+        # One side hasn't been persisted (yet, or ever) -- nothing to compare
+        # side by side. Logged, not raised: a partial pair is not a reviewable
+        # decision.
+        logger.warning(
+            "collision review skipped for %s/%s: not both persisted",
+            character_a_id,
+            character_b_id,
+        )
+        return
+
+    orders = await appearance_orders(session, [c.id for c in characters])
+    candidates = [to_character_out(c, orders.get(c.id, [])) for c in characters]
+
+    await raise_disagreement(
+        session,
         project_id=project_id,
         book_id=book_id,
         task_type=ReviewTaskType.MERGE_CHARACTERS,
-        payload={"name_a": name_a, "name_b": name_b, "reason": reason},
+        dedup_key=dedup_key,
+        payload={
+            "candidates": [c.model_dump(mode="json") for c in candidates],
+            "contexts": {},
+            "similarity_score": None,
+            "reason": reason,
+        },
         priority=1,
     )
-    session.add(task)
-    await session.commit()

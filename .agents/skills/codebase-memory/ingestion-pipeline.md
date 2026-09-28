@@ -52,11 +52,14 @@ not grep for it.
 5. ~~`SentenceTransformer` and the Docling converter are constructed per call.~~
    **Fixed in S1.2** — both are `lru_cache`d at module scope and pre-loaded by
    the `worker_process_init` handler in `api/workers/app.py`.
-6. ~~`chapter` has no `human_verified` column~~ **Fixed at the Sprint 7 freeze**
-   (SCR-1 resolved): `Chapter.human_verified` exists. `api/review/resolution.py`
-   (be2, S7.2) sets it when a `confirm_chapter_split` task resolves; the
-   repository itself still does not yet honour never-overwrite against it —
-   that guard is be1's S7.5.
+6. ~~`chapter` has no `human_verified` column~~ **Fixed in S2's SCR-1
+   (migration 0007).** `pipeline/repository.py::upsert_chapters` never writes
+   over a verified chapter's number, and since S7.5/S7.6 a re-detection that
+   structurally disagrees with one (title/heading/page range/detection
+   method — confidence alone does not count, sampling noise moves it every
+   run) raises a deduplicated `confirm_chapter_split` review task instead of
+   dropping the disagreement silently. `api/review/resolution.py` (be2, S7.2)
+   sets `human_verified` when that task resolves.
 7. **The Docling PDF backend has a confirmed cold-start flake**: the identical
    file converted twice in the same process can report a page as failed on the
    first attempt and succeed on the second (~1/8 empirically). `load_document`

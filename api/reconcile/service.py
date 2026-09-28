@@ -93,9 +93,8 @@ async def reconcile_book(
                 session,
                 project_id=project_id,
                 book_id=book_id,
-                candidate_name=cluster.character.canonical_name,
-                target_name=result.blocked_target.canonical_name,
-                target_character_id=result.blocked_target.id,
+                candidate=cluster.character,
+                target=result.blocked_target,
                 reason=result.blocked_by,
                 confidence=result.confidence,
             )

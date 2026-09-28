@@ -346,13 +346,20 @@ async def _resolve_aliases(book_id: UUID, record: StageRecord) -> None:
         )
 
         for cluster in clusters:
-            if cluster.collision_suspected and cluster.collision_reason:
+            partner_id = character_by_cluster_key.get(cluster.collision_partner or "")
+            character_id = character_by_cluster_key.get(cluster.canonical_name)
+            if (
+                cluster.collision_suspected
+                and cluster.collision_reason
+                and character_id is not None
+                and partner_id is not None
+            ):
                 await extraction_repository.queue_collision_review(
                     session,
                     project_id=project_id,
                     book_id=book_id,
-                    name_a=cluster.canonical_name,
-                    name_b=cluster.collision_partner or "",
+                    character_a_id=character_id,
+                    character_b_id=partner_id,
                     reason=cluster.collision_reason,
                 )
 

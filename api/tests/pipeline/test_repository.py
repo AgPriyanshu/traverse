@@ -2,11 +2,19 @@ import time
 import uuid
 
 import pytest
+from sqlalchemy import select
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
-from api.contracts.enums import BookStatus, DetectionMethod, StageName, StageState
+from api.contracts.enums import (
+    BookStatus,
+    DetectionMethod,
+    ReviewTaskType,
+    StageName,
+    StageState,
+)
 from api.contracts.pipeline import ChapterInfo, ChunkPayload, StageStatus
 from api.db.models import Book, DocumentChunk, Project
+from api.db.models.review_model import ReviewTask
 from api.pipeline import repository
 
 
@@ -220,6 +228,102 @@ class TestUpsertChapters:
         await session.refresh(refreshed)
 
         assert refreshed.chapter_count == 2
+
+        # S7.6: the dropped re-detection is not silent -- one review task per
+        # disagreement, not per rerun.
+        tasks = (
+            (
+                await session.execute(
+                    select(ReviewTask).where(
+                        ReviewTask.task_type == ReviewTaskType.CONFIRM_CHAPTER_SPLIT
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(tasks) == 1
+        assert tasks[0].payload["chapter"]["title"] == "Verified Title"
+        assert "Re-detected Title" in tasks[0].payload["following_text"]
+
+    async def test_a_reproduced_disagreement_does_not_requeue(
+        self, session: SQLModelAsyncSession, book: Book
+    ) -> None:
+        await repository.upsert_chapters(
+            session,
+            book.id,
+            [ChapterInfo(is_chapter=True, number=1, title="Verified Title")],
+            page_ranges={1: (1, 9)},
+        )
+        chapters = await repository.list_chapters(session, book.id)
+        chapters[0].human_verified = True
+        session.add(chapters[0])
+        await session.commit()
+
+        for _ in range(2):
+            await repository.upsert_chapters(
+                session,
+                book.id,
+                [ChapterInfo(is_chapter=True, number=1, title="Re-detected Title")],
+                page_ranges={1: (1, 20)},
+            )
+
+        tasks = (
+            (
+                await session.execute(
+                    select(ReviewTask).where(
+                        ReviewTask.task_type == ReviewTaskType.CONFIRM_CHAPTER_SPLIT
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(tasks) == 1
+
+    async def test_confidence_only_drift_is_not_a_disagreement(
+        self, session: SQLModelAsyncSession, book: Book
+    ) -> None:
+        # Run-to-run LLM sampling variance moves confidence even when the
+        # actual boundary is unchanged; that alone must not queue a task.
+        await repository.upsert_chapters(
+            session,
+            book.id,
+            [
+                ChapterInfo(
+                    is_chapter=True, number=1, title="Verified Title", confidence=0.9
+                )
+            ],
+            page_ranges={1: (1, 9)},
+        )
+        chapters = await repository.list_chapters(session, book.id)
+        chapters[0].human_verified = True
+        session.add(chapters[0])
+        await session.commit()
+
+        await repository.upsert_chapters(
+            session,
+            book.id,
+            [
+                ChapterInfo(
+                    is_chapter=True, number=1, title="Verified Title", confidence=0.4
+                )
+            ],
+            page_ranges={1: (1, 9)},
+        )
+
+        tasks = (
+            (
+                await session.execute(
+                    select(ReviewTask).where(
+                        ReviewTask.task_type == ReviewTaskType.CONFIRM_CHAPTER_SPLIT
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert tasks == []
 
 
 class TestAssignChunkChapters:

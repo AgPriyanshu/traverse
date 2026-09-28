@@ -35,8 +35,8 @@ change — worth knowing before you add a stage or a task type.
 | `reconciliation_decision` | book_id, cluster_key, character_id, method, confidence, blocked_by | S5 |
 | `character_death` | character_id, book_id, chapter, evidence_id — the cross-book blocking signal | S5 |
 | `ingestion_run` / `ingestion_stage` | book_id, stage, state, timings, attempt, error, tokens, cost | S2 |
-| `review_task` | id, book_id, task_type, payload, graph_thread_id, priority, status, resolution | S7 for the queue UI/consumption; S3.4 already writes `merge_characters` rows on a blocked collision (`api/extraction/repository.py::queue_collision_review`) |
-| `correction_feedback` | task_type, model_value, human_value, **model confidence at decision time**, evidence | S7 |
+| `review_task` | id, book_id, task_type, payload, graph_thread_id, priority, status, resolution | S7.2 for the queue UI/resolution handlers. Writers exist earlier and now write the frozen `ReviewTaskPayload` shape (`api/contracts/api.py`, S7.2 freeze) plus a `dedup_key` the payload union silently drops: `queue_collision_review`/`queue_cross_book_review` (`merge_characters`/`merge_across_books`, S3.4/S5), `pipeline/repository.py::upsert_chapters` (`confirm_chapter_split`, S7.6), `extraction/repository.py::replace_candidates` (`classify_candidate`, S7.6, when a verified rejection resurfaces). All four go through `api/pipeline/verification.py::raise_disagreement`, which is also where the dedup rule lives — no task type reopens something already open or already resolved. |
+| `correction_feedback` | task_type, model_value, human_value, **model confidence at decision time**, evidence | S7.7 — write side is `api/pipeline/verification.py::record_correction_feedback`, called by a review task's resolution handler (S7.2, be2), never by the code that raises the task |
 | `query_log` | question, route, retrieved ids, answer, citations, model, tokens, cost, latency_ms (jsonb), spoiler_chapter_limit, policy_version | S6/S9 |
 | `eval_run` / `eval_result` | config (jsonb), corpus_version, git_sha, metrics | S8 |
 | `routing_policy` / `cost_snapshot` | purpose → model, version | S9 |
@@ -59,7 +59,15 @@ change — worth knowing before you add a stage or a task type.
 ## Invariants
 
 - **`human_verified` is never overwritten.** Enforced at the repository layer,
-  not per call site. A re-run that disagrees creates a review task.
+  not per call site. A re-run that disagrees creates a review task — except a
+  verified `Character`'s own `aliases`/`importance_tier` disagreeing with a
+  same-book rerun, which is guarded (never written) but only logged, not
+  queued: no frozen `ReviewTaskType` payload can represent "one character, old
+  value vs. proposed value" without misusing `merge_characters`' two-distinct-
+  characters shape. See `plans/sprint-7/SCR.md` SCR-1. `RejectedCandidate.
+  human_verified` gets the same treatment: `replace_candidates` never deletes
+  a verified rejection and never lets discovery re-propose that surface form
+  as a fresh candidate, raising `classify_candidate` instead if it resurfaces.
 - **Every relation has ≥1 evidence row.** `graph.upsert` raises otherwise.
 - **Temporal change closes an edge** (`last_book_order`/`last_chapter`,
   `status='superseded'`) and opens a new one. Never an UPDATE of the predicate.

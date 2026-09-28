@@ -29,6 +29,7 @@ TABLES_TOUCHED_BY_TESTS = (
     "character",
     "bookcharactercandidate",
     "rejectedcandidate",
+    "correctionfeedback",
     "reviewtask",
     "correctionfeedback",
     "book",
