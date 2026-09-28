@@ -7,7 +7,14 @@ from .character_model import (
 )
 from .chunk_model import DocumentChunk
 from .conversation_model import Conversation, ConversationTurn
-from .ops_model import EvalRun, IngestionRun, IngestionStage, QueryLog
+from .ops_model import (
+    CalibrationModel,
+    EvalResult,
+    EvalRun,
+    IngestionRun,
+    IngestionStage,
+    QueryLog,
+)
 from .project_model import Book, Chapter, Project
 from .reconciliation_model import CharacterDeath, ReconciliationDecision
 from .relation_model import Relation, RelationEvidence
@@ -22,11 +29,13 @@ __all__ = [
     "Character",
     "Conversation",
     "ConversationTurn",
+    "CalibrationModel",
     "CharacterAppearance",
     "CharacterMention",
     "CorrectionFeedback",
     "DialogueLine",
     "DocumentChunk",
+    "EvalResult",
     "EvalRun",
     "IngestionRun",
     "IngestionStage",

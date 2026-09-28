@@ -81,3 +81,40 @@ class EvalRun(TimestampMixin, table=True):
     git_sha: str | None = Field(default=None)
     metrics: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSONB))
     notes: str | None = Field(default=None)
+
+    results: list["EvalResult"] = Relationship(
+        back_populates="eval_run", cascade_delete=True
+    )
+
+
+class EvalResult(TimestampMixin, table=True):
+    """One ablation-matrix cell's outcome, scoped to one book within a run.
+
+    ``EvalRun.metrics`` holds the run's own aggregate; a run sweeps several
+    axis values (PRD Appendix A), so each cell's own numbers live here.
+    """
+
+    __table_args__ = (Index("ix_evalresult_run", "eval_run_id"),)
+
+    id: UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    eval_run_id: UUID = Field(foreign_key="evalrun.id", ondelete="CASCADE")
+    axis: str
+    label: str
+    book_key: str | None = Field(default=None)
+    config: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSONB))
+    metrics: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSONB))
+
+    eval_run: EvalRun = Relationship(back_populates="results")
+
+
+class CalibrationModel(TimestampMixin, table=True):
+    """A fitted confidence→accuracy mapping, built from Sprint 7's
+    ``CorrectionFeedback`` store."""
+
+    id: UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    task_type: str
+    version: int = Field(default=1)
+    bins: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSONB))
+    ece_before: float | None = Field(default=None)
+    ece_after: float | None = Field(default=None)
+    fitted_on_n: int = Field(default=0)

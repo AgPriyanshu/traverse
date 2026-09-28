@@ -536,3 +536,74 @@ class DeadLetterOut(BaseModel):
     error_message: str | None = None
     attempts: int = 0
     trace_url: str | None = None
+
+
+# ── Eval (Sprint 8) ───────────────────────────────────────────────────────────
+#
+# One axis value (PRD Appendix A) held fixed against the recommended
+# configuration of every other axis — never the full cross product.
+
+
+class AblationConfig(BaseModel):
+    axis: Literal["extraction", "retrieval", "model"]
+    label: str
+    extraction_mode: Literal["single_pass", "two_pass"] | None = None
+    alias_mode: Literal["string_only", "full_cascade"] | None = None
+    with_human_review: bool = False
+    retrieval_mode: (
+        Literal["vector_only", "bm25", "rerank", "graph_constrained"] | None
+    ) = None
+    model_mode: Literal["local", "frontier", "routed"] | None = None
+
+
+class MetricSet(BaseModel):
+    """A comparable metric bundle for one ablation cell.
+
+    Different axes measure different things — not every field applies to
+    every cell, so all are optional except the sample it was measured over.
+    """
+
+    precision: float | None = None
+    recall: float | None = None
+    f1: float | None = None
+    accuracy: float | None = None
+    ece: float | None = None
+    spoiler_leakage_rate: float | None = None
+    sample_size: int = 0
+
+
+class EvalResultOut(BaseModel):
+    id: UUID
+    eval_run_id: UUID
+    axis: Literal["extraction", "retrieval", "model"]
+    label: str
+    book_key: str | None = None
+    config: AblationConfig
+    metrics: MetricSet
+
+
+class EvalRunOut(BaseModel):
+    id: UUID
+    corpus_version: str | None = None
+    git_sha: str | None = None
+    metrics: MetricSet
+    notes: str | None = None
+    results: list[EvalResultOut] = Field(default_factory=list)
+    created_at: datetime
+
+
+class CalibrationBinOut(BaseModel):
+    confidence_lower: float
+    confidence_upper: float
+    predicted_confidence: float
+    observed_accuracy: float
+    sample_size: int
+
+
+class CalibrationModelOut(BaseModel):
+    task_type: str
+    version: int
+    bins: list[CalibrationBinOut] = Field(default_factory=list)
+    ece_before: float | None = None
+    ece_after: float | None = None
+    fitted_on_n: int = 0
