@@ -1,0 +1,60 @@
+name: Nightly chaos test
+
+# S7.12 (devops-1.md) — automate the durability claims (F5.1) as tests, run
+# nightly against this job's own disposable stack rather than the shared
+# integration host. BRANCH.md §9: real infrastructure disruption (container
+# kills, a network partition) must never run from a worktree sharing infra
+# with other agents. A GitHub-hosted runner's `docker compose up` is a fresh,
+# single-tenant stack nobody else touches, which is exactly the other place
+# `scripts/chaos_test.py`'s own docstring names as safe to set
+# INTEGRATION_HOST=1 in. Same "not my dependency" convention as
+# nightly-corpus.yml and scripts/perf_smoke.py: scenarios needing S7.4's
+# resolve handler skip with exit 0 until it merges, and this job never fails
+# for a story it does not own.
+on:
+  schedule:
+    - cron: "30 8 * * *" # 08:30 UTC nightly, after nightly-corpus's 08:00 run
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-chaos
+  cancel-in-progress: false
+
+env:
+  INFERENCE_MODE: api
+  EMBEDDING_DEVICE: cpu
+
+jobs:
+  chaos:
+    name: Kill things on purpose and prove nothing was lost
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ai-master
+
+      - name: .env from .env.example
+        run: make env
+
+      - name: Bring up the full stack
+        run: docker compose up -d --build
+
+      - name: Wait for healthy
+        run: ./scripts/wait_for_healthy.sh --timeout 600
+
+      - name: Seed the merge-train fixture project (POST /api/query needs one)
+        run: python3 scripts/test_integration_ingestion.py
+
+      - name: Run the chaos scenarios
+        env:
+          INTEGRATION_HOST: "1"
+        run: python3 scripts/chaos_test.py
+
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs --tail=300
+
+      - name: Tear down
+        if: always()
+        run: docker compose down --remove-orphans

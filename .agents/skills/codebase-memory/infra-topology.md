@@ -145,8 +145,23 @@ it works without importing be2's ingestion graph. Two new routes bumped
 `plans/sprint-7/SCR.md` SCR-1 (be1-owned test file, do1 cannot fix directly,
 same class as S3.14/S3.15's SCR-2/SCR-3).
 
-**Not built:** S7.12's automated chaos scenarios (`scripts/chaos_test.py`) —
-see the sprint-7 do1 handoff for status. Anything else in Sprint 5+.
+**Built (S7.12, do1):** `scripts/chaos_test.py` / `make chaos-test` /
+`.github/workflows/nightly-chaos.yml` — six chaos scenarios (worker kill,
+Postgres kill, API kill mid-stream, concurrent resolve, resolve-after-
+completion, Neo4j network partition), gated by `INTEGRATION_HOST=1` the same
+way `perf_smoke.py` gates on real timing (BRANCH.md §9). Verified for real
+against the shared stack: killing `celery-worker`/`db`/`api` and restarting
+each recovers with zero state loss (scenarios 1-3 PASS). The Neo4j-partition
+scenario found a real gap — `api/graph/client.py`'s driver hangs past a
+20s bound under a partition instead of failing fast — see
+`plans/sprint-7/HANDOFF.md` for the runbook note (be2's `get_driver()`/
+`execute()` has no connection/query timeout on this path). `docker network
+connect` with no `--alias` silently drops a container's compose service-name
+DNS alias — the scenario's reconnect now passes `--alias neo4j` explicitly;
+worth remembering before anyone else scripts a raw `docker network`
+disconnect/reconnect against this stack.
+
+**Not built:** anything else in Sprint 5+.
 
 ## Services
 
