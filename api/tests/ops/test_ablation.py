@@ -3,8 +3,16 @@ from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 from api.ops.ablation import get_eval_run, get_latest_eval_run, record_eval_run
 
 
-def _cell(*, axis: str, label: str, book_key: str | None, config: dict, metrics: dict) -> dict:
-    return {"axis": axis, "label": label, "book_key": book_key, "config": config, "metrics": metrics}
+def _cell(
+    *, axis: str, label: str, book_key: str | None, config: dict, metrics: dict
+) -> dict:
+    return {
+        "axis": axis,
+        "label": label,
+        "book_key": book_key,
+        "config": config,
+        "metrics": metrics,
+    }
 
 
 async def test_record_and_read_latest_run(session: SQLModelAsyncSession) -> None:

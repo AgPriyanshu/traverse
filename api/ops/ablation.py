@@ -109,9 +109,13 @@ async def get_latest_eval_run(session: SQLModelAsyncSession) -> EvalRunOut | Non
     return _to_out(run, run.results)
 
 
-async def get_eval_run(session: SQLModelAsyncSession, run_id: UUID) -> EvalRunOut | None:
+async def get_eval_run(
+    session: SQLModelAsyncSession, run_id: UUID
+) -> EvalRunOut | None:
     statement = (
-        select(EvalRun).options(selectinload(EvalRun.results)).where(EvalRun.id == run_id)
+        select(EvalRun)
+        .options(selectinload(EvalRun.results))
+        .where(EvalRun.id == run_id)
     )
     result = await session.execute(statement)
     run = result.scalars().first()

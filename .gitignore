@@ -41,3 +41,9 @@ corpus/downloads/
 # reproducible from the script, never corpus data to track.
 api/notebooks/.pride_and_prejudice_cache.txt
 .docker-nocreds/
+
+# S8.8 ablation runner output -- reproducible from scripts/run_ablation.py
+# against the live stack; eval/ablation_runs/latest.json (S8.10's README
+# input) and .ci-cache/ are generated, never source to track.
+eval/ablation_runs/
+.ci-cache/
