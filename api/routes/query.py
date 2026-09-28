@@ -17,6 +17,7 @@ from ..db.engine import get_session
 from ..graph import repository as graph_repository
 from ..query import repository as query_repository
 from ..query.pipeline import answer_question
+from ..query.scope import ReadingScope
 from ..retrieval import hybrid_search
 
 router = APIRouter(tags=["query"])
@@ -117,10 +118,9 @@ async def search(
         session,
         project_id=project_id,
         query=q,
+        scope=ReadingScope(book_order=limit_book_order, chapter=limit_chapter),
         book_id=book_id,
         limit=limit,
-        limit_book_order=limit_book_order,
-        limit_chapter=limit_chapter,
     )
 
     return result

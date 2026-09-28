@@ -4,6 +4,7 @@ import pytest
 
 from api.contracts.api import ChunkOut, SearchResultOut
 from api.query import retrieval
+from api.query.scope import ReadingScope
 
 
 def _result(n: int) -> SearchResultOut:
@@ -35,8 +36,7 @@ async def test_uses_graph_constrained_tier_when_it_finds_something(
         project_id=uuid.uuid4(),
         question="How does Elizabeth feel about Darcy?",
         character_ids=[uuid.uuid4()],
-        limit_book_order=None,
-        limit_chapter=None,
+        scope=ReadingScope.unlimited(),
     )
 
     assert result.tier == "graph_constrained"
@@ -57,8 +57,7 @@ async def test_falls_back_to_unconstrained_when_constrained_is_empty(
         project_id=uuid.uuid4(),
         question="How does Elizabeth feel about Darcy?",
         character_ids=[uuid.uuid4()],
-        limit_book_order=None,
-        limit_chapter=None,
+        scope=ReadingScope.unlimited(),
     )
 
     assert result.tier == "unconstrained"
@@ -82,8 +81,7 @@ async def test_skips_straight_to_unconstrained_with_no_resolved_characters(
         project_id=uuid.uuid4(),
         question="What is the weather like?",
         character_ids=[],
-        limit_book_order=None,
-        limit_chapter=None,
+        scope=ReadingScope.unlimited(),
     )
 
     assert calls == [None]
@@ -102,8 +100,7 @@ async def test_tier_is_none_when_nothing_is_found_at_all(session, monkeypatch):
         project_id=uuid.uuid4(),
         question="Anything?",
         character_ids=[],
-        limit_book_order=None,
-        limit_chapter=None,
+        scope=ReadingScope.unlimited(),
     )
 
     assert result.tier == "none"

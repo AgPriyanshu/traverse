@@ -106,9 +106,14 @@ async def make_character(
     return character
 
 
-async def make_chunk(session, book, *, text: str, page: int = 1):
+async def make_chunk(session, book, *, text: str, page: int = 1, chapter_id=None):
     chunk = DocumentChunk(
-        book_id=book.id, text=text, pages=[page], page_start=page, page_end=page
+        book_id=book.id,
+        chapter_id=chapter_id,
+        text=text,
+        pages=[page],
+        page_start=page,
+        page_end=page,
     )
     session.add(chunk)
     await session.commit()
@@ -128,6 +133,8 @@ async def make_relation(
     family: RelationFamily,
     quote: str,
     chunk: DocumentChunk | None = None,
+    first_book_order: int = 1,
+    first_chapter: int | None = None,
 ):
     if chunk is None:
         chunk = await make_chunk(session, book, text=quote)
@@ -152,6 +159,8 @@ async def make_relation(
         family=family,
         confidence=0.9,
         evidence_count=1,
+        first_book_order=first_book_order,
+        first_chapter=first_chapter,
     )
     session.add(relation)
     await session.flush()
@@ -160,7 +169,8 @@ async def make_relation(
             relation_id=relation.id,
             book_id=book.id,
             chunk_id=chunk.id,
-            chapter_no=1,
+            book_order=first_book_order,
+            chapter_no=first_chapter or 1,
             page_start=chunk.page_start,
             page_end=chunk.page_end,
             quote=quote,

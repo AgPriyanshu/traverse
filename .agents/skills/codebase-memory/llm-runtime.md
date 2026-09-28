@@ -6,9 +6,10 @@ Every model call in the system. Symbols over line numbers.
 
 | Symbol | Location | Status |
 | --- | --- | --- |
-| `get_llm(purpose)`, `semaphore()` | `api/llm/client.py` | **Built** |
-| `structured_call(prompt, schema, *, purpose, book_id, stage)` | `api/llm/structured.py` | **Built** |
+| `get_llm(purpose, *, mode=None)`, `semaphore()` | `api/llm/client.py` | **Built** — `mode` is the S8.2 ablation override, see below |
+| `structured_call(prompt, schema, *, purpose, book_id, stage, mode=None)` | `api/llm/structured.py` | **Built** — `mode` threads to both `route_for` and `get_llm` |
 | Routing policy (`route_for`, `ModelRoute`) | `api/llm/routing.py` | **Built**, live-switchable S9 |
+| `api/eval/ablation.py::resolve`, `api/eval/calibration.py` | `api/eval/` | **Built** (S8.2, S8.3) — ablation config switching and confidence calibration; see below |
 | `plan_batches(...)` | `api/llm/budget.py` | **Built** — be1 depends on this from S3 |
 | `TransientLLMError` / `PermanentLLMError` / `classify_call_error` | `api/llm/errors.py` | **Built** |
 | `trace_generation(...)` | `api/llm/tracing.py` | **Built** |
@@ -106,6 +107,47 @@ headroom, not the real concurrency ceiling.
   a policy edit must not be able to bypass it (NFR-residency, ETH-4).
 - Local inference is costed at **amortised GPU-hours**, not zero. "Local is
   free" is wrong and the honest number is more persuasive.
+
+## Ablation config switching (Built, S8.2)
+
+`api/eval/ablation.py::resolve(config: AblationConfig) -> ResolvedAblation` is
+the one entry point that turns one PRD Appendix A ablation cell into the
+concrete objects to pass around — `retrieval_mode` (a `RetrievalMode`, see
+`api/retrieval/hybrid.py`) and `inference_mode` (an `InferenceMode`). Neither
+mutates a global setting; both are per-call overrides (`hybrid_search(...,
+mode=...)`, `route_for(purpose, mode=...)`), so one eval run can sweep every
+cell in one process without cross-contaminating the next call.
+
+`route_for`'s no-override path is **always local for a non-`judge` purpose**,
+regardless of `settings.inference_mode` — this repo's own dev/test default is
+`INFERENCE_MODE=api` with no `FRONTIER_MODEL` set, so wiring that setting into
+the default path would turn every ordinary call into a hard failure. Only
+`judge` reads `settings.inference_mode` directly (unchanged since before
+S8.2); everything else needs an explicit `mode=`.
+
+`resolve()` raises `AblationAxisNotOwned` for `config.axis == "extraction"` —
+no `single_pass`/`two_pass` or alias-cascade-depth switch exists anywhere in
+the codebase (be1's `api/pipeline/**`/`api/extraction/**`), and
+`with_human_review` would need one in `api/review/**` (not clearly assigned
+to any agent in `BRANCH.md`'s roster). See `plans/sprint-8/HANDOFF.md`.
+
+## Confidence calibration (Built, S8.3)
+
+`api/eval/calibration.py` fits a reliability diagram and two calibrators
+(Platt scaling, isotonic regression — both pure Python, no numpy/scipy/sklearn
+dependency exists in this project) from Sprint 7's `CorrectionFeedback` store,
+and persists the result to the `CalibrationModel` table (migration `0011`).
+
+**`label_correctness` is the one place "was the model right?" is defined**,
+and it is deliberately narrow: only `merge_characters`/`merge_across_books`
+(`merge` vs `keep_separate`) and `confirm_relation` (`accept` vs
+`reject`/`change_predicate`) have a declared mapping.
+`resolve_conflict`'s decision names *which* relation to keep among several,
+not whether one pre-stated model belief held up — there is no honest binary
+label to read off it, so it is excluded from fitting rather than guessed at.
+Below `MIN_SAMPLES_TO_FIT` (10) labelled rows, `fit_and_store` returns `None`
+rather than fitting a curve to noise — report the sample size instead (PRD
+F2.2's own brief).
 
 ## Shared GPU
 

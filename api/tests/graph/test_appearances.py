@@ -5,6 +5,7 @@ import pytest
 from api.contracts.enums import ImportanceTier
 from api.db.models import Book, Character, CharacterAppearance
 from api.graph.repository import list_appearances
+from api.query.scope import ReadingScope
 
 
 @pytest.mark.asyncio
@@ -61,14 +62,16 @@ async def test_appearances_are_series_ordered_and_position_gated(session, projec
     )
     await session.commit()
 
-    appearances = await list_appearances(session, character.id)
+    appearances = await list_appearances(
+        session, character.id, scope=ReadingScope.unlimited()
+    )
 
     assert [a.book_id for a in appearances] == [book1.id, book2.id]
     assert appearances[1].surface_forms == ["Miss Shirley"]
 
     # A reader still on book one, chapter ten never sees the book-two row.
     limited = await list_appearances(
-        session, character.id, limit_book_order=1, limit_chapter=10
+        session, character.id, scope=ReadingScope(book_order=1, chapter=10)
     )
     assert [a.book_id for a in limited] == [book1.id]
 
@@ -101,7 +104,7 @@ async def test_character_not_yet_met_is_hidden_entirely(session, project):
     await session.commit()
 
     hidden = await list_appearances(
-        session, late_character.id, limit_book_order=1, limit_chapter=5
+        session, late_character.id, scope=ReadingScope(book_order=1, chapter=5)
     )
 
     assert hidden is None
@@ -109,4 +112,7 @@ async def test_character_not_yet_met_is_hidden_entirely(session, project):
 
 @pytest.mark.asyncio
 async def test_unknown_character_returns_none(session):
-    assert await list_appearances(session, uuid.uuid4()) is None
+    hidden_or_missing = await list_appearances(
+        session, uuid.uuid4(), scope=ReadingScope.unlimited()
+    )
+    assert hidden_or_missing is None

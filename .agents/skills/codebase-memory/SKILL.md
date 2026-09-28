@@ -44,7 +44,7 @@ matching memory file plus a quick symbol check still leave a gap.
 | Parse → chunk → embed | Docling, `HybridChunker`, `DocumentChunker`, chapter detection, `CHAPTER_RE`, page provenance, `pages[]`, BGE-M3, upload, Celery stages, retry, dead-letter | [ingestion-pipeline.md](ingestion-pipeline.md) |
 | Characters, aliases, relations, graph | pass 1, pass 2, roster, alias clustering, B³, name collision, ontology, predicates, inverses, evidence, temporal validity, Neo4j upsert, `graph.reset` | [character-graph.md](character-graph.md) |
 | Answering and citing | query router, templated Cypher, hybrid retrieval, RRF, rerank, grounding, abstention, SSE events, `chapter_lte`, spoiler scope, `PageRef` | [query-path.md](query-path.md) |
-| Model calls | `api/llm`, `structured_call`, `purpose`, routing policy, `plan_batches`, token budget, vLLM, prefix caching, Langfuse tags, transient vs permanent errors | [llm-runtime.md](llm-runtime.md) |
+| Model calls | `api/llm`, `structured_call`, `purpose`, routing policy, `plan_batches`, token budget, vLLM, prefix caching, Langfuse tags, transient vs permanent errors, `api/eval`, ablation config switching, `AblationConfig`, `RetrievalMode`, confidence calibration, ECE, `CorrectionFeedback` | [llm-runtime.md](llm-runtime.md) |
 | Frontend | routes, `schema.d.ts`, query hooks, page viewer, graph explorer, review queue, tokens, Chakra | [web-app.md](web-app.md) |
 | Running it | compose services, ports, profiles, `make` targets, per-agent DB isolation, healthchecks, CI, model cache | [infra-topology.md](infra-topology.md) |
 

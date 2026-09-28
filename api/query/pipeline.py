@@ -30,6 +30,7 @@ from ..graph import repository as graph_repository
 from ..pipeline.timing import QueryTimer
 from . import conversation as conversation_mod
 from . import gender, generation, grounding, repository, retrieval, router
+from .scope import ReadingScope
 from .templates import (
     TemplateId,
     required_gender,
@@ -75,6 +76,7 @@ async def _resolve_phrase(
     project_id: UUID,
     phrase: str | None,
     conversation_characters: list[UUID],
+    scope: ReadingScope,
 ) -> _Resolution:
     if not phrase:
         return _Resolution(ref=None, ambiguous_options=[])
@@ -82,8 +84,18 @@ async def _resolve_phrase(
     refs = await resolve_names(
         session, project_id, phrase, conversation_characters=conversation_characters
     )
+    # A candidate not yet visible at this reading position must not even
+    # reach the ambiguity check: a clarifying question listing it ("Which
+    # Catherine do you mean?") would itself confirm a future character's
+    # existence, the same information leak as resolving to it outright
+    # (S8.1, PRD F4.5).
+    visible_refs = [
+        ref
+        for ref in refs
+        if await graph_repository.is_character_visible(session, ref.character_id, scope)
+    ]
 
-    return _resolve_single(refs)
+    return _resolve_single(visible_refs)
 
 
 def _interrupt(thread_id: UUID, question: str, options: list[str]) -> InterruptEvent:
@@ -102,6 +114,16 @@ async def answer_question(
     (``plans/sprint-6/HANDOFF.md``).
     """
     timer = QueryTimer()
+    # The one place a ``QueryRequest``'s optional, HTTP-boundary
+    # ``limit_book_order``/``limit_chapter`` become the required internal
+    # scope object every graph/retrieval/generation call below takes — no
+    # other function in this package accepts the bare optional pair (S8.1,
+    # PRD F4.5). ``None``/``None`` here is still an explicit choice: the
+    # frozen ``QueryRequest`` contract (``api/contracts/api.py``) documents
+    # it as one, made by whoever built the request.
+    scope = ReadingScope(
+        book_order=request.limit_book_order, chapter=request.limit_chapter
+    )
     conversation = await conversation_mod.resolve_conversation(
         session, request.project_id, request.thread_id
     )
@@ -128,9 +150,14 @@ async def answer_question(
             request.project_id,
             router_out.subject_phrase,
             context.character_ids,
+            scope,
         )
         object_ = await _resolve_phrase(
-            session, request.project_id, router_out.object_phrase, context.character_ids
+            session,
+            request.project_id,
+            router_out.object_phrase,
+            context.character_ids,
+            scope,
         )
 
     route = router_out.route
@@ -209,18 +236,11 @@ async def answer_question(
     with timer.stage("graph"):
         if route is QueryRoute.CHARACTER_LOOKUP:
             character = await graph_repository.get_character(
-                session,
-                subject.ref.character_id,
-                limit_book_order=request.limit_book_order,
-                limit_chapter=request.limit_chapter,
+                session, subject.ref.character_id, scope=scope
             )
             mentions = (
                 await graph_repository.list_mentions(
-                    session,
-                    subject.ref.character_id,
-                    limit=5,
-                    limit_book_order=request.limit_book_order,
-                    limit_chapter=request.limit_chapter,
+                    session, subject.ref.character_id, limit=5, scope=scope
                 )
                 or []
             )
@@ -232,10 +252,16 @@ async def answer_question(
                 subject_id=str(subject.ref.character_id),
                 object_id=str(object_.ref.character_id),
                 project_id=str(request.project_id),
+                lbo=scope.book_order,
+                lch=scope.chapter,
             )
             relation_ids = [UUID(row["relation_id"]) for row in rows]
-            relations = await graph_repository.relations_out(session, relation_ids)
-            answer = await generation.render_relationship_lookup(session, relations)
+            relations = await graph_repository.relations_out(
+                session, relation_ids, scope=scope
+            )
+            answer = await generation.render_relationship_lookup(
+                session, relations, scope=scope
+            )
 
         elif route is QueryRoute.PATH:
             path = await graph_queries.shortest_path(
@@ -243,24 +269,27 @@ async def answer_question(
                 subject.ref.character_id,
                 object_.ref.character_id,
                 MAX_PATH_HOPS,
+                scope=scope,
             )
-            answer = await generation.render_path(session, path.hops)
+            answer = await generation.render_path(session, path.hops, scope=scope)
 
         elif route is QueryRoute.AGGREGATION:
-            answer = await _run_aggregation(session, request, subject.ref, router_out)
+            answer = await _run_aggregation(
+                session, request, subject.ref, router_out, scope
+            )
 
         elif route is QueryRoute.SERIES_ARC:
             arc = await graph_repository.relation_arc(
-                session, subject.ref.character_id, object_.ref.character_id
+                session, subject.ref.character_id, object_.ref.character_id, scope=scope
             )
-            answer = await generation.render_series_arc(session, arc)
+            answer = await generation.render_series_arc(session, arc, scope=scope)
 
         else:
             answer = None  # narrative — handled below, outside the graph stage.
 
     if route is QueryRoute.NARRATIVE:
         async for event in _answer_narrative(
-            session, request, conversation, router_out, timer, resolved_refs
+            session, request, conversation, router_out, timer, resolved_refs, scope
         ):
             yield event
 
@@ -278,7 +307,9 @@ async def answer_question(
         yield event
 
 
-async def _run_aggregation(session, request, anchor: CharacterRef, router_out):
+async def _run_aggregation(
+    session, request, anchor: CharacterRef, router_out, scope: ReadingScope
+):
     predicate = resolve_aggregation_predicate(router_out.predicate_hint)
     if predicate is None:
         return grounding.abstain(
@@ -292,10 +323,28 @@ async def _run_aggregation(session, request, anchor: CharacterRef, router_out):
         project_id=str(request.project_id),
         predicate=predicate,
         inverse_predicate=inverse_predicate,
+        lbo=scope.book_order,
+        lch=scope.chapter,
     )
     relation_ids = [UUID(row["relation_id"]) for row in rows]
-    other_ids = [UUID(row["other_id"]) for row in rows]
-    relations = await graph_repository.relations_out(session, relation_ids)
+    relations = await graph_repository.relations_out(session, relation_ids, scope=scope)
+    # ``other_ids`` is derived from ``relations`` *after* spoiler filtering,
+    # never from the raw Cypher rows above: an aggregation answer's own
+    # sentence enumerates every id in ``other_names`` regardless of whether
+    # its relation to the anchor is still in ``relations`` (see
+    # ``generation.render_aggregation``), so naming one from an unfiltered
+    # id list would reintroduce exactly the leak filtering ``relations``
+    # alone was meant to close (S8.1, PRD F4.5).
+    other_ids = list(
+        {
+            (
+                r.object_character_id
+                if r.subject_character_id == anchor.character_id
+                else r.subject_character_id
+            )
+            for r in relations
+        }
+    )
     others = await repository.characters_by_id(session, other_ids)
 
     wanted_gender = required_gender(router_out.predicate_hint)
@@ -318,13 +367,20 @@ async def _run_aggregation(session, request, anchor: CharacterRef, router_out):
         predicate=predicate,
         relations=relations,
         other_names=other_names,
+        scope=scope,
     )
 
     return answer
 
 
 async def _answer_narrative(
-    session, request, conversation, router_out, timer, resolved_refs
+    session,
+    request,
+    conversation,
+    router_out,
+    timer,
+    resolved_refs,
+    scope: ReadingScope,
 ) -> AsyncIterator[QueryEvent]:
     character_ids = [ref.character_id for ref in resolved_refs]
     with timer.stage("retrieve"):
@@ -333,8 +389,7 @@ async def _answer_narrative(
             project_id=request.project_id,
             question=request.question,
             character_ids=character_ids,
-            limit_book_order=request.limit_book_order,
-            limit_chapter=request.limit_chapter,
+            scope=scope,
         )
 
     if not retrieved.chunks:

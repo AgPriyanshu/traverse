@@ -68,7 +68,7 @@ async def test_succeeds_on_first_attempt(monkeypatch: pytest.MonkeyPatch) -> Non
             }
         ]
     )
-    monkeypatch.setattr(structured_module, "get_llm", lambda purpose: fake)
+    monkeypatch.setattr(structured_module, "get_llm", lambda purpose, **_: fake)
 
     result = await structured_call(
         "answer the question", _Answer, purpose=LLMPurpose.ANSWER
@@ -91,7 +91,7 @@ async def test_retries_once_then_succeeds(monkeypatch: pytest.MonkeyPatch) -> No
             },
         ]
     )
-    monkeypatch.setattr(structured_module, "get_llm", lambda purpose: fake)
+    monkeypatch.setattr(structured_module, "get_llm", lambda purpose, **_: fake)
 
     result = await structured_call(
         "answer the question", _Answer, purpose=LLMPurpose.ANSWER
@@ -114,7 +114,7 @@ async def test_raises_permanent_after_second_failure(
             {"raw": AIMessage("still bad"), "parsed": None, "parsing_error": error},
         ]
     )
-    monkeypatch.setattr(structured_module, "get_llm", lambda purpose: fake)
+    monkeypatch.setattr(structured_module, "get_llm", lambda purpose, **_: fake)
 
     with pytest.raises(PermanentLLMError):
         await structured_call("answer the question", _Answer, purpose=LLMPurpose.ANSWER)
@@ -151,7 +151,7 @@ async def test_raises_length_limit_without_a_wasted_retry(
             },
         ]
     )
-    monkeypatch.setattr(structured_module, "get_llm", lambda purpose: fake)
+    monkeypatch.setattr(structured_module, "get_llm", lambda purpose, **_: fake)
 
     with pytest.raises(LengthLimitError):
         await structured_call("answer the question", _Answer, purpose=LLMPurpose.ANSWER)
@@ -174,7 +174,7 @@ async def test_call_failure_is_classified(monkeypatch: pytest.MonkeyPatch) -> No
             return _RaisingRunnable()
 
     monkeypatch.setattr(
-        structured_module, "get_llm", lambda purpose: _RaisingChatModel()
+        structured_module, "get_llm", lambda purpose, **_: _RaisingChatModel()
     )
 
     with pytest.raises(TransientLLMError):

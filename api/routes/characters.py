@@ -17,6 +17,7 @@ from ..contracts.enums import ImportanceTier
 from ..db.engine import get_session
 from ..graph import merge, repository
 from ..graph.merge import CharacterNotFoundError, MergeValidationError
+from ..query.scope import ReadingScope
 
 router = APIRouter(tags=["characters"])
 
@@ -45,11 +46,10 @@ async def list_characters(
     characters = await repository.list_characters(
         session,
         project_id,
+        scope=ReadingScope(book_order=limit_book_order, chapter=limit_chapter),
         tier=tier,
         q=q,
         book_id=book_id,
-        limit_book_order=limit_book_order,
-        limit_chapter=limit_chapter,
     )
 
     return characters
@@ -73,8 +73,7 @@ async def get_character(
     character = await repository.get_character(
         session,
         character_id,
-        limit_book_order=limit_book_order,
-        limit_chapter=limit_chapter,
+        scope=ReadingScope(book_order=limit_book_order, chapter=limit_chapter),
     )
     if character is None:
         raise HTTPException(
@@ -101,10 +100,9 @@ async def list_mentions(
     mentions = await repository.list_mentions(
         session,
         character_id,
+        scope=ReadingScope(book_order=limit_book_order, chapter=limit_chapter),
         limit=limit,
         offset=offset,
-        limit_book_order=limit_book_order,
-        limit_chapter=limit_chapter,
     )
     if mentions is None:
         raise HTTPException(
@@ -133,8 +131,7 @@ async def list_appearances(
     appearances = await repository.list_appearances(
         session,
         character_id,
-        limit_book_order=limit_book_order,
-        limit_chapter=limit_chapter,
+        scope=ReadingScope(book_order=limit_book_order, chapter=limit_chapter),
     )
     if appearances is None:
         raise HTTPException(

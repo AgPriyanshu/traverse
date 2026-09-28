@@ -16,6 +16,7 @@ import pytest
 
 from api.db.models.chunk_model import DocumentChunk
 from api.db.models.project_model import Book, Project
+from api.query.scope import ReadingScope
 from api.retrieval import repository
 from api.retrieval.hybrid import _reciprocal_rank_fusion
 
@@ -75,10 +76,18 @@ async def test_both_arms_return_sane_results_and_rrf_is_measured(
         embedding = repository.embed_query(query["question"])
 
         dense = await repository.dense_search(
-            session, project_id=project.id, query_embedding=embedding, limit=50
+            session,
+            project_id=project.id,
+            query_embedding=embedding,
+            scope=ReadingScope.unlimited(),
+            limit=50,
         )
         lexical = await repository.lexical_search(
-            session, project_id=project.id, query=query["question"], limit=50
+            session,
+            project_id=project.id,
+            query=query["question"],
+            scope=ReadingScope.unlimited(),
+            limit=50,
         )
         fused = _reciprocal_rank_fusion(dense, lexical)
 
@@ -131,10 +140,18 @@ async def test_project_scoping_excludes_another_projects_chunks(
     await session.commit()
 
     dense = await repository.dense_search(
-        session, project_id=project.id, query_embedding=embedding, limit=50
+        session,
+        project_id=project.id,
+        query_embedding=embedding,
+        scope=ReadingScope.unlimited(),
+        limit=50,
     )
     lexical = await repository.lexical_search(
-        session, project_id=project.id, query="spaceship lasers", limit=50
+        session,
+        project_id=project.id,
+        query="spaceship lasers",
+        scope=ReadingScope.unlimited(),
+        limit=50,
     )
 
     assert all(chunk.id != foreign_chunk.id for chunk, _ in dense)

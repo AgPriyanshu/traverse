@@ -6,6 +6,7 @@ Views and the pipeline call this module; they do not build statements inline
 
 from uuid import UUID
 
+from sqlalchemy import or_
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
@@ -15,6 +16,7 @@ from ..db.models.conversation_model import Conversation, ConversationTurn
 from ..db.models.ops_model import QueryLog
 from ..db.models.project_model import Book
 from ..db.models.relation_model import Relation, RelationEvidence
+from .scope import ReadingScope
 
 
 async def get_conversation(
@@ -156,19 +158,59 @@ class EvidenceRow:
             setattr(self, key, value)
 
 
-async def top_evidence_for_relation(
-    session: SQLModelAsyncSession, relation_id: UUID, *, limit: int = 5
-) -> list[EvidenceRow]:
-    """Return a relation's best evidence, chunk id included, for citations."""
-    rows = (
-        await session.exec(
-            select(RelationEvidence, Book.title, Book.series_order)
-            .join(Book, Book.id == RelationEvidence.book_id)
-            .where(RelationEvidence.relation_id == relation_id)
-            .order_by(RelationEvidence.confidence.desc().nulls_last())
-            .limit(limit)
+def _evidence_visible_at(statement, *, scope: ReadingScope):
+    """Restrict a ``RelationEvidence`` query to a reading position.
+
+    Mirrors ``graph/repository.py::_evidence_reading_position_filter`` — kept
+    as a second, smaller copy rather than a cross-package import because this
+    module never otherwise reaches into ``api.graph`` (``api/AGENTS.md``'s
+    repository-per-package convention). A citation for a relation that is
+    itself already visible must still not cite a *later* reassertion of it
+    (S8.1, PRD F4.5).
+    """
+    if scope.book_order is None:
+        return statement
+
+    return statement.where(
+        or_(
+            RelationEvidence.book_order < scope.book_order,
+            (RelationEvidence.book_order == scope.book_order)
+            & (
+                RelationEvidence.chapter_no.is_(None)
+                if scope.chapter is None
+                else RelationEvidence.chapter_no <= scope.chapter
+            ),
         )
-    ).all()
+    )
+
+
+async def top_evidence_for_relation(
+    session: SQLModelAsyncSession,
+    relation_id: UUID,
+    *,
+    scope: ReadingScope,
+    limit: int = 5,
+) -> list[EvidenceRow]:
+    """Return a relation's best evidence, chunk id included, for citations.
+
+    Args:
+        session: An open database session.
+        relation_id: The relation whose evidence to load.
+        scope: The reader's position. ``ReadingScope.unlimited()`` for no
+            restriction — never a default, an explicit choice at the call
+            site (S8.1, PRD F4.5).
+        limit: Top-N to return, by confidence.
+    """
+    statement = (
+        select(RelationEvidence, Book.title, Book.series_order)
+        .join(Book, Book.id == RelationEvidence.book_id)
+        .where(RelationEvidence.relation_id == relation_id)
+    )
+    statement = _evidence_visible_at(statement, scope=scope)
+    statement = statement.order_by(
+        RelationEvidence.confidence.desc().nulls_last()
+    ).limit(limit)
+    rows = (await session.exec(statement)).all()
 
     return [
         EvidenceRow(

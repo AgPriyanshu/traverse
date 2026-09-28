@@ -37,7 +37,13 @@ from ..contracts.enums import ReviewTaskType as TaskType
 from ..db.models import Chapter, Character
 from ..db.models.review_model import ReviewTask
 from ..graph import repository as graph_repository
+from ..query.scope import ReadingScope
 from . import priority as priority_scoring
+
+# A reviewer resolving a merge/conflict decision needs full, unredacted
+# context regardless of any reader's position — this queue is an internal
+# tool, not the reader-facing query/graph surface S8.1 spoiler-scopes.
+_REVIEWER_SCOPE = ReadingScope.unlimited()
 
 # Mention contexts shown per merge candidate — enough to judge, not a full
 # concordance; the reviewer clicks through for more (F5.2 "without another
@@ -113,7 +119,7 @@ async def _merge_payload(
     contexts: dict[str, list[MentionOut]] = {}
     for character in characters:
         mentions = await graph_repository.list_mentions(
-            session, character.id, limit=_CONTEXT_SAMPLE
+            session, character.id, scope=_REVIEWER_SCOPE, limit=_CONTEXT_SAMPLE
         )
         if mentions:
             contexts[str(character.id)] = mentions
@@ -142,13 +148,17 @@ async def _confirm_relation_payload(
     if not relation_id:
         raise HydrationError(f"task {task.id}: payload has no relation_id")
 
-    relations = await graph_repository.relations_out(session, [UUID(relation_id)])
+    relations = await graph_repository.relations_out(
+        session, [UUID(relation_id)], scope=_REVIEWER_SCOPE
+    )
     if not relations:
         raise HydrationError(f"task {task.id}: relation {relation_id} no longer exists")
     relation = relations[0]
 
     evidence = (
-        await graph_repository.list_evidence(session, relation.id, limit=10, offset=0)
+        await graph_repository.list_evidence(
+            session, relation.id, limit=10, offset=0, scope=_REVIEWER_SCOPE
+        )
         or []
     )
 
@@ -207,7 +217,9 @@ async def _resolve_conflict_payload(
     session: SQLModelAsyncSession, task: ReviewTask
 ) -> tuple[ReviewTaskPayload, int]:
     relation_ids = await conflicting_relation_ids(session, task)
-    relations = await graph_repository.relations_out(session, relation_ids)
+    relations = await graph_repository.relations_out(
+        session, relation_ids, scope=_REVIEWER_SCOPE
+    )
     if len(relations) < 2:
         raise HydrationError(
             f"task {task.id}: fewer than two of its conflicting relations still exist"
@@ -216,7 +228,7 @@ async def _resolve_conflict_payload(
     evidence = {}
     for relation in relations:
         items = await graph_repository.list_evidence(
-            session, relation.id, limit=10, offset=0
+            session, relation.id, limit=10, offset=0, scope=_REVIEWER_SCOPE
         )
         evidence[str(relation.id)] = items or []
 

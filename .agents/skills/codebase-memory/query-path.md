@@ -24,7 +24,7 @@ page. Symbols over line numbers.
 | `resolve_names` (name/nickname/partial/fuzzy/relative cascade, ranked candidates) | `api/extraction/resolution.py` | **Built** (S6.7) — reuses `api/extraction/normalization.py`; never an LLM call |
 | `locate_quote` (exact → whitespace-normalised → fuzzy span match, `None` if unlocated) | `api/pipeline/quotes.py` | **Built** (S6.8) — reuses `local_copy` from `api/pipeline/render.py` |
 | `QueryTimer` (per-stage timing, `as_dict()` → `QueryLog.latency_ms`) | `api/pipeline/timing.py` | **Built** (S6.9) — `api/query/pipeline.py` owns calling `.stage()`/`.mark_ttft()` and persisting the row |
-| Spoiler enforcement | query layer, all surfaces | S8 |
+| `ReadingScope`, spoiler enforcement | `api/query/scope.py`, all graph/query/retrieval surfaces | **Built** (S8.1) — see below |
 
 ## Route classes (Built, S6)
 
@@ -94,26 +94,84 @@ asserting no code path can send a model-authored string to Neo4j. Cap
 `max_hops` at 4 — an uncapped shortest path on a dense graph is a
 self-inflicted denial of service.
 
-## Spoiler scoping — reading position (S8)
+## Spoiler scoping — `ReadingScope` (Built, S8.1)
 
-The scope is a **reading position**: `(book_order, chapter)`, not a bare chapter.
-It is a **required field on the query context object**, not an optional argument;
-`None` meaning "no limit" must be an explicit choice at the call site. Enforced
-in three places, all of which must hold:
+`ReadingScope` (`api/query/scope.py`) — a frozen `(book_order, chapter)`
+dataclass — replaced the old pair of independently optional
+`limit_book_order`/`limit_chapter` keyword arguments (each defaulting to
+`None`) across the entire graph/query/retrieval layer. The pair still exists
+at the HTTP boundary (`Query(default=None)` on every route, since "no limit"
+is a legitimate reader choice — a finished book, or an admin view), but every
+internal function below that boundary takes `scope: ReadingScope` with **no
+default** — a call site that forgets it is a `TypeError`, not a silent
+unfiltered read. `ReadingScope.unlimited()` makes "no limit" an explicit,
+named choice (used by `api/review/**`, which is a reviewer-facing surface and
+deliberately never spoiler-scoped).
 
-1. graph — `(first_book_order, first_chapter) <= (:b, :c)`
-2. retrieval — filter chunks by their book's order and chapter
-3. generation — the model only ever sees filtered context
+**The real bug this closed:** before S8.1, `limit_book_order`/`limit_chapter`
+were only plumbed through the *character* read paths (`get_character`,
+`list_mentions`, `list_appearances`, `list_characters`, `get_graph`) and
+retrieval (`dense_search`/`lexical_search`, already safe since S2). The
+*relationship* read paths — `relations_out`, `relation_arc`, `shortest_path`,
+`get_neighbourhood`, `list_evidence`, and the `relationship_lookup`/
+`aggregation` Cypher templates — had **no reading-position parameter at all**,
+so `api/query/pipeline.py`'s RELATIONSHIP_LOOKUP/PATH/AGGREGATION/SERIES_ARC
+routes returned the whole project's relationship graph regardless of the
+reader's position. A second, subtler leak: Neo4j's `RELATED` edge carries a
+denormalised `page_refs` property written from **every** evidence row at
+projection time (`graph/upsert.py`) — an edge that is itself correctly
+visible can still cite a page from a *later* reassertion of it, so
+`graph_repository.page_refs_for_relations` (used by `relations_out` and,
+post-fetch, by `get_graph`/`get_neighbourhood`) re-trims pages from Postgres
+even when the Neo4j-side edge visibility check already passed.
 
-Target leakage: **zero**, measured by an automated test across answers,
-citations, graph payloads, and character lists. Never enforced by instructing
-the model.
+Enforced in three places, all of which must hold:
 
-The parameter has been plumbed through retrieval since S2 precisely so this is a
-config change, not a refactor.
+1. **graph** — every Neo4j template/query takes `$lbo`/`$lch` and filters on
+   `(first_book_order, first_chapter)`: `graph/queries.py` (`get_graph`,
+   `get_neighbourhood`, `shortest_path`, via the shared `_VISIBLE` fragment)
+   and `query/templates.py` (`relationship_lookup`, `aggregation`, via
+   `_LBO_LCH_VISIBLE`, a separate but semantically identical fragment — kept
+   unshared across the two packages on purpose). Postgres-side hydration
+   (`graph_repository.relations_out`/`relation_arc`/`list_evidence`) re-checks
+   the same thing, since it is the source of truth and the one place that also
+   trims per-evidence pages, not just whole edges.
+2. **retrieval** — `retrieval/repository.py`'s `dense_search`/`lexical_search`
+   and `retrieval/hybrid.py::hybrid_search` all take `scope` (no default);
+   `query/retrieval.py::retrieve_for_narrative` threads it through.
+3. **generation** — the five graph-derived classes render only from
+   already-filtered `RelationOut`/`CharacterDetailOut` objects; `narrative`
+   only ever sees `retrieve_for_narrative`'s filtered chunks. Aggregation's
+   own answer *sentence* is a fourth, easy-to-miss surface: it must derive
+   `other_names` from the post-filter `relations` list
+   (`api/query/pipeline.py::_run_aggregation`), never from the raw Cypher
+   `other_id` rows — those are unfiltered, and naming from them independently
+   of `relations` reintroduces the leak even after `relations` itself is
+   correctly filtered.
+
+Name resolution is spoiler-filtered too: `pipeline.py::_resolve_phrase` drops
+any `resolve_names` candidate not yet visible at `scope` *before* the
+ambiguity check runs — a clarifying question ("Which Catherine do you mean?")
+listing a not-yet-introduced character would itself be a leak.
+
+**Known residual gap:** `conversation.py`'s carried `scope_book_id`/
+`scope_chapter` (set by `set_scope` after a turn with an explicit reading
+position) is never read back as a fallback when a later turn in the same
+thread omits `limit_book_order`/`limit_chapter` — that turn runs fully
+unscoped rather than inheriting the conversation's last position. Not fixed in
+S8.1 (fe1's chapter slider, S8.6, is expected to always send both on every
+request); flagged here rather than silently relied upon.
+
+Measured **zero** leakage, `api/tests/query/test_spoiler_leakage.py` — 22
+checks across every surface above (roster, character detail, whole-project
+graph including denormalised `page_refs`, neighbourhood, shortest path,
+relationship-lookup and aggregation templates, relation arc, evidence, dense
+and lexical retrieval), each anchored around a synthetic corpus with content
+strictly before and after the checkpoint. Run it after touching any surface
+in this section.
 
 ## Related
 
 [character-graph.md](character-graph.md) · [llm-runtime.md](llm-runtime.md) ·
 [.agents/rules/graph-query.md](../../rules/graph-query.md) ·
-[plans/sprint-6/](../../../plans/sprint-6/)
+[plans/sprint-6/](../../../plans/sprint-6/) · [plans/sprint-8/](../../../plans/sprint-8/)
