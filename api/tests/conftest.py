@@ -32,6 +32,9 @@ TABLES_TOUCHED_BY_TESTS = (
     "correctionfeedback",
     "reviewtask",
     "correctionfeedback",
+    "evalresult",
+    "evalrun",
+    "calibrationmodel",
     "book",
     "project",
 )
