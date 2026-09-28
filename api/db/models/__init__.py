@@ -9,11 +9,14 @@ from .chunk_model import DocumentChunk
 from .conversation_model import Conversation, ConversationTurn
 from .ops_model import (
     CalibrationModel,
+    CostSnapshot,
     EvalResult,
     EvalRun,
     IngestionRun,
     IngestionStage,
     QueryLog,
+    RoutingPolicy,
+    UploadSession,
 )
 from .project_model import Book, Chapter, Project
 from .reconciliation_model import CharacterDeath, ReconciliationDecision
@@ -33,6 +36,7 @@ __all__ = [
     "CharacterAppearance",
     "CharacterMention",
     "CorrectionFeedback",
+    "CostSnapshot",
     "DialogueLine",
     "DocumentChunk",
     "EvalResult",
@@ -45,9 +49,11 @@ __all__ = [
     "CharacterDeath",
     "Relation",
     "ReconciliationDecision",
+    "RoutingPolicy",
     "Scene",
     "SceneParticipant",
     "RelationEvidence",
     "ReviewTask",
+    "UploadSession",
     "User",
 ]

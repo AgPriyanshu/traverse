@@ -528,6 +528,16 @@ class RoutingPolicyOut(BaseModel):
     purposes: dict[str, str] = Field(default_factory=dict)
 
 
+class CostBreakdown(BaseModel):
+    window_start: datetime
+    window_end: datetime
+    total_cost_usd: float = 0.0
+    by_stage: dict[str, float] = Field(default_factory=dict)
+    by_purpose: dict[str, float] = Field(default_factory=dict)
+    query_count: int = 0
+    book_count: int = 0
+
+
 class DeadLetterOut(BaseModel):
     book_id: UUID
     book_title: str

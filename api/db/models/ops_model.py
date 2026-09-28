@@ -118,3 +118,55 @@ class CalibrationModel(TimestampMixin, table=True):
     ece_before: float | None = Field(default=None)
     ece_after: float | None = Field(default=None)
     fitted_on_n: int = Field(default=0)
+
+
+class RoutingPolicy(TimestampMixin, table=True):
+    """Live per-purpose model routing (F7.3).
+
+    Each write is a new row rather than an update — flipping the policy is
+    the ops dashboard's headline action, and losing the ability to say what
+    was live five minutes ago would make the demo's own cost/accuracy delta
+    unauditable.
+    """
+
+    __table_args__ = (Index("ix_routing_policy_version", "version"),)
+
+    id: UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    version: int
+    purposes: dict[str, str] = Field(default_factory=dict, sa_column=Column(JSONB))
+
+
+class CostSnapshot(TimestampMixin, table=True):
+    """A rolling window's cost rollup — ``/ops/metrics`` reads the latest one
+    rather than aggregating raw stage/query rows on every request."""
+
+    __table_args__ = (Index("ix_cost_snapshot_window", "window_end"),)
+
+    id: UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    window_start: datetime
+    window_end: datetime
+    total_cost_usd: float = Field(default=0.0)
+    by_stage: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSONB))
+    by_purpose: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSONB))
+    query_count: int = Field(default=0)
+    book_count: int = Field(default=0)
+
+
+class UploadSession(TimestampMixin, table=True):
+    """One demo-upload's quota/TTL tracking (ETH-1, ETH-2).
+
+    Isolated per session and never pooled into the shared corpus; a
+    background sweep deletes the project once ``expires_at`` passes.
+    """
+
+    __table_args__ = (Index("ix_upload_session_expires", "expires_at"),)
+
+    id: UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    session_token: str = Field(unique=True, index=True)
+    project_id: UUID | None = Field(
+        default=None, foreign_key="project.id", ondelete="CASCADE"
+    )
+    ip_hash: str | None = Field(default=None)
+    upload_count: int = Field(default=0)
+    expires_at: datetime
+    deleted_at: datetime | None = Field(default=None)
