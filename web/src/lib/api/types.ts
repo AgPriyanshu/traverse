@@ -37,6 +37,7 @@ export const isAlreadyIngested = (
 };
 
 export type Chapter = Schemas["ChapterOut"];
+export type DetectionMethod = Schemas["DetectionMethod"];
 export type Chunk = Schemas["ChunkOut"];
 export type PageRender = Schemas["PageRenderOut"];
 export type SpanBox = Schemas["SpanBox"];
