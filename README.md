@@ -2,9 +2,9 @@
 
 ## Eval ablation table
 
-Run `sprint8-real` · generated 2026-09-28T20:46:35.526606+00:00 · git `1faa51dfb057` · corpus manifest `2026-09-26T11:02:08.640419+00:00`
+Run `2026-09-28-fastfollow` · generated 2026-09-28T21:34:16.925266+00:00 · git `7962b1752845` · corpus manifest `2026-09-26T11:02:08.640419+00:00`
 
-2 measured, 2 partial, 9 blocked of 13 rows.
+2 measured, 1 partial, 10 blocked of 13 rows.
 
 **This is a partial matrix by design, not the full cross product** -- each row varies one axis against the recommended value of the other two (`plans/sprint-8/README.md`); a full extraction x retrieval x model sweep is 30+ full-novel runs and most cells would be uninteresting.
 
@@ -29,15 +29,15 @@ Run `sprint8-real` · generated 2026-09-28T20:46:35.526606+00:00 · git `1faa51d
 
 | Configuration | Book | Precision | Recall | F1 | Accuracy | n | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Vector only | — | — | — | — | — | 0 | blocked |
-| Vector + BM25 hybrid | — | — | — | — | — | 0 | blocked |
-| + rerank | — | — | — | — | — | 0 | blocked |
-| Graph-constrained + evidence hydration **(recommended)** | pride-and-prejudice | — | — | — | — | 19 | partial |
+| Vector only | pride-and-prejudice | — | — | — | — | 12 | blocked |
+| Vector + BM25 hybrid | pride-and-prejudice | — | — | — | — | 12 | blocked |
+| + rerank | pride-and-prejudice | — | — | — | — | 11 | partial |
+| Graph-constrained + evidence hydration **(recommended)** | pride-and-prejudice | — | — | — | — | 12 | blocked |
 
 <details><summary>Why cells are blocked or partial</summary>
 
-- blocked: answer accuracy and citation precision are scored by a frontier LLM judge (api/ops/answer_judge.py, LLMPurpose.JUDGE) and no FRONTIER_MODEL/FRONTIER_API_KEY is configured in this environment -- see plans/sprint-8/HANDOFF.md (partial run: 19/30 gold questions answered)
-- blocked: no ablation config-switch exists to run this configuration yet (F6.3/S8.2, be2 -- not landed as of this run); only the pipeline's single current configuration is measurable this sprint
+- blocked: answer accuracy and citation precision are scored by a frontier LLM judge (api/ops/answer_judge.py, LLMPurpose.JUDGE) and no FRONTIER_MODEL/FRONTIER_API_KEY is configured in this environment -- see plans/sprint-8/HANDOFF.md (gold set capped to 12 questions via ABLATION_GOLD_SET_LIMIT (a CPU-only-vLLM compute-cost stand-in for this run, not a code limitation) -- see plans/sprint-8/HANDOFF.md)
+- blocked: answer accuracy and citation precision are scored by a frontier LLM judge (api/ops/answer_judge.py, LLMPurpose.JUDGE) and no FRONTIER_MODEL/FRONTIER_API_KEY is configured in this environment -- see plans/sprint-8/HANDOFF.md (partial run: 11/12 gold questions answered) (gold set capped to 12 questions via ABLATION_GOLD_SET_LIMIT (a CPU-only-vLLM compute-cost stand-in for this run, not a code limitation) -- see plans/sprint-8/HANDOFF.md)
 
 </details>
 
@@ -45,14 +45,14 @@ Run `sprint8-real` · generated 2026-09-28T20:46:35.526606+00:00 · git `1faa51d
 
 | Configuration | Book | Precision | Recall | F1 | Accuracy | n | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Qwen3-8B local **(recommended)** | pride-and-prejudice | — | — | — | — | 19 | partial |
-| Frontier API | — | — | — | — | — | 0 | blocked |
-| Routed (recommended per PRD, not yet implemented) | — | — | — | — | — | 0 | blocked |
+| Qwen3-8B local **(recommended)** | pride-and-prejudice | — | — | — | — | 12 | blocked |
+| Frontier API | pride-and-prejudice | — | — | — | — | 0 | blocked |
+| Routed (recommended per PRD; currently a placeholder, identical to local -- no per-purpose routing policy exists yet) | pride-and-prejudice | — | — | — | — | 12 | blocked |
 
 <details><summary>Why cells are blocked or partial</summary>
 
-- blocked: answer accuracy and citation precision are scored by a frontier LLM judge (api/ops/answer_judge.py, LLMPurpose.JUDGE) and no FRONTIER_MODEL/FRONTIER_API_KEY is configured in this environment -- see plans/sprint-8/HANDOFF.md (partial run: 19/30 gold questions answered)
-- blocked: api/llm/routing.py routes every non-judge purpose to the local vLLM model unconditionally -- a frontier or routed answering path does not exist yet, independent of whether a frontier key is configured
+- blocked: answer accuracy and citation precision are scored by a frontier LLM judge (api/ops/answer_judge.py, LLMPurpose.JUDGE) and no FRONTIER_MODEL/FRONTIER_API_KEY is configured in this environment -- see plans/sprint-8/HANDOFF.md (gold set capped to 12 questions via ABLATION_GOLD_SET_LIMIT (a CPU-only-vLLM compute-cost stand-in for this run, not a code limitation) -- see plans/sprint-8/HANDOFF.md)
+- blocked: mode=api (frontier) requires settings.frontier_model, which is blank in this environment's .env -- api/llm/routing.py::route_for now raises PermanentLLMError for this cell (S8.2 wired InferenceMode through it, so the route itself exists; only the key is missing) -- see plans/sprint-8/HANDOFF.md
 
 </details>
 

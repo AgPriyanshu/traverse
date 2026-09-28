@@ -13,6 +13,22 @@ measured once.
 module is pure so the matrix shape and metric mapping are unit-testable
 without Postgres, an API process, or a corpus (same split as
 ``eval/relation_metrics.py`` / ``eval/answer_metrics.py``).
+
+S8.8.1 (fast-follow): be2's S8.2 landed ``api/eval/ablation.py::resolve()``,
+a real runtime switch for the **retrieval** and **model** axes (retrieval
+mode, and ``local``/``frontier``/``routed`` inference mode). The retrieval
+axis's non-recommended rows and the model axis's ``routed`` row are no longer
+statically blocked here -- ``scripts/run_ablation.py`` calls ``resolve()`` per
+cell and drives the real pipeline with the resolved override. The model
+axis's ``frontier`` row is also no longer blocked on "no route exists" (the
+route exists now); whether it actually runs depends on
+``settings.frontier_model`` being configured, which this module cannot check
+(it imports nothing from ``api``) -- ``scripts/run_ablation.py`` decides that
+at run time and reports ``BLOCKED_FRONTIER_MODEL`` when the key is absent,
+same "starts asserting for real the moment the key exists" pattern as
+``BLOCKED_FRONTIER_JUDGE``. The **extraction** axis is unchanged: no switch
+exists for it and none was built this fast-follow (out of scope, not any
+agent's story -- see ``plans/sprint-8/HANDOFF.md``).
 """
 
 from __future__ import annotations
@@ -37,10 +53,12 @@ BLOCKED_FRONTIER_JUDGE = (
     "FRONTIER_MODEL/FRONTIER_API_KEY is configured in this environment -- see "
     "plans/sprint-8/HANDOFF.md"
 )
-BLOCKED_NO_MODEL_ROUTE = (
-    "blocked: api/llm/routing.py routes every non-judge purpose to the local "
-    "vLLM model unconditionally -- a frontier or routed answering path does "
-    "not exist yet, independent of whether a frontier key is configured"
+BLOCKED_FRONTIER_MODEL = (
+    "blocked: mode=api (frontier) requires settings.frontier_model, which is "
+    "blank in this environment's .env -- api/llm/routing.py::route_for now "
+    "raises PermanentLLMError for this cell (S8.2 wired InferenceMode through "
+    "it, so the route itself exists; only the key is missing) -- see "
+    "plans/sprint-8/HANDOFF.md"
 )
 
 
@@ -101,19 +119,16 @@ def build_matrix() -> list[AblationCell]:
             "retrieval",
             "Vector only",
             {"retrieval_mode": "vector_only"},
-            blocked_reason=BLOCKED_CONFIG_SWITCH,
         ),
         AblationCell(
             "retrieval",
             "Vector + BM25 hybrid",
             {"retrieval_mode": "bm25"},
-            blocked_reason=BLOCKED_CONFIG_SWITCH,
         ),
         AblationCell(
             "retrieval",
             "+ rerank",
             {"retrieval_mode": "rerank"},
-            blocked_reason=BLOCKED_CONFIG_SWITCH,
         ),
         AblationCell(
             "retrieval",
@@ -131,13 +146,16 @@ def build_matrix() -> list[AblationCell]:
             "model",
             "Frontier API",
             {"model_mode": "frontier"},
-            blocked_reason=BLOCKED_NO_MODEL_ROUTE,
+            # Not statically blocked: api/llm/routing.py::route_for now has a
+            # real frontier path (S8.2). scripts/run_ablation.py checks
+            # settings.frontier_model at run time and reports
+            # BLOCKED_FRONTIER_MODEL only when the key is actually absent.
         ),
         AblationCell(
             "model",
-            "Routed (recommended per PRD, not yet implemented)",
+            "Routed (recommended per PRD; currently a placeholder, identical "
+            "to local -- no per-purpose routing policy exists yet)",
             {"model_mode": "routed"},
-            blocked_reason=BLOCKED_NO_MODEL_ROUTE,
         ),
     ]
 
