@@ -65,7 +65,9 @@ export const routes: RouteObject[] = [
               },
               {
                 path: "review",
-                element: <NotYetBuilt screen="The review queue" sprint={7} />,
+                lazy: async () => ({
+                  Component: (await import("./book/review")).BookReview,
+                }),
               },
             ],
           },
