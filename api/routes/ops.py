@@ -26,6 +26,14 @@ from ..ops.reconciliation_quality import (
 )
 from ..ops.relation_cost import RelationCostOut, compute_relation_cost
 from ..ops.relation_quality import RelationQualityOut, compute_relation_quality
+from ..ops.review_metrics import (
+    DEFAULT_QUEUE_DEPTH_THRESHOLD,
+    STALE_TASK_AGE_HOURS,
+    ReviewAlertsOut,
+    ReviewMetricsOut,
+    compute_review_alerts,
+    compute_review_metrics,
+)
 from ._stub import not_implemented
 
 router = APIRouter(tags=["ops"])
@@ -191,6 +199,40 @@ async def reconciliation_order_check(
         "compare_project_id": str(compare_project_id),
         "checksums_identical": identical,
     }
+
+
+@router.get("/ops/review-metrics", response_model=ReviewMetricsOut)
+async def review_metrics(
+    project_id: UUID | None = Query(default=None),
+    session: SQLModelAsyncSession = Depends(get_session),
+) -> ReviewMetricsOut:
+    """Queue depth, task age, time-to-resolve, outcome mix, correction rate (S7.11).
+
+    Correction rate is grouped by pipeline stage, not raw task type -- a
+    stage humans correct 40% of the time is a quality problem the automated
+    metrics miss, and it points Sprint 8's calibration at the right target.
+    """
+    return await compute_review_metrics(session, project_id=project_id)
+
+
+@router.get("/ops/review-alerts", response_model=ReviewAlertsOut)
+async def review_alerts(
+    project_id: UUID | None = Query(default=None),
+    queue_depth_threshold: int = Query(default=DEFAULT_QUEUE_DEPTH_THRESHOLD),
+    stale_after_hours: int = Query(default=STALE_TASK_AGE_HOURS),
+    session: SQLModelAsyncSession = Depends(get_session),
+) -> ReviewAlertsOut:
+    """Queue-depth, stale-task and orphaned-graph-thread alerts (S7.11).
+
+    An orphaned thread is a graph paused on an interrupt with no open review
+    task pointing at it -- a state leak, and a silent one until this catches it.
+    """
+    return await compute_review_alerts(
+        session,
+        project_id=project_id,
+        queue_depth_threshold=queue_depth_threshold,
+        stale_after_hours=stale_after_hours,
+    )
 
 
 @router.get("/ops/pipeline/runs", response_model=list[IngestionRunOut])

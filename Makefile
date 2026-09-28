@@ -34,7 +34,7 @@ endif
         test test-api test-web test-integration lint fmt openapi \
         seed seed-series reset-db bootstrap worktrees warm-models ci-up ci-smoke ci-down \
         ci-up-extraction docker-nocreds ingest graph-rebuild graph-rebuild-drill eval-relations \
-        judge-citations ingest-series eval-reconciliation eval-answers perf-smoke
+        judge-citations ingest-series eval-reconciliation eval-answers perf-smoke chaos-test
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_-]+:.*?## /{printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -172,6 +172,9 @@ eval-answers: ## Ask the S6.14 gold question set, judge it, report the table (ma
 
 perf-smoke: ## S6.15 latency/TTFT budget gate — integration host only, never a worktree sharing the GPU (BRANCH.md §9)
 	API_BASE_URL=http://localhost:$${API_PORT:-8000} python3 scripts/perf_smoke.py
+
+chaos-test: ## S7.12 durability gate: real container kills, network partition — integration host only (BRANCH.md §9)
+	API_BASE_URL=http://localhost:$${API_PORT:-8000} python3 scripts/chaos_test.py
 
 # ── Shells ────────────────────────────────────────────────────────────────────
 

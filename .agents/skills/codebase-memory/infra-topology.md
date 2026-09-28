@@ -129,6 +129,38 @@ superlinear pass-2-cost-vs-roster-size growth). `--reverse` uploads books in
 reverse sequence while keeping each book's true `series_order`, feeding the
 order-independence checksum check.
 
+**Built (S7.11, do1):** `api/ops/review_metrics.py` behind `GET /ops/review-metrics`
+(queue depth by task type, open-task age p50/p90/max, median time-to-resolve,
+resolution outcome mix, correction rate grouped by pipeline stage — not raw
+task type, since `confirm_relation`/`resolve_conflict` are both pass 2) and
+`GET /ops/review-alerts` (queue-depth threshold, tasks open >48h, orphaned
+graph threads). Accepted-vs-corrected is derived from `CorrectionFeedback.
+model_value != human_value`, not `ReviewResolution.decision` — that field is a
+freeform string with no fixed vocabulary yet (S7.4/be2 hadn't landed a resolve
+handler as of this writing). Orphaned-thread detection reads LangGraph's own
+`checkpoint_writes` table directly for the reserved `__interrupt__`/`__resume__`
+channels (`langgraph._internal._constants`) rather than compiling a graph, so
+it works without importing be2's ingestion graph. Two new routes bumped
+`api/tests/pipeline/test_books_routes.py`'s frozen path count 43→45 — see
+`plans/sprint-7/SCR.md` SCR-1 (be1-owned test file, do1 cannot fix directly,
+same class as S3.14/S3.15's SCR-2/SCR-3).
+
+**Built (S7.12, do1):** `scripts/chaos_test.py` / `make chaos-test` /
+`.github/workflows/nightly-chaos.yml` — six chaos scenarios (worker kill,
+Postgres kill, API kill mid-stream, concurrent resolve, resolve-after-
+completion, Neo4j network partition), gated by `INTEGRATION_HOST=1` the same
+way `perf_smoke.py` gates on real timing (BRANCH.md §9). Verified for real
+against the shared stack: killing `celery-worker`/`db`/`api` and restarting
+each recovers with zero state loss (scenarios 1-3 PASS). The Neo4j-partition
+scenario found a real gap — `api/graph/client.py`'s driver hangs past a
+20s bound under a partition instead of failing fast — see
+`plans/sprint-7/HANDOFF.md` for the runbook note (be2's `get_driver()`/
+`execute()` has no connection/query timeout on this path). `docker network
+connect` with no `--alias` silently drops a container's compose service-name
+DNS alias — the scenario's reconnect now passes `--alias neo4j` explicitly;
+worth remembering before anyone else scripts a raw `docker network`
+disconnect/reconnect against this stack.
+
 **Not built:** anything else in Sprint 5+.
 
 ## Services
