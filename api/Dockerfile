@@ -100,4 +100,4 @@ ENV MODELS_OFFLINE=1 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
 # network — pure-Python scoring/schema logic — so they run in the same
 # `test` service rather than a separate one, on pyyaml/jsonschema that
 # `api/pyproject.toml`'s own dependency tree already pulls in (docling-core).
-CMD ["sh", "-c", "if [ -d api/tests ]; then pytest api/tests eval/tests scripts/test_label_roster.py scripts/test_ingest_series.py scripts/test_run_ablation.py scripts/test_regression_gate_cli.py -q; else echo 'no api/tests yet'; fi"]
+CMD ["sh", "-c", "if [ -d api/tests ]; then pytest api/tests eval/tests scripts/test_label_roster.py scripts/test_ingest_series.py scripts/test_run_ablation.py scripts/test_regression_gate_cli.py scripts/test_publish_ablation_readme.py -q; else echo 'no api/tests yet'; fi"]
