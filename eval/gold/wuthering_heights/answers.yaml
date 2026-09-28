@@ -1,0 +1,265 @@
+# Gold question set for Wuthering Heights (S8.5), extending the S6.14 answer
+# harness (previously Pride and Prejudice only) to a second, harder novel --
+# per backend-1.md S8.4/S8.5.
+#
+# 25 questions across the same six classes as pride_and_prejudice/answers.yaml:
+# single_fact, relationship, path, aggregation, temporal, unanswerable. Combined
+# with P&P's 38 (S8.4's extension of the original 30), the project totals 63
+# across both novels, matching the sprint-8 README composition targets
+# (single-fact 12, relationship 15, path 8, aggregation 10, temporal 8,
+# unanswerable 10).
+#
+# This book is deliberately weighted toward relationship/aggregation/unanswerable
+# rather than single_fact: the two-Catherines collision and the two-generation
+# family tree are exactly the cases a flattering, single-fact-heavy eval set
+# would never exercise (sprint-8/backend-1.md's own warning).
+#
+# expected_answer is a short reference an LLM judge (api/ops/answer_judge.py)
+# compares the system's answer against, not a string match. expected_entities
+# is an exact-set match for aggregation questions.
+#
+# Sourced from this corpus build's own gold relations (relations.yaml) and
+# direct inspection of the Gutenberg #768 text this corpus is built from --
+# every claim below was checked against the actual chapter text, not recalled
+# from a general familiarity with the novel.
+book_key: wuthering-heights
+corpus_pdf_sha256: 68f6058e17d7ba0cdf9154d43bd366267bbad7d9c6f10b4f907bf26141e0962a
+page_count: 211
+labelled_by: be1 (from relations.yaml and the public-domain text, S8.5)
+labelled_at: "2026-09-28T00:00:00+00:00"
+judge_prompt_version: answer_judge_v1
+questions:
+  # ── single_fact ────────────────────────────────────────────────────────
+  - id: wh-001
+    question: "Who is Heathcliff?"
+    class: single_fact
+    expect_abstain: false
+    expected_answer: >
+      Heathcliff is a foundling Mr. Earnshaw brings home from Liverpool as a
+      child and raises alongside his own children at Wuthering Heights; he
+      later becomes the owner of both Wuthering Heights and Thrushcross
+      Grange.
+
+  - id: wh-002
+    question: "Who is Ellen Dean?"
+    class: single_fact
+    expect_abstain: false
+    expected_answer: >
+      Ellen Dean, called Nelly, is the housekeeper who grew up alongside the
+      Earnshaw children and narrates most of the novel's history to Mr.
+      Lockwood.
+
+  - id: wh-003
+    question: "Who is Mr. Lockwood?"
+    class: single_fact
+    expect_abstain: false
+    expected_answer: >
+      Mr. Lockwood is Heathcliff's tenant at Thrushcross Grange and the
+      novel's frame narrator, who hears the family's history from Ellen Dean.
+
+  - id: wh-004
+    question: "Who is Joseph?"
+    class: single_fact
+    expect_abstain: false
+    expected_answer: >
+      Joseph is a dour, fanatically religious old servant at Wuthering
+      Heights.
+
+  # ── relationship ─────────────────────────────────────────────────────────
+  - id: wh-005
+    question: "How are Heathcliff and Hindley Earnshaw related?"
+    class: relationship
+    expect_abstain: false
+    expected_answer: >
+      They are not blood relations: Hindley's father took Heathcliff in as a
+      foundling and raised him alongside his own children, making them
+      foster brothers, though Hindley resents and mistreats him and they
+      become lifelong enemies.
+
+  - id: wh-006
+    question: "What is the relationship between Catherine Earnshaw and Hindley Earnshaw?"
+    class: relationship
+    expect_abstain: false
+    expected_answer: "They are brother and sister, Mr. Earnshaw's children."
+
+  - id: wh-007
+    question: "How is Isabella Linton related to Edgar Linton?"
+    class: relationship
+    expect_abstain: false
+    expected_answer: "She is his younger sister."
+
+  - id: wh-008
+    question: "How are Hareton Earnshaw and Catherine Linton related?"
+    class: relationship
+    expect_abstain: false
+    expected_answer: >
+      They are first cousins: her mother, Catherine Earnshaw, was Hareton's
+      father Hindley's sister.
+
+  - id: wh-009
+    question: "What is Heathcliff's relationship to Edgar Linton?"
+    class: relationship
+    expect_abstain: false
+    expected_answer: >
+      They are brothers-in-law, since Heathcliff marries Edgar's sister
+      Isabella, and they are bitter enemies for most of the novel.
+
+  # ── path ───────────────────────────────────────────────────────────────
+  - id: wh-010
+    question: "How is Hareton Earnshaw connected to Heathcliff?"
+    class: path
+    expect_abstain: false
+    expected_answer: >
+      Heathcliff was raised alongside Hareton's father Hindley as a boy; when
+      Hindley dies in debt to him, Heathcliff inherits Wuthering Heights and
+      becomes Hareton's guardian, deliberately keeping him uneducated and
+      treated as a servant as revenge on Hindley.
+    min_citations: 2
+
+  - id: wh-011
+    question: "How is Catherine Linton connected to Heathcliff?"
+    class: path
+    expect_abstain: false
+    expected_answer: >
+      Heathcliff forces her marriage to his son Linton Heathcliff, making her
+      his daughter-in-law; after her father Edgar dies, she has nowhere else
+      to go and Heathcliff controls her as her legal guardian as well.
+    min_citations: 2
+
+  - id: wh-012
+    question: "How does Mr. Lockwood come to hear the story of Heathcliff and Catherine Earnshaw?"
+    class: path
+    expect_abstain: false
+    expected_answer: >
+      Lockwood rents Thrushcross Grange from Heathcliff, visits Wuthering
+      Heights and falls ill after a strange night there; Ellen Dean, the
+      housekeeper, then narrates the family's history to him over his
+      convalescence.
+    min_citations: 2
+
+  # ── aggregation (exhaustive, never a plausible subset — F4.1) ───────────
+  - id: wh-013
+    question: "Who are Mr. Earnshaw's children?"
+    class: aggregation
+    expect_abstain: false
+    expected_answer: >
+      Two: Hindley Earnshaw and Catherine Earnshaw. Heathcliff is raised in
+      the household but is a foundling, not Mr. Earnshaw's biological child.
+    expected_entities:
+      - Hindley Earnshaw
+      - Catherine Earnshaw
+
+  - id: wh-014
+    question: "Which named characters die over the course of the novel?"
+    class: aggregation
+    expect_abstain: false
+    expected_answer: >
+      Eight: Mr. Earnshaw, Frances, Catherine Earnshaw, Hindley Earnshaw,
+      Isabella Linton, Edgar Linton, Linton Heathcliff and Heathcliff
+      himself.
+    expected_entities:
+      - Mr. Earnshaw
+      - Frances
+      - Catherine Earnshaw
+      - Hindley Earnshaw
+      - Isabella Linton
+      - Edgar Linton
+      - Linton Heathcliff
+      - Heathcliff
+
+  - id: wh-015
+    question: "Who are Hindley Earnshaw's children?"
+    class: aggregation
+    expect_abstain: false
+    expected_answer: "Just one: his son Hareton Earnshaw."
+    expected_entities:
+      - Hareton Earnshaw
+
+  - id: wh-016
+    question: "Who are Edgar Linton's siblings?"
+    class: aggregation
+    expect_abstain: false
+    expected_answer: "Just one: his younger sister, Isabella Linton."
+    expected_entities:
+      - Isabella Linton
+
+  - id: wh-017
+    question: "Who are the servants working at Wuthering Heights once Heathcliff owns it?"
+    class: aggregation
+    expect_abstain: false
+    expected_answer: "Joseph and Zillah."
+    expected_entities:
+      - Joseph
+      - Zillah
+
+  # ── temporal ─────────────────────────────────────────────────────────────
+  - id: wh-018
+    question: "What happens to Isabella Linton over the course of the novel?"
+    class: temporal
+    expect_abstain: false
+    expected_answer: >
+      She falls for Heathcliff against her family's warnings, elopes with
+      and marries him; he treats her cruelly, and while pregnant she flees
+      Wuthering Heights permanently for London, where she raises their son
+      Linton alone and dies about twelve years later, estranged from her
+      brother Edgar.
+    min_citations: 2
+
+  - id: wh-019
+    question: "How does the relationship between Catherine Linton and Hareton Earnshaw change over the novel?"
+    class: temporal
+    expect_abstain: false
+    expected_answer: >
+      They begin as strangers thrown together by Heathcliff, and Catherine
+      treats Hareton with contempt for his illiteracy; after Heathcliff's
+      decline she apologises, teaches him to read, and by the novel's end
+      they are engaged to marry.
+    min_citations: 2
+
+  - id: wh-020
+    question: "What happens to Hareton Earnshaw over the course of the novel?"
+    class: temporal
+    expect_abstain: false
+    expected_answer: >
+      Son of Hindley and Frances, he is orphaned in early childhood when
+      both parents die; Heathcliff inherits Wuthering Heights and
+      deliberately raises him as an uneducated labourer as revenge on
+      Hindley; by the novel's end Catherine Linton teaches him to read and
+      they become engaged.
+    min_citations: 2
+
+  # ── unanswerable (abstention is the correct answer) ───────────────────────
+  - id: wh-021
+    question: "Who is Heathcliff's father?"
+    class: unanswerable
+    expect_abstain: true
+    min_citations: 0
+    notes: "Heathcliff is found as an abandoned child in Liverpool; the text never names either parent."
+
+  - id: wh-022
+    question: "Who does Isabella Linton marry after Heathcliff?"
+    class: unanswerable
+    expect_abstain: true
+    min_citations: 0
+    notes: "She never remarries -- she flees Heathcliff but dies still his wife, in London."
+
+  - id: wh-023
+    question: "What happens at Catherine Linton and Hareton Earnshaw's wedding?"
+    class: unanswerable
+    expect_abstain: true
+    min_citations: 0
+    notes: "They are only engaged, planning to marry on New Year's Day, when the novel ends -- the wedding itself is never depicted."
+
+  - id: wh-024
+    question: "How does Frances get along with Hareton once he is grown?"
+    class: unanswerable
+    expect_abstain: true
+    min_citations: 0
+    notes: "False premise: Frances dies of consumption within months of Hareton's birth and never sees him grow up."
+
+  - id: wh-025
+    question: "How is Zillah related to the Earnshaw family?"
+    class: unanswerable
+    expect_abstain: true
+    min_citations: 0
+    notes: "She is not related to them at all -- she is a servant Heathcliff employs as housekeeper, with no blood or marriage tie to the family."
