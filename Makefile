@@ -34,7 +34,8 @@ endif
         test test-api test-web test-integration lint fmt openapi \
         seed seed-series reset-db bootstrap worktrees warm-models ci-up ci-smoke ci-down \
         ci-up-extraction docker-nocreds ingest graph-rebuild graph-rebuild-drill eval-relations \
-        judge-citations ingest-series eval-reconciliation eval-answers perf-smoke chaos-test
+        judge-citations ingest-series eval-reconciliation eval-answers perf-smoke chaos-test \
+        eval-ablation eval-ablation-readme regression-gate
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_-]+:.*?## /{printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -175,6 +176,19 @@ perf-smoke: ## S6.15 latency/TTFT budget gate — integration host only, never a
 
 chaos-test: ## S7.12 durability gate: real container kills, network partition — integration host only (BRANCH.md §9)
 	API_BASE_URL=http://localhost:$${API_PORT:-8000} python3 scripts/chaos_test.py
+
+eval-ablation: ## S8.8 ablation matrix: cached, resumable, writes EvalRun/EvalResult (make eval-ablation RUN_ID=2026-09-28)
+	$(COMPOSE) exec -T -e GIT_SHA=$$(git rev-parse HEAD) api python scripts/run_ablation.py \
+		--run-id "$${RUN_ID:-$$(date -u +%Y-%m-%dT%H%M%SZ)}" \
+		--api-base-url http://localhost:8000 $(ARGS)
+
+eval-ablation-readme: ## S8.10: regenerate README.md's results section from the last ablation run
+	python3 scripts/publish_ablation_readme.py
+
+regression-gate: ## S8.9: fail if the latest ablation run dropped >2pts vs the stored baseline
+	python3 scripts/check_regression_gate.py \
+		--current eval/ablation_runs/latest.json \
+		--baseline eval/ablation_runs/baseline.json
 
 # ── Shells ────────────────────────────────────────────────────────────────────
 

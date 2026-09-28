@@ -2,11 +2,12 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
 from ..contracts.api import (
     DeadLetterOut,
+    EvalRunOut,
     HealthOut,
     MetricsOut,
     RoutingPolicyOut,
@@ -14,6 +15,7 @@ from ..contracts.api import (
 from ..contracts.pipeline import IngestionRunOut
 from ..db.engine import get_session
 from ..ops import gather_health, pipeline_status
+from ..ops.ablation import get_eval_run, get_latest_eval_run
 from ..ops.answer_judge import AnswerJudgment, JudgeAnswerRequest, judge_answer
 from ..ops.answer_quality import AnswerQualityOut, compute_answer_quality
 from ..ops.extraction_cost import ExtractionCostOut, compute_extraction_cost
@@ -251,6 +253,36 @@ async def dead_letter(
 ) -> list[DeadLetterOut]:
     """Every book whose latest run has a stage currently `failed`."""
     return await pipeline_status.list_dead_letters(session)
+
+
+@router.get("/ops/eval-runs/latest", response_model=EvalRunOut)
+async def eval_run_latest(
+    session: SQLModelAsyncSession = Depends(get_session),
+) -> EvalRunOut:
+    """The most recent ablation run written by ``scripts/run_ablation.py`` (S8.8).
+
+    404 rather than an empty/zeroed body when no run has ever been recorded —
+    "no ablation has run yet" and "the last ablation scored zero" must not
+    look the same to a caller.
+    """
+    run = await get_latest_eval_run(session)
+    if run is None:
+        raise HTTPException(status_code=404, detail="no eval run recorded yet")
+
+    return run
+
+
+@router.get("/ops/eval-runs/{run_id}", response_model=EvalRunOut)
+async def eval_run_by_id(
+    run_id: UUID,
+    session: SQLModelAsyncSession = Depends(get_session),
+) -> EvalRunOut:
+    """One ablation run by id, for a drill-down link off the latest table."""
+    run = await get_eval_run(session, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="eval run not found")
+
+    return run
 
 
 @router.get("/ops/routing-policy", response_model=RoutingPolicyOut)

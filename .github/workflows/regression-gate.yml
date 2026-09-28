@@ -1,0 +1,187 @@
+name: Regression gate
+
+# S8.9, F6.4: "a PR that drops answer accuracy more than 2 points fails" --
+# extended to relation F1 and citation precision (devops-1.md: "equally
+# load-bearing"). The PR job uses the reduced one-novel set (Pride and
+# Prejudice -- the only book with all three gold sets: roster, relations and
+# answers) to keep the loop under 10 minutes; ai-master pushes and the nightly
+# schedule additionally run the full ablation matrix (S8.8) and refresh the
+# published table.
+#
+# An override needs a label *and* a written justification in the PR body
+# (BRANCH.md-style documented override, not a silent bypass): add the
+# `regression-override` label and a line `Regression-Override: <reason>` to
+# the PR description. eval/regression_gate.py refuses an empty reason.
+on:
+  pull_request:
+  push:
+    branches: ["ai-master"]
+  schedule:
+    - cron: "0 9 * * *" # after nightly-corpus.yml
+  workflow_dispatch:
+
+concurrency:
+  group: regression-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  MODELS_OFFLINE: "1"
+  HF_HUB_OFFLINE: "1"
+  TRANSFORMERS_OFFLINE: "1"
+  INFERENCE_MODE: api
+
+jobs:
+  gate:
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    name: Gate -- extraction/relation/answer metrics vs baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: make env
+
+      - run: python3 scripts/seed_corpus.py --only pride-and-prejudice
+
+      - name: Restore the metrics baseline
+        uses: actions/cache/restore@v4
+        with:
+          path: gate-metrics-baseline.json
+          key: gate-metrics-baseline-${{ github.base_ref || github.ref_name }}
+
+      - name: Bring up the stack
+        run: |
+          docker compose up -d --build
+          ./scripts/wait_for_healthy.sh --timeout 600
+
+      - name: Ingest the reduced set
+        run: python3 scripts/ingest_book.py pride-and-prejudice --project-slug pr-regression-gate
+
+      - name: Collect current metrics
+        run: |
+          python3 scripts/collect_gate_metrics.py --book-key pride-and-prejudice \
+            --out gate-metrics-current.json
+
+      - name: Read a documented override, if labelled
+        id: override
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+
+          labels = json.loads(os.environ.get("PR_LABELS") or "[]")
+          reason = ""
+          if "regression-override" in labels:
+              body = os.environ.get("PR_BODY") or ""
+              for line in body.splitlines():
+                  if line.strip().lower().startswith("regression-override:"):
+                      reason = line.split(":", 1)[1].strip()
+                      break
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+              fh.write(f"reason={reason}\n")
+          PY
+
+      - name: Check the gate
+        env:
+          OVERRIDE_REASON: ${{ steps.override.outputs.reason }}
+        run: |
+          python3 scripts/check_regression_gate.py \
+            --current gate-metrics-current.json \
+            --baseline gate-metrics-baseline.json \
+            --out gate-report.md \
+            --override-reason "$OVERRIDE_REASON"
+
+      - name: Comment on the PR
+        if: always() && github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: regression-gate
+          path: gate-report.md
+
+      - name: Save the baseline (ai-master only)
+        if: always() && github.event_name == 'push'
+        run: cp gate-metrics-current.json gate-metrics-baseline.json
+
+      - uses: actions/cache/save@v4
+        if: always() && github.event_name == 'push'
+        with:
+          path: gate-metrics-baseline.json
+          key: gate-metrics-baseline-${{ github.ref_name }}
+
+      - if: always()
+        run: docker compose down --remove-orphans
+
+  nightly-full-matrix:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    name: Full ablation matrix (S8.8) + README refresh (S8.10)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ai-master
+
+      - run: make env
+
+      - run: python3 scripts/seed_corpus.py --only pride-and-prejudice --only wuthering-heights
+
+      - name: Bring up the stack
+        run: |
+          docker compose up -d --build
+          ./scripts/wait_for_healthy.sh --timeout 900
+
+      - name: Ingest both gold-labelled books
+        run: |
+          python3 scripts/ingest_book.py pride-and-prejudice --project-slug nightly-ablation
+          python3 scripts/ingest_book.py wuthering-heights --project-slug nightly-ablation
+
+      - name: Run the full ablation matrix (make eval-ablation)
+        run: make eval-ablation RUN_ID=nightly-$(date -u +%Y-%m-%dT%H%M%SZ)
+
+      - name: Regenerate the README table (S8.10)
+        run: python3 scripts/publish_ablation_readme.py
+
+      - name: Restore the metrics baseline
+        uses: actions/cache/restore@v4
+        with:
+          path: gate-metrics-baseline.json
+          key: gate-metrics-baseline-ai-master
+
+      - name: Collect current metrics
+        run: |
+          python3 scripts/collect_gate_metrics.py --book-key pride-and-prejudice \
+            --out gate-metrics-current.json
+
+      - name: Check the gate (reports only -- ai-master is already merged)
+        run: |
+          python3 scripts/check_regression_gate.py \
+            --current gate-metrics-current.json \
+            --baseline gate-metrics-baseline.json \
+            --out gate-report.md \
+            --override-reason "" || true
+
+      - run: cp gate-metrics-current.json gate-metrics-baseline.json
+
+      - uses: actions/cache/save@v4
+        with:
+          path: gate-metrics-baseline.json
+          key: gate-metrics-baseline-ai-master
+
+      - name: Commit the refreshed README
+        run: |
+          git config user.name "traverse-bot"
+          git config user.email "bot@traverse.invalid"
+          git add README.md
+          git diff --cached --quiet || git commit -m "docs: refresh ablation table [nightly, S8.10]"
+          git push
+
+      - if: always()
+        run: docker compose down --remove-orphans
