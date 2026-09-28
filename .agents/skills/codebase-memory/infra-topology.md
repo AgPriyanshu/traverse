@@ -161,6 +161,40 @@ DNS alias — the scenario's reconnect now passes `--alias neo4j` explicitly;
 worth remembering before anyone else scripts a raw `docker network`
 disconnect/reconnect against this stack.
 
+**Built (S8.8/S8.9/S8.10, do1):** `eval/ablation.py` (the partial Appendix A
+matrix — one axis varied against the recommended value of the other two,
+plus the shared recommended row, never the 90-cell full cross product) +
+`scripts/run_ablation.py` (cached on config+book+corpus-checksum+git-SHA,
+resumable via `eval/ablation_runs/<run-id>/state.json`, writes both a JSON
+artifact and `EvalRun`/`EvalResult` rows — `make eval-ablation`) +
+`api/ops/ablation.py` behind two new routes, `GET /ops/eval-runs/latest` and
+`GET /ops/eval-runs/{run_id}` (404, not a zeroed body, when no run has ever
+been recorded). `eval/regression_gate.py` (pure pass/fail logic, tracks
+extraction F1, relation F1, answer accuracy and citation precision against a
+stored baseline at a 2-point threshold, with a documented-override escape
+hatch that refuses an empty reason) + `scripts/collect_gate_metrics.py` +
+`scripts/check_regression_gate.py` (`make regression-gate`) +
+`.github/workflows/regression-gate.yml` (PR job gates on the reduced
+Pride-and-Prejudice set; nightly job additionally runs the full ablation
+matrix and regenerates the README). `scripts/publish_ablation_readme.py`
+(`make eval-ablation-readme`) splices a freshly rendered table into
+README.md between marker comments, idempotently.
+
+Two real environment gaps this sprint's numbers are honest about, not silent
+on (see `plans/sprint-8/HANDOFF.md`): **no `FRONTIER_MODEL`/`FRONTIER_API_KEY`
+is configured**, so `LLMPurpose.JUDGE` calls fail outright (`api/llm/routing.py`
+refuses local-only judging by design) and answer accuracy/citation precision
+report `None`, never a fabricated number, for every cell that needs them —
+verified live: a real S6.14 run exists (19/30 Pride and Prejudice gold
+questions answered) with `judge: null` on every row. **be2's S8.2 ablation
+config-switch had not landed as of this run**, so every non-recommended cell
+(single-pass extraction, vector-only/BM25/rerank retrieval, frontier/routed
+model) is recorded `blocked` with that specific reason — the pipeline can
+currently produce exactly one configuration, and both retrieval and model's
+"recommended" cells are that same one live run, not independently measured.
+Extraction axis numbers (the one axis genuinely measurable end to end) are
+real: Pride and Prejudice roster F1 0.701, Wuthering Heights 0.642.
+
 **Not built:** anything else in Sprint 5+.
 
 ## Services
@@ -247,6 +281,9 @@ make test / test-api / test-web / test-integration
 make lint / fmt / openapi         make seed             make warm-models
 make worktrees SPRINT=3 SLUG=…    make ci-up / ci-smoke / ci-down
 make ci-up-extraction             S3.14: ci-up's subset + MinIO, for a real book upload
+make eval-ablation RUN_ID=…       S8.8: the partial ablation matrix, cached + resumable
+make eval-ablation-readme         S8.10: regenerate README.md's table from the last run
+make regression-gate              S8.9: fail if the latest run dropped >2pts vs baseline
 make revision m="…"               ORCHESTRATOR ONLY — typed confirmation
 ```
 
