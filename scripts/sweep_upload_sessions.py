@@ -20,12 +20,16 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 async def _main() -> int:
     from api.db.engine import db_session
-    from api.ops.upload_guard import sweep_expired_sessions
+    from api.pipeline.session_privacy import sweep_expired_upload_sessions
 
     async with db_session() as session:
-        cleaned = await sweep_expired_sessions(session)
+        result = await sweep_expired_upload_sessions(session)
 
-    print(f"sweep_upload_sessions: cleaned up {cleaned} expired session(s)")
+    print(
+        f"sweep_upload_sessions: swept {result['sessions_swept']} expired "
+        f"session(s), deleted {result['books_deleted']} book(s) "
+        "(Postgres, MinIO, Neo4j, Langfuse)"
+    )
     return 0
 
 

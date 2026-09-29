@@ -75,3 +75,10 @@ plus adjusting the script's print statement to the dict return shape
 implementation, which is the point. `api/ops/**` and `scripts/**` are
 do1-owned (BRANCH.md), so this is filed here rather than changed directly —
 happy to pair on it if that's faster than a solo pickup.
+
+**Resolved (orchestrator, merge train):** `scripts/sweep_upload_sessions.py`
+now imports `api.pipeline.session_privacy.sweep_expired_upload_sessions`
+and reports its `{"sessions_swept", "books_deleted"}` shape. Exactly one
+sweep implementation remains; `api.ops.upload_guard.sweep_expired_sessions`
+is left in place (do1's, unreferenced by the script now) rather than
+deleted, since removing it is outside this fix's scope.
