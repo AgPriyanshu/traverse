@@ -129,7 +129,8 @@ def cost_per_query(breakdown: CostBreakdown) -> float | None:
     """Average cost per query answered in the window, ``None`` if none answered."""
     if breakdown.query_count == 0:
         return None
-    return breakdown.by_purpose.get(LLMPurpose.ANSWER.value, 0.0) / breakdown.query_count
+    answer_cost = breakdown.by_purpose.get(LLMPurpose.ANSWER.value, 0.0)
+    return answer_cost / breakdown.query_count
 
 
 async def save_cost_snapshot(

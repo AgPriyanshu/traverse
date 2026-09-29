@@ -1,4 +1,3 @@
-import uuid
 from datetime import UTC, datetime, timedelta
 
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession

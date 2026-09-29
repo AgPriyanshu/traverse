@@ -11,11 +11,10 @@ from __future__ import annotations
 
 from uuid import UUID
 
+from eval.latency_metrics import PercentileSet, percentile
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
-
-from eval.latency_metrics import PercentileSet, percentile
 
 from ..config import settings
 from ..contracts.enums import InferenceMode
@@ -157,10 +156,14 @@ def _queue_depth() -> QueueDepthOut:
         reserved = inspect.reserved() or None
         scheduled = inspect.scheduled() or None
     except Exception:
-        return QueueDepthOut(active=None, reserved=None, scheduled=None, reachable=False)
+        return QueueDepthOut(
+            active=None, reserved=None, scheduled=None, reachable=False
+        )
 
     if active is None and reserved is None and scheduled is None:
-        return QueueDepthOut(active=None, reserved=None, scheduled=None, reachable=False)
+        return QueueDepthOut(
+            active=None, reserved=None, scheduled=None, reachable=False
+        )
 
     def _count(value: dict | None) -> int | None:
         if value is None:
@@ -186,12 +189,15 @@ async def compute_performance(
     if settings.inference_mode == InferenceMode.LOCAL:
         cache_stats = await fetch_vllm_cache_stats(settings.vllm_base_url)
 
+    hit_rate = cache_stats.prefix_cache_hit_rate if cache_stats else None
+    kv_usage = cache_stats.gpu_kv_cache_usage_pct if cache_stats else None
+
     return PerformanceOut(
         book_id=book_id,
         stage_latency_ms=stage_latency_ms,
         ingestion_throughput=throughput,
-        prefix_cache_hit_rate=cache_stats.prefix_cache_hit_rate if cache_stats else None,
-        gpu_kv_cache_usage_pct=cache_stats.gpu_kv_cache_usage_pct if cache_stats else None,
+        prefix_cache_hit_rate=hit_rate,
+        gpu_kv_cache_usage_pct=kv_usage,
         queue_depth=queue_depth,
         inference_mode=settings.inference_mode.value,
     )

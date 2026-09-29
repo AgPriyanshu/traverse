@@ -95,7 +95,9 @@ async def compute_retry_outcomes(
     session: SQLModelAsyncSession, *, book_id: UUID | None = None
 ) -> list[RetryOutcomeOut]:
     """For every stage row that was retried at least once, how it ended up."""
-    statement = select(IngestionStage.stage, IngestionStage.attempt, IngestionStage.state)
+    statement = select(
+        IngestionStage.stage, IngestionStage.attempt, IngestionStage.state
+    )
     statement = statement.where(IngestionStage.attempt > 0)  # type: ignore[operator]
     if book_id is not None:
         statement = statement.join(
