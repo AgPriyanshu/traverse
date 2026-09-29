@@ -184,5 +184,9 @@ describe("the review queue's speed budget (F5.3, S7.8 DoD)", () => {
     expect(mechanicalMs).toBeLessThan(TARGET_MS / 10);
     expect(keySequence).toHaveLength(TASK_COUNT);
     expect(keySequence.every((key) => key !== "j" && key !== "k")).toBe(true);
-  });
+    // Vitest's own test timeout (default 5000ms) is separate from the
+    // mechanicalMs budget above and has flaked under a loaded CI box driving
+    // 50 real keyboard events through React — bumped generously since this
+    // test's own pass/fail signal is the assertions above, not wall clock.
+  }, 15000);
 });
