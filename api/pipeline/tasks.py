@@ -445,24 +445,28 @@ async def _sweep_expired_upload_sessions() -> dict:
 def sweep_expired_upload_sessions() -> dict:
     """Delete every expired, not-yet-swept demo upload session's data.
 
-    Registered under its own name rather than a frozen stage — nothing
-    upstream ever enqueues this as part of a book's ingestion. It only runs
-    when something schedules it: a Celery beat entry (below) if a beat worker
-    is running, or a manual ``celery_app.send_task(...)`` / HTTP trigger
-    otherwise. **No beat service exists in ``docker-compose.yml`` yet** — that
-    file is do1-owned (BRANCH.md); see ``plans/sprint-9/HANDOFF.md`` for the
-    one-line service this needs at integration.
+    This is the *only* TTL sweep this codebase should run, and it is the full
+    cascade: Postgres (raw ``DELETE`` + ``ON DELETE CASCADE``), object
+    storage, the graph store and Langfuse traces — see
+    ``session_privacy.delete_book_cascade``. Registered under its own name
+    rather than a frozen stage, since nothing enqueues it as part of a book's
+    ingestion; today it only runs via a manual
+    ``celery_app.send_task("pipeline.sweep_expired_upload_sessions")`` or an
+    HTTP trigger, since **no ``celery beat`` service exists in
+    ``docker-compose.yml``** (do1-owned; not this agent's to add).
+
+    Sprint 9's fast-follow reconciliation (S9.8/S9.5) found do1's
+    ``scripts/sweep_upload_sessions.py`` / ``make upload-sweep`` had grown a
+    second, independent sweep against the same ``UploadSession`` rows
+    (``api.ops.upload_guard.sweep_expired_sessions``) — runnable *today*
+    without a beat service, but doing a shallower delete than this one (no
+    graph cascade, no Langfuse purge, no orphaned-character sweep). Rather
+    than leave both live and risk exactly the kind of drift this
+    reconciliation exists to close, the previous ``beat_schedule`` entry
+    that paired with this task (inert anyway, with no beat worker to read
+    it) has been removed here. See ``plans/sprint-9/HANDOFF.md`` and
+    ``plans/sprint-9/SCR.md`` for the decision and the ask back to do1: point
+    ``make upload-sweep`` at this function instead, so there is exactly one
+    sweep implementation once either scheduling mechanism goes live.
     """
     return asyncio.run(_sweep_expired_upload_sessions())
-
-
-# Wired here (be1's own module) rather than in the frozen ``api/tasks.py``, so
-# a beat worker picks this up the moment one exists without another edit to a
-# file this agent may not touch (BRANCH.md §1).
-celery_app.conf.beat_schedule = {
-    **(celery_app.conf.beat_schedule or {}),
-    _SWEEP_TASK_NAME: {
-        "task": _SWEEP_TASK_NAME,
-        "schedule": 3600.0,
-    },
-}
