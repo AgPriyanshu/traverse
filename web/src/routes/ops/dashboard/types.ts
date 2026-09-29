@@ -1,10 +1,7 @@
 import type { AblationConfig, MetricSet, RoutingPolicy } from "@/lib/api";
+import type { LlmPurpose, ModelChoice, PurposePolicy } from "@/lib/inference-mode";
 
-export type {
-  LlmPurpose,
-  ModelChoice,
-  PurposePolicy,
-} from "@/lib/inference-mode";
+export type { LlmPurpose, ModelChoice, PurposePolicy };
 export {
   LLM_PURPOSES,
   MODEL_CHOICES,

@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetConversations } from "@/routes/ask/conversation-store";
-import { runAxe } from "./axe";
+import { expectNoAxeViolations } from "./axe";
 import { renderRoute } from "./render";
 
 const BOOK_ID = "book-1";
@@ -210,7 +210,7 @@ describe("the ask screen", () => {
     fireEvent.click(await screen.findByRole("button", { name: /who is elizabeth bennet/i }));
     await screen.findByTestId("answer-text");
 
-    expect(await runAxe(container)).toHaveNoViolations();
+    await expectNoAxeViolations(container);
   });
 
   it("renders an abstention as a considered answer, not an error", async () => {

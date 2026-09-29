@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { runAxe } from "./axe";
+import { expectNoAxeViolations } from "./axe";
 import { renderRoute } from "./render";
 
 const jsonResponse = (body: unknown, status = 200) =>
@@ -174,7 +174,7 @@ describe("the ops dashboard", () => {
     await screen.findByText("$4.57");
     await screen.findByText(/pride and prejudice/i);
 
-    expect(await runAxe(container)).toHaveNoViolations();
+    await expectNoAxeViolations(container);
   });
 
   it("moves cost-per-query and accuracy together when the routing policy changes", async () => {

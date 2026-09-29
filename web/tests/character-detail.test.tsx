@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { runAxe } from "./axe";
+import { expectNoAxeViolations } from "./axe";
 import { renderRoute } from "./render";
 
 const PROJECT_ID = "project-1";
@@ -130,7 +130,7 @@ describe("the character detail page", () => {
     const { container } = renderRoute(`/projects/${PROJECT_ID}/characters/${CHARACTER_ID}`);
     await screen.findByRole("heading", { name: "Anne Shirley" });
 
-    expect(await runAxe(container)).toHaveNoViolations();
+    await expectNoAxeViolations(container);
   });
 
   it("lists a per-book appearance with first page, tier, mentions, and aliases for that book", async () => {

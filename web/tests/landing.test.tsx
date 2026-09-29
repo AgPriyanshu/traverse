@@ -1,7 +1,7 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { runAxe } from "./axe";
+import { expectNoAxeViolations } from "./axe";
 import { renderRoute } from "./render";
 
 const jsonResponse = (body: unknown, status = 200) =>
@@ -120,6 +120,6 @@ describe("the public landing screen", () => {
     const { container } = renderRoute("/");
     await screen.findByRole("heading", { name: "Pride and Prejudice Demo" });
 
-    expect(await runAxe(container)).toHaveNoViolations();
+    await expectNoAxeViolations(container);
   });
 });

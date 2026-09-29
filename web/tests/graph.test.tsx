@@ -5,7 +5,7 @@ import { buildBoundaries, buildSegments } from "@/routes/project/graph/arc-segme
 import { filterGraph, parseFilters } from "@/routes/project/graph/graph-filters";
 import { RelationArcView } from "@/routes/project/graph/relation-arc";
 import { renderRoute } from "./render";
-import { runAxe } from "./axe";
+import { expectNoAxeViolations } from "./axe";
 import { render } from "@testing-library/react";
 import { DesignSystemProvider } from "@/design-system/provider";
 import { MemoryRouter } from "react-router";
@@ -272,7 +272,7 @@ describe("the series graph explorer, list view", () => {
     const { container } = renderRoute(`/projects/${PROJECT_ID}/graph?view=list`);
     await screen.findByRole("list", { name: /relationships by character/i });
 
-    expect(await runAxe(container)).toHaveNoViolations();
+    await expectNoAxeViolations(container);
   });
 
   it("filters to a book from the URL and shows only characters present there", async () => {

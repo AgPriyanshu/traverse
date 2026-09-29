@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { runAxe } from "./axe";
+import { expectNoAxeViolations } from "./axe";
 import { renderRoute } from "./render";
 
 const BOOK_ID = "book-1";
@@ -173,7 +173,7 @@ describe("the review queue", () => {
 
     await screen.findByText(/task 1 of 3/i);
 
-    expect(await runAxe(container)).toHaveNoViolations();
+    await expectNoAxeViolations(container);
   });
 
   it("moves through the queue with j/k, never the mouse", async () => {

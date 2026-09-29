@@ -1,7 +1,7 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
-import { runAxe } from "./axe";
+import { expectNoAxeViolations } from "./axe";
 import { renderRoute } from "./render";
 
 describe("the eval results screen (S8.7)", () => {
@@ -26,7 +26,7 @@ describe("the eval results screen (S8.7)", () => {
     const { container } = renderRoute("/ops/evals");
     await screen.findByRole("heading", { name: /evaluation results/i });
 
-    expect(await runAxe(container)).toHaveNoViolations();
+    await expectNoAxeViolations(container);
   });
 
   it("shows a delta against the axis baseline for a non-baseline row", async () => {
