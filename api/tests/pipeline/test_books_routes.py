@@ -391,5 +391,10 @@ class TestStillFrozen:
         # POST /ops/judge-answer (do1's SCR-2/SCR-3), +2 at Sprint 7's for
         # GET /ops/review-metrics and GET /ops/review-alerts (do1's SCR-2),
         # +2 at Sprint 8's for GET /ops/eval-runs/latest and
-        # GET /ops/eval-runs/{run_id} (do1's SCR-1).
-        assert len(response.json()["paths"]) == 47
+        # GET /ops/eval-runs/{run_id} (do1's SCR-1), +5 at Sprint 9's for
+        # GET /ops/cost-breakdown, GET /ops/cost-snapshots,
+        # GET /ops/budget-status, GET /ops/performance and
+        # GET /ops/pipeline-health (do1's S9.1-S9.3 telemetry routes;
+        # GET/PUT /ops/routing-policy were already counted, S9.6 only
+        # implemented what Sprint 1 had already frozen as 501 stubs).
+        assert len(response.json()["paths"]) == 52
