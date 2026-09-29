@@ -50,9 +50,9 @@ export const PercentileBarChart = ({ stages }: PercentileBarChartProps) => {
         ))}
       </HStack>
 
-      <Stack gap="3" role="table" aria-label="Query latency by stage, p50/p95/p99">
+      <Stack gap="3" role="list" aria-label="Query latency by stage, p50/p95/p99">
         {stages.map((stage) => (
-          <Stack key={stage.label} gap="1" role="row">
+          <Stack key={stage.label} gap="1" role="listitem">
             <Text textStyle="small" fontWeight="600" color="fg">{stage.label}</Text>
             <HStack gap="1.5" align="flex-end" h="10">
               {SERIES.map((series) => {

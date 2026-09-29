@@ -1,6 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { runAxe } from "./axe";
 import { renderRoute } from "./render";
 
 const jsonResponse = (body: unknown, status = 200) =>
@@ -154,6 +155,26 @@ describe("the ops dashboard", () => {
 
     expect(await screen.findByText(/pride and prejudice/i)).toBeInTheDocument();
     expect(screen.getByText(/1 task open past 48h/i)).toBeInTheDocument();
+  });
+
+  it("has no automatically detectable accessibility violations (S9.12)", async () => {
+    mockApi({
+      "/api/ops/metrics": METRICS,
+      "/api/projects": PROJECTS,
+      "/api/ops/query-latency": QUERY_LATENCY,
+      "/api/books": BOOKS,
+      "/api/ops/pipeline/runs": PIPELINE_RUNS,
+      "/api/ops/pipeline/dead-letter": [],
+      "/api/ops/review-alerts": REVIEW_ALERTS,
+      "/api/ops/routing-policy": erroring({ detail: "Not implemented yet." }, 501),
+      "/api/ops/eval-runs/latest": EVAL_RUN,
+    });
+
+    const { container } = renderRoute("/ops");
+    await screen.findByText("$4.57");
+    await screen.findByText(/pride and prejudice/i);
+
+    expect(await runAxe(container)).toHaveNoViolations();
   });
 
   it("moves cost-per-query and accuracy together when the routing policy changes", async () => {

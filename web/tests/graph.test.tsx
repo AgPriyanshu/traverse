@@ -5,6 +5,7 @@ import { buildBoundaries, buildSegments } from "@/routes/project/graph/arc-segme
 import { filterGraph, parseFilters } from "@/routes/project/graph/graph-filters";
 import { RelationArcView } from "@/routes/project/graph/relation-arc";
 import { renderRoute } from "./render";
+import { runAxe } from "./axe";
 import { render } from "@testing-library/react";
 import { DesignSystemProvider } from "@/design-system/provider";
 import { MemoryRouter } from "react-router";
@@ -245,6 +246,33 @@ describe("the series graph explorer, list view", () => {
       expect(screen.getByText("Anne would never speak to him again.")).toBeInTheDocument();
     });
     expect(screen.getAllByRole("link", { name: /page 33 of anne of green gables/i }).length).toBeGreaterThan(0);
+  });
+
+  it("has no automatically detectable accessibility violations (S9.12) — the list view is the graph's non-visual equivalent", async () => {
+    const routes: Record<string, unknown> = {
+      [`/api/projects/${PROJECT_ID}`]: {
+        id: PROJECT_ID, name: "Anne of Green Gables", slug: "anne", kind: "series",
+        book_count: 3, character_count: 3, relation_count: 2, updated_at: null,
+        books: threeBooks,
+      },
+      "/api/graph/ontology": { predicates: [], families: [] },
+      [`/api/projects/${PROJECT_ID}/graph`]: GRAPH,
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = input instanceof Request ? input.url : String(input);
+        const match = Object.entries(routes)
+          .sort(([a], [b]) => b.length - a.length)
+          .find(([path]) => url.includes(path));
+        return match ? jsonResponse(match[1]) : jsonResponse({ detail: url }, 404);
+      }),
+    );
+
+    const { container } = renderRoute(`/projects/${PROJECT_ID}/graph?view=list`);
+    await screen.findByRole("list", { name: /relationships by character/i });
+
+    expect(await runAxe(container)).toHaveNoViolations();
   });
 
   it("filters to a book from the URL and shows only characters present there", async () => {

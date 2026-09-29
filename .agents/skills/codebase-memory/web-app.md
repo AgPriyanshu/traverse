@@ -267,6 +267,39 @@ the current policy), since `DoneEvent`/`RouteEvent` have no such field —
 Vitest tests, all passing (`tests/inference-mode.test.tsx` plus one added to
 `tests/ask.test.tsx`); `pnpm tsc --noEmit`, `pnpm lint`, `pnpm build` clean.
 
+**Built (S9.12, fe1):** the accessibility pass (NFR-a11y) — `jest-axe` +
+`axe-core` added as devDependencies (no dedicated Vitest entry point exists,
+so `tests/axe.ts` wires `expect.extend`/the `toHaveNoViolations` matcher and
+augments Vitest's own `Assertion` interface by hand, `tests/setup.ts` calls
+`expect.extend` once for every test file). A real `runAxe(container)` check
+was added to the highest-interactivity screens the brief named first — the
+review queue, the graph explorer's list view (its documented non-visual
+equivalent), and both ops-dashboard states — plus character detail, the ask
+screen (landing and mid-conversation), and the evals screen. **Found and
+fixed three real violations, not zero**, which is the honest signal this
+sweep did something: (1) `percentile-bar-chart.tsx` used `role="table"`/
+`role="row"` on plain `<div>`s with no `cell`/`columnheader` children —
+`aria-required-children` failure, fixed by switching to `role="list"`/
+`role="listitem"`, which carries no such requirement; (2) `ablation-table.tsx`
+had an empty `<Table.ColumnHeader />` for the drill-down button column —
+`empty-table-header`, fixed with a `<VisuallyHidden>Actions</VisuallyHidden>`
+label; (3) `routing-control-panel.tsx`'s cost-trend `<svg>` had a literal
+`width={560}` with no responsive scaling — not an axe finding but a genuine
+400px overflow bug, caught by a manual widths grep across `src/` rather than
+axe (axe does not check viewport overflow), fixed the same way
+`sparkline-bars.tsx` already does it elsewhere (`width="100%"` +
+`viewBox`, `preserveAspectRatio`). **What this sweep did not do**: a live
+Lighthouse or browser-driven axe run against a running dev server (no
+browser-automation tool was available in this session) — `runAxe` is
+axe-core against jsdom-rendered markup, which catches ARIA/name/role/table
+structure but not real paint-time layout overflow, so the widths grep above
+is a deliberate supplement, not a redundant belt-and-braces check. Contrast
+(`tests/contrast.test.ts`, Sprint 1) and the review queue's keyboard-only
+speed proof (`tests/review-speed.test.tsx`, Sprint 7) were already built and
+were re-run, not re-authored, as part of confirming this sweep's baseline.
+246 Vitest tests, all passing; `pnpm tsc --noEmit`, `pnpm lint`, `pnpm build`
+clean.
+
 **Known gap:** `MentionOut` and `EvidenceOut` carry a page but no `SpanBox`, so their click-through lands on the page without a highlight (Sprint 3 SCR-9, Sprint 4 SCR-10). The roster sparkline gap (Sprint 3 SCR-1) is closed for the single-book roster; its series-roster descendant reopens a version of it (Sprint 5 SCR-1 — see above).
 
 `web/src/design-system/tokens.ts` **exists** (DCR-1, landed at the Sprint 2

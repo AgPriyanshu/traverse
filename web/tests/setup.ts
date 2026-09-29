@@ -1,5 +1,11 @@
 import "@testing-library/jest-dom/vitest";
-import { vi } from "vitest";
+import { toHaveNoViolations } from "jest-axe";
+import { expect, vi } from "vitest";
+
+// `jest-axe` ships a Jest matcher, not a Vitest one — no dedicated Vitest
+// entry point exists, so it is wired in by hand rather than via a bare
+// import the way `@testing-library/jest-dom/vitest` is above.
+expect.extend(toHaveNoViolations);
 
 // jsdom implements neither, and Chakra's media-query conditions and any
 // virtualised list will reach for them.

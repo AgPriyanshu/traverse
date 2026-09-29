@@ -1,5 +1,6 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { runAxe } from "./axe";
 import { renderRoute } from "./render";
 
 const BOOK_ID = "book-1";
@@ -164,6 +165,15 @@ describe("the review queue", () => {
 
     expect(await screen.findByText(/task 1 of 3/i)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /catherine earnshaw & catherine linton/i })).toBeInTheDocument();
+  });
+
+  it("has no automatically detectable accessibility violations (S9.12)", async () => {
+    mockApi();
+    const { container } = renderRoute(`/books/${BOOK_ID}/review`);
+
+    await screen.findByText(/task 1 of 3/i);
+
+    expect(await runAxe(container)).toHaveNoViolations();
   });
 
   it("moves through the queue with j/k, never the mouse", async () => {

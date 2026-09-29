@@ -247,7 +247,14 @@ const CostTrend = () => {
   const points = values.map((value, index) => `${padX + index * stepX},${toY(value)}`).join(" ");
 
   return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Cost per query over the last 7 days, with policy changes annotated">
+    <svg
+      width="100%"
+      height={height}
+      viewBox={`0 0 ${width} ${height}`}
+      preserveAspectRatio="xMidYMid meet"
+      role="img"
+      aria-label="Cost per query over the last 7 days, with policy changes annotated"
+    >
       <line x1={padX} y1={height - padY} x2={width - padX} y2={height - padY} stroke="var(--chakra-colors-border)" strokeWidth={1} />
       <polyline points={points} fill="none" stroke="var(--chakra-colors-accent-solid)" strokeWidth={2} />
       {COST_TREND.map((point, index) => (
