@@ -38,6 +38,14 @@ TABLES_TOUCHED_BY_TESTS = (
     "calibrationmodel",
     "evalresult",
     "evalrun",
+    # Sprint 9 freeze tables (migration 0014) — cost_telemetry/upload_guard
+    # tests write these directly; without truncation a unique constraint
+    # (upload_session.session_token) or a stale window row from a prior test
+    # leaks into the next one.
+    "costsnapshot",
+    "uploadsession",
+    "routingpolicy",
+    "querylog",
     "book",
     "project",
 )
