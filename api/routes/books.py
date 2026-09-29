@@ -423,8 +423,11 @@ async def upload_book(
         # spends it via a concurrent request is not asked twice.
         await session_privacy.record_upload(session, owner)
 
-    await anyio.to_thread.run_sync(ingestion_chain(book.id).apply_async)
-    out = await repository.get_book_out(session, book.id)
+    # `book_id`, not `book.id`: record_upload's commit above expires `book`
+    # same as it does `owner`, and book_id is already confirmed equal to it
+    # (the race-loss branch above returns before here otherwise).
+    await anyio.to_thread.run_sync(ingestion_chain(book_id).apply_async)
+    out = await repository.get_book_out(session, book_id)
 
     return out
 

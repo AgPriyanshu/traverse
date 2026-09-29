@@ -165,6 +165,16 @@ async def link_session_to_project(
 async def record_upload(
     session: SQLModelAsyncSession, upload_session: UploadSession
 ) -> None:
+    """Increment a session's upload count.
+
+    Callers commonly hold ``upload_session`` from earlier in the same
+    request, across an intervening commit elsewhere (``create_book``'s own
+    write) that leaves it expired -- an in-place ``+= 1`` would otherwise try
+    to lazily reload the old value outside an awaited context and crash with
+    ``MissingGreenlet``. An explicit refresh first is the safe, awaited
+    equivalent.
+    """
+    await session.refresh(upload_session)
     upload_session.upload_count += 1
     session.add(upload_session)
     await session.commit()
