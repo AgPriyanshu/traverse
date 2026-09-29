@@ -49,32 +49,39 @@ A system built on those four properties answers questions a chatbot structurally
 
 ### 1.3 Success definition
 
-**Product quality bar**
+**Product quality bar** — measured column filled where a sprint retro recorded a
+real number on the live corpus; `carried forward` means the target was never
+re-measured after the harness that would prove it existed (mostly gated on a
+frontier judge key never being provisioned in this environment — see
+`plans/sprint-8/RETRO.md` §3 and `plans/sprint-9/RETRO.md` §4). This table is
+not re-derived from memory; every measured cell cites the retro it came from.
 
-| Metric | Target |
-|---|---|
-| Character roster recall (named, speaking characters) | ≥ 95% |
-| Character roster precision (no invented / non-character entities) | ≥ 90% |
-| Alias clustering accuracy (B³ F1 over mention clusters) | ≥ 0.85 |
-| Relationship precision on gold set | ≥ 90% |
-| Relationship recall on gold set (major-character pairs) | ≥ 80% |
-| Citation resolves to a page that actually supports the edge | ≥ 95% |
-| Abstention on unanswerable / not-in-book questions | ≥ 90% |
-| Full-novel ingestion (350pp) wall clock, single GPU | ≤ 25 min |
-| p95 query latency | ≤ 6s, first token ≤ 1.5s |
-| **Cross-book reconciliation precision** (same person correctly linked) | ≥ 95% |
-| **Cross-book reconciliation recall** (returning character not duplicated) | ≥ 90% |
-| **False cross-book merges** (two people collapsed into one) | ≤ 1% |
+| Metric | Target | Measured |
+|---|---|---|
+| Character roster recall (named, speaking characters) | ≥ 95% | Carried forward — no single retro recorded a final roster-recall number against the ≥95% bar; extraction F1 (roster precision/recall combined) is tracked instead, see next row. |
+| Character roster precision (no invented / non-character entities) | ≥ 90% | Carried forward, see roster F1 below. |
+| Alias clustering accuracy (B³ F1 over mention clusters) | ≥ 0.85 | Carried forward — no retro recorded a B³ F1 number specifically. |
+| Roster extraction F1 (two-pass, full alias cascade, recommended config) | — | **P&P 0.701 (P 0.756/R 0.654, n=52), Wuthering Heights 0.642 (P 0.567/R 0.739, n=23)** — `plans/sprint-8/RETRO.md`, real ablation run against both gold novels. |
+| Relationship precision on gold set | ≥ 90% | **0.71–1.0 across three rounds of fixes, live P&P corpus** — `plans/sprint-4/RETRO.md`. Best single run: P 1.0 (after be1's roster-UUID fix). |
+| Relationship recall on gold set (major-character pairs) | ≥ 80% | **0.24–0.33, live P&P corpus — short of target for an understood architectural reason** (single-chunk extraction can't reach multi-hop or indirect/adversarial predicates), not re-attempted after Sprint 4; recommended Sprint 8 scope it as a design question, not done. |
+| Citation resolves to a page that actually supports the edge | ≥ 95% | Carried forward — enforced structurally (quote-in-chunk validator, `graph.upsert` guard against evidence-free edges) rather than measured as a sampled percentage against gold. |
+| Abstention on unanswerable / not-in-book questions | ≥ 90% | Carried forward — grounding/abstention shipped (Sprint 6, "ungrounded claims dropped not hedged") but the abstention *rate* against the 63-question gold set was never scored end-to-end, gated on the same frontier-judge gap as answer accuracy below. |
+| Full-novel ingestion (350pp) wall clock, single GPU | ≤ 25 min | Carried forward — no retro recorded a wall-clock number at this exact page count; Sprint 4's pass-2 wall clock was 10.8–12.2 min for Pride and Prejudice (≈245pp), inside budget at that length. |
+| p95 query latency | ≤ 6s, first token ≤ 1.5s | Carried forward — `api/eval/latency_metrics.py` and `/ops/query-latency` exist and are live-verified to return real numbers (Sprint 9 smoke test), but no retro recorded a p95/TTFT figure against this exact bar. |
+| **Cross-book reconciliation precision** (same person correctly linked) | ≥ 95% | Carried forward — `/ops/reconciliation-quality` is live and real, but returns `gold_available: false` for every project in this environment; no multi-book series project with gold cross-book links currently exists to measure against. |
+| **Cross-book reconciliation recall** (returning character not duplicated) | ≥ 90% | Carried forward, same gap. |
+| **False cross-book merges** (two people collapsed into one) | ≤ 1% | Carried forward, same gap — *Wuthering Heights* is built and gold-labelled (Sprint 8) specifically as this regression's named test case, but a genuine multi-book reconciliation run against it has not been executed. |
+| Spoiler leakage rate | (not in original table; added Sprint 8/9) | **0/22 checks (Sprint 8) and re-verified live in Sprint 9's merge-train smoke test** — a project's graph genuinely shrinks (45→25 nodes, 24→3 edges) when scoped to an earlier reading position. The one metric in this table with unambiguous, repeated, real-infra proof. |
 
 **Portfolio success**
 
-| Metric | Target |
-|---|---|
-| Live demo, no signup, pre-seeded public-domain novels, works on mobile | Yes |
-| Time from landing to first useful answer | < 60s |
-| Published eval numbers on a labeled question set | ≥ 60 questions |
-| Inbound Toptal conversations citing the project | ≥ 3 in first 60 days |
-| Code reused on first paid engagement | ≥ 60% |
+| Metric | Target | Measured |
+|---|---|---|
+| Live demo, no signup, pre-seeded public-domain novels, works on mobile | Yes | **Not met.** Deploy tooling (TLS, rate limiting, CPU-only profile) is built and verified locally (Sprint 9, do1); going publicly live is a real, hard-to-reverse action explicitly held back for the user to decide — see `plans/sprint-9/HANDOFF.md` for exact go-live steps. |
+| Time from landing to first useful answer | < 60s | Not measured — depends on the live-demo state above. |
+| Published eval numbers on a labeled question set | ≥ 60 questions | **Met — 63 questions**, all six router classes, across two novels (`plans/sprint-8/RETRO.md`). |
+| Inbound Toptal conversations citing the project | ≥ 3 in first 60 days | Not measurable pre-launch. |
+| Code reused on first paid engagement | ≥ 60% | Not measurable pre-launch. |
 
 ### 1.4 Why this domain beats the previous one (positioning note)
 
@@ -731,13 +738,13 @@ Non-negotiable, and a differentiator with anyone who has been burned by AI-and-b
 
 ## 12. Open decisions
 
-1. **EPUB in v1 or v1.1?** EPUB has clean structure but no page numbers — and page-exact citation is the headline promise. Default: PDF-only in v1; EPUB later with chapter-and-offset citations plus an explicit "no page numbers in this format" notice.
-1a. **Reconciliation auto-link threshold.** Too loose collapses two people silently; too tight duplicates a returning character visibly. A duplicate is recoverable and visible; a false merge is neither. Default: bias tight, route the middle band to review, and set the threshold from a measured precision/recall curve in Sprint 6 rather than by intuition.
-1b. **What happens when a book is removed from a project?** Characters appearing only in that book, and edges evidenced only by it, must go — but a character appearing in four other books must survive with its appearance removed and derived fields recomputed. Default: cascade by evidence, never by character. Decide in Sprint 6.
-2. **Co-occurrence edges on by default?** `co_occurs_with` makes the graph look impressively dense but is not a *relationship*. Default: computed and stored, hidden behind a filter toggle, excluded from Q&A.
-3. **Demo upload allowance** — far stronger demo, but abuse and cost exposure. Default: 1 book, ≤ 150 pages, rate-limited, auto-deleted after 24h.
-4. **Open source scope** — public repo builds credibility, reduces reuse leverage on paid engagements. Consider open-sourcing the eval harness and ontology config alone.
-5. **Importance tiering method** — mention count is crude; scene participation and dialogue volume are better but cost more. Decide at Phase 2 with measurement.
+1. **EPUB in v1 or v1.1?** **Resolved as shipped: PDF-only.** No EPUB ingestion path was ever built across all nine sprints; the entire pipeline (Docling, page-exact citation, spoiler scoping by page/chapter) assumes a PDF's page numbers throughout. Revisit only as new scope, not a gap in what shipped.
+1a. **Reconciliation auto-link threshold.** **Resolved as shipped, but not the way originally framed.** Rather than a single tuned numeric similarity cutoff, the auto-link decision is LLM-adjudicated (`api/reconcile/matching.py::is_similar`, a boolean judgment call, not a threshold sweep) with contextual incompatibility checks (co-presence, age, contradicting kinship) blocking string-only merges; the "middle band" routes to the Sprint 7 review queue as a `merge_characters`/`merge_across_books` task rather than auto-deciding. No precision/recall curve was fit to pick a numeric cutoff, since the design moved away from needing one — worth revisiting only if the LLM-adjudication approach's own precision/recall gets measured (§1.3, still `gold_available: false` in every project checked).
+1b. **What happens when a book is removed from a project?** **Partially resolved, different shape than framed.** The shipped feature is whole-*project* deletion (`api/pipeline/session_privacy.py::delete_book_cascade`, Sprint 9, ETH-2) — evidence-scoped cascade across Postgres/MinIO/Neo4j/Langfuse — not the narrower "remove one book from a still-live multi-book series project, survive the rest" case originally described. That narrower case (a character appearing in four other books survives with just one book's appearance removed, derived fields recomputed) was never built or tested; still genuinely open.
+2. **Co-occurrence edges on by default?** **Resolved as shipped**, matching the default proposed here exactly: `co_occurs_with` is declared in `api/graph/ontology.yaml` with `extracted: false` — computed/stored but not extracted as a real relationship, and excluded from Q&A.
+3. **Demo upload allowance.** **Resolved as shipped**, matching the default proposed here exactly: 1 book, ≤150 pages, rate-limited per-IP-per-day, auto-deleted after 24h (`api/ops/upload_guard.py`, Sprint 9 S9.5, reconciled with session isolation in the same sprint's fast-follow). Verified with real HTTP-level 413/429/422 rejection tests, not just unit assertions on the guard functions.
+4. **Open source scope** — still open. A business/positioning decision, not a code question; nothing about this sprint's work resolves it either way.
+5. **Importance tiering method** — **not revisited.** Still mention-count-based (`ImportanceTier`, set at extraction and reconciliation time); scene participation and dialogue volume were never wired in as an alternative signal despite scene segmentation itself shipping in Sprint 4 (`api/pipeline/repository.py`'s scene/dialogue tables exist and are populated, just not consumed by tiering). A real, buildable Sprint 10+ item if this ever gets picked back up.
 
 *(Resolved in v2.0: domain — novels and character graphs, replacing compliance contracts. Graph store — Neo4j, because path queries are the core read pattern.)*
 
