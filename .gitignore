@@ -47,3 +47,8 @@ api/notebooks/.pride_and_prejudice_cache.txt
 # input) and .ci-cache/ are generated, never source to track.
 eval/ablation_runs/
 .ci-cache/
+
+# S9.4 local self-signed TLS cert for `make up-prod` verification only — a
+# real deploy uses Let's Encrypt/ACME (plans/sprint-9/HANDOFF.md), never this
+# generated pair.
+docker/nginx/certs/

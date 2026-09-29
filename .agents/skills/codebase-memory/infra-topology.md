@@ -233,6 +233,17 @@ still captured, but `abstained`/`latency_ms` are lost server-side and the
 query log/conversation turn is silently never persisted. See
 `plans/sprint-8/HANDOFF.md`'s S8.8.1 section for the full detail on both.
 
+**Built (S9.1-S9.5, do1):** `api/ops/cost_telemetry.py` (rolling cost by
+stage and by purpose over `IngestionStage`/`QueryLog`, persisted history via
+`CostSnapshot`) behind `GET /ops/cost-breakdown` and `/ops/cost-snapshots`;
+`api/ops/performance_telemetry.py` (stage latency percentiles, parse-stage
+pages/min, prefix-cache/KV from `vllm_metrics.py`, Celery queue depth via
+`inspect()`) behind `GET /ops/performance`; `api/ops/pipeline_health.py`
+(per-stage failure rate, retry outcomes, dead-letter, each run's trace link)
+behind `GET /ops/pipeline-health`. See "Public deploy tooling" and
+"Demo-upload guard" below for S9.4/S9.5. Full route/contract table and
+what's genuinely unverified: `plans/sprint-9/HANDOFF.md`.
+
 **Not built:** anything else in Sprint 5+.
 
 ## Services
@@ -322,8 +333,53 @@ make ci-up-extraction             S3.14: ci-up's subset + MinIO, for a real book
 make eval-ablation RUN_ID=…       S8.8: the partial ablation matrix, cached + resumable
 make eval-ablation-readme         S8.10: regenerate README.md's table from the last run
 make regression-gate              S8.9: fail if the latest run dropped >2pts vs baseline
+make up-prod / prod-verify / down-prod   S9.4: LOCAL-ONLY prod-overlay verification, never a public deploy
+make budget-check                 S9.4: monthly LLM-spend cap report (+ enforcement unless --no-act)
+make upload-sweep                 S9.5: delete expired (24h TTL) demo-upload projects and their MinIO objects
 make revision m="…"               ORCHESTRATOR ONLY — typed confirmation
 ```
+
+## Public deploy tooling (S9.4, do1) — built, not executed
+
+`docker-compose.prod.yml` overlay: CPU-only inference (already the default
+profile's behaviour — no `gpu` profile pulled in), `deploy.resources.limits`
+on `api`/`celery-worker`, and a new `edge` service (`nginx:1.27-alpine`,
+`docker/nginx/edge.conf`) doing TLS termination, per-IP rate limiting
+(`limit_req_status 429`, not nginx's default 503), and a `proxy_cache` in
+front of `/api/books/*/pages/*` (the buildable stand-in for "a CDN in front
+of page renders" until a real one is fronting a real domain).
+`scripts/gen_self_signed_cert.sh` generates a local-only cert;
+`scripts/verify_prod_deploy.py` is the smoke test. `api/ops/budget_guard.py`
++ `scripts/budget_monitor.py` cap monthly spend (`MONTHLY_BUDGET_USD` env,
+default $50) by stopping `celery-worker` on breach — the API stays up,
+ingestion pauses, per PRD §9.1's "degrade gracefully."
+
+**Verified:** compose config merge, `nginx -t`, and the edge proxy's
+TLS/redirect/rate-limit behaviour standalone (a real nginx container against
+a dummy upstream). **Not verified:** the full overlay against real
+`api`/`db`/`celery-worker` on this shared host — `make up-prod`'s default
+ports collide with the already-running shared integration singleton stack
+every other agent's worktree depends on (same class of gap as this file's
+own "`make test-integration`'s <8-minute budget is unverified end to end"
+note above). **Never executed:** an actual public deployment — no cloud
+host, no domain, no DNS, no real TLS cert. See `plans/sprint-9/HANDOFF.md`
+for the exact go-live steps a human takes from here.
+
+## Demo-upload guard (S9.5, do1)
+
+`api/ops/upload_guard.py`: quota (1 book / ~150 pages / N-per-IP-per-day,
+all env-configured — `UPLOAD_MAX_PAGES` etc. in `.env.example`), a 24h TTL
+sweep (`scripts/sweep_upload_sessions.py`, `make upload-sweep`) that deletes
+the expired session's project (Postgres `ON DELETE CASCADE`, via a Core
+`DELETE` rather than `session.delete()` — the ORM's default cascade for an
+unloaded `Project.books` collection nulls the child FK instead of deleting,
+which violates `Book.project_id`'s `NOT NULL`) and its MinIO objects
+together, and a public-domain-only text heuristic (ISBN / "all rights
+reserved" / "no part of this publication" / a copyright year at or after
+1928 — a bare old year, the kind a public-domain scan's own reproduced
+front matter carries, is deliberately not a signal). Not wired into any
+route — `api/routes/books.py` is be1-owned; see HANDOFF.md for the exact
+call sequence be1's S9.8 needs.
 
 ## Gotchas
 

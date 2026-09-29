@@ -5,6 +5,7 @@ COMPOSE      ?= docker compose
 COMPOSE_DEV  := $(COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml
 COMPOSE_GPU  := $(COMPOSE) -f docker-compose.yml -f docker-compose.gpu.yml --profile gpu
 COMPOSE_CI   := $(COMPOSE) -f docker-compose.yml -f docker-compose.ci.yml
+COMPOSE_PROD := $(COMPOSE) -f docker-compose.yml -f docker-compose.prod.yml -p traverse-prod
 CI_SERVICES  := db rabbitmq rabbitmq-init migrate api celery-worker
 WAIT         := scripts/wait_for_healthy.sh
 
@@ -29,13 +30,13 @@ $(shell mkdir -p $(DOCKER_CONFIG) && [ -f $(DOCKER_CONFIG)/config.json ] || echo
 endif
 
 .DEFAULT_GOAL := help
-.PHONY: help env up up-dev up-gpu up-obs down down-hard logs ps build health \
+.PHONY: help env up up-dev up-gpu up-obs up-prod prod-verify down-prod down down-hard logs ps build health \
         migrate revision shell-api shell-db shell-neo4j shell-worker \
         test test-api test-web test-integration lint fmt openapi \
         seed seed-series reset-db bootstrap worktrees warm-models ci-up ci-smoke ci-down \
         ci-up-extraction docker-nocreds ingest graph-rebuild graph-rebuild-drill eval-relations \
         judge-citations ingest-series eval-reconciliation eval-answers perf-smoke chaos-test \
-        eval-ablation eval-ablation-readme regression-gate
+        eval-ablation eval-ablation-readme regression-gate budget-check upload-sweep
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_-]+:.*?## /{printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -72,6 +73,17 @@ up-gpu: ## Start with vLLM and INFERENCE_MODE=local
 up-obs: ## Add Langfuse (needs the secrets from `make env`)
 	$(COMPOSE) --profile obs up -d langfuse-db langfuse
 	COMPOSE="$(COMPOSE) --profile obs" $(WAIT) --timeout 240 langfuse
+
+up-prod: ## S9.4: bring up the prod-profile overlay LOCALLY for verification only — never binds beyond localhost, never provisions a public host
+	scripts/gen_self_signed_cert.sh
+	$(COMPOSE_PROD) up -d --build
+	COMPOSE="$(COMPOSE_PROD)" $(WAIT) --timeout 300
+
+prod-verify: ## S9.4: curl the local prod overlay over TLS and assert rate limiting trips — local-only smoke test, see plans/sprint-9/HANDOFF.md
+	python3 scripts/verify_prod_deploy.py
+
+down-prod: ## Tear down the local prod-verification overlay
+	$(COMPOSE_PROD) down --remove-orphans
 
 down: ## Stop the stack, keep volumes
 	$(COMPOSE) --profile gpu --profile obs --profile test down --remove-orphans
@@ -189,6 +201,12 @@ regression-gate: ## S8.9: fail if the latest ablation run dropped >2pts vs the s
 	python3 scripts/check_regression_gate.py \
 		--current eval/ablation_runs/latest.json \
 		--baseline eval/ablation_runs/baseline.json
+
+budget-check: ## S9.4: report (and, unless --no-act, enforce) the monthly LLM spend cap
+	python3 scripts/budget_monitor.py --once
+
+upload-sweep: ## S9.5: delete expired demo-upload sessions and their projects (24h TTL)
+	$(COMPOSE) exec -T api python scripts/sweep_upload_sessions.py
 
 # ── Shells ────────────────────────────────────────────────────────────────────
 

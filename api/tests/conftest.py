@@ -38,11 +38,15 @@ TABLES_TOUCHED_BY_TESTS = (
     "calibrationmodel",
     "evalresult",
     "evalrun",
-    # Sprint 9 (migration 0012) — found missing here while adding S9.8's
-    # session-isolation tests, same lesson as calibrationmodel above: a stray
-    # UploadSession row survives into the next test and its unique
-    # session_token can collide.
+    # Sprint 9 tables (migration 0012) — found missing here while adding
+    # S9.8's session-isolation tests and do1's cost-telemetry/upload-guard
+    # tests, same lesson as calibrationmodel above: a stray row survives
+    # into the next test and its unique constraint (upload_session's
+    # session_token) or stale window collides with the next run.
+    "costsnapshot",
     "uploadsession",
+    "routingpolicy",
+    "querylog",
     "book",
     "project",
 )

@@ -1,0 +1,70 @@
+# S9.4 public-deploy overlay — CPU-only inference, TLS termination, per-IP
+# rate limiting, and hard resource caps so one demo instance cannot silently
+# consume a whole host.
+#
+# `make up-prod` boots this LOCALLY (self-signed cert, ports 8080/8443 so it
+# never collides with a dev stack's :80/:5174 on the same shared machine) for
+# verification only. It is deliberately NOT what makes the demo publicly
+# reachable — that needs a real domain, DNS, a cloud host and a real TLS
+# certificate, none of which this overlay provisions. See
+# plans/sprint-9/HANDOFF.md for exactly what a human does to go from "this
+# boots cleanly" to "this is live."
+#
+# No `gpu` profile, no vLLM service: the plain service set (this overlay adds
+# nothing that pulls one in) is already CPU-only with INFERENCE_MODE=api by
+# default (docker-compose.yml's own `&api-env`) — the public host never needs
+# a GPU, which is the point of §9.1's "no GPU on the public host."
+
+services:
+  api:
+    environment:
+      ENV: production
+      INFERENCE_MODE: api
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2g
+    # Never publish the API port straight to a public interface — every
+    # request goes through `edge` for TLS and rate limiting. A real deploy
+    # additionally firewalls this port at the host/cloud-security-group
+    # level; compose alone cannot un-publish a port the base file already
+    # binds to 0.0.0.0 (see HANDOFF.md).
+    ports: !override
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+
+  celery-worker:
+    environment:
+      ENV: production
+      INFERENCE_MODE: api
+      # One book at a time on a CPU-only public host — pass 2 on a shared
+      # frontier API key is the expensive path; concurrency here is what
+      # `budget_monitor.py` protects against, not what it's meant to survive.
+      CELERY_CONCURRENCY: "1"
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2g
+
+  web:
+    ports: !override
+      - "127.0.0.1:${WEB_PORT:-5174}:80"
+
+  edge:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      web:
+        condition: service_started
+    ports:
+      - "127.0.0.1:${EDGE_HTTP_PORT:-8080}:8080"
+      - "127.0.0.1:${EDGE_TLS_PORT:-8443}:8443"
+    volumes:
+      - ./docker/nginx/edge.conf:/etc/nginx/conf.d/edge.conf:ro
+      - ./docker/nginx/certs:/etc/nginx/certs:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "--no-check-certificate", "https://localhost:8443/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
