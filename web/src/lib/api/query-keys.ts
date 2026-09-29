@@ -48,4 +48,9 @@ export const queryKeys = {
   pipelineRuns: (params?: Params) => ["ops", "runs", params ?? {}] as const,
   deadLetter: () => ["ops", "dead-letter"] as const,
   routingPolicy: () => ["ops", "routing-policy"] as const,
+  queryLatency: (projectId: string) =>
+    ["ops", "query-latency", projectId] as const,
+  reviewAlerts: (params?: Params) =>
+    ["ops", "review-alerts", params ?? {}] as const,
+  evalRunLatest: () => ["ops", "eval-runs", "latest"] as const,
 } as const;

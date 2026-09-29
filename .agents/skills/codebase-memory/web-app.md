@@ -191,6 +191,59 @@ generated `Schemas[...]` types the moment a real route exists —
 two imports from `./fixtures`). 233 Vitest tests, all passing; `pnpm
 tsc --noEmit`, `pnpm lint`, `pnpm build` all clean.
 
+**Built (S9.10, fe1):** the ops dashboard (`routes/ops/dashboard/`, real route
+at `/ops`, replacing the `<NotYetBuilt>` stub) — four panels in reading order:
+`cost-panel.tsx` (live off `GET /ops/metrics` with no `book_id`, which sums
+every run ever recorded — `StackedCostBar` renders cost-by-stage as one hue at
+a graduated opacity step per stage rather than a fabricated categorical
+palette, since `tokens.ts` has no per-stage colour and is frozen),
+`performance-panel.tsx` (live off `GET /ops/query-latency`, project-scoped —
+picks one project via a `NativeSelect`, no cross-project aggregate route
+exists; `PercentileBarChart` renders p50/p95/p99 as one hue at three opacity
+steps, an ordered-magnitude encoding, not three categorical colours; the
+GPU/KV-occupancy and queue-depth half of F7.2 has no contract field yet,
+do1's S9.2, and is a labelled placeholder rather than a fabricated chart),
+`health-panel.tsx` (live off `GET /ops/pipeline/runs`, `/pipeline/dead-letter`,
+`/review-alerts`, `GET /books` for title lookup — folds the review queue's own
+alerts in, since a stuck queue is as much a health signal as a failed stage),
+and `routing-control-panel.tsx`, the F7.3 "closing-argument screen": per-purpose
+model selection (`answer`/`judge` foregrounded, the four extraction purposes
+collapsed) that recomputes cost-per-query and the eval accuracy delta
+together on every change, client-side, before any network round trip.
+
+Two honest seams in the routing panel, both commented in
+`routing-control-panel.tsx` and `fixtures.ts`: (1) `GET/PUT /ops/routing-policy`
+are still `not_implemented` stubs (S9.6, be2) — the panel opens on a local
+`DEFAULT_POLICY` fixture and edits entirely client-side; "Apply to live
+traffic" attempts the real `PUT` and reports whether it actually took, same
+pattern as `useSetRoutingPolicy`'s existing S1 scaffolding. (2) cost-per-query
+is a labelled fixture unit-cost table (`fixtures.ts`'s `PURPOSE_UNIT_COST_USD`)
+— there is no live per-call cost meter (`CostBreakdown`, `./types.ts`, has no
+route yet, and FastAPI only emits a schema for a type a route references, so
+it can never come from `pnpm gen:api` until one exists). Accuracy is real
+when this worktree's database has a recorded ablation run
+(`GET /ops/eval-runs/latest`, built since S8.8 — confirmed live against the
+shared integration stack, which had a real run recorded) and falls back to a
+labelled fixture (`FALLBACK_MODEL_AXIS_RESULTS`) only when it 404s, same
+graceful-degrade shape as the S8.7 evals screen.
+
+**`schema.d.ts` was regenerated against the shared integration stack's live
+API** (`API_URL=http://localhost:8000 pnpm gen:api`) while building this —
+`EvalRunOut`/`EvalResultOut`/`AblationConfig`/`MetricSet`/`ReviewAlertsOut`/
+`QueryLatencyOut` are now generated types (`lib/api/types.ts` re-exports them
+as `EvalRun`/`EvalResult`/`AblationConfig`/`MetricSet`/`ReviewAlerts`/
+`QueryLatency`), where before only `evals/types.ts`'s S8.7 hand-mirror had
+them. **`evals/types.ts` was deliberately left as-is** (out of S9.10's scope
+to refactor Sprint 8 code); a future sprint touching that screen should switch
+it to the generated types and delete the duplicate, per its own file-header
+note. 235 Vitest tests, all passing (`tests/ops-dashboard.test.tsx` proves the
+routing panel's core claim — selecting a different model for `answer` moves
+both the cost tile and the accuracy tile in the same render); `pnpm
+tsc --noEmit`, `pnpm lint`, `pnpm build` all clean (`pnpm build`'s `vite
+build` step itself verified via a scratch `--outDir`, since this worktree's
+checked-in `dist/` had root-owned files left over from an unrelated prior
+container run and is gitignored either way).
+
 **Known gap:** `MentionOut` and `EvidenceOut` carry a page but no `SpanBox`, so their click-through lands on the page without a highlight (Sprint 3 SCR-9, Sprint 4 SCR-10). The roster sparkline gap (Sprint 3 SCR-1) is closed for the single-book roster; its series-roster descendant reopens a version of it (Sprint 5 SCR-1 — see above).
 
 `web/src/design-system/tokens.ts` **exists** (DCR-1, landed at the Sprint 2
@@ -511,7 +564,7 @@ project roster.
 | `/projects/:id/characters/:cid` | character detail + appearances section (moved from `/books/:id/...`, S3.11) | Built (S5) |
 | `/projects/:id/graph` | series graph, book filter, reading-position slider (moved from `/books/:id/graph`, S4) | Built (S5) |
 | `/projects/:id/ask` | Q&A with citations, scoped to the project's reading position (S8.6) | Built (S6) |
-| `/ops` | operations dashboard | S9 |
+| `/ops` | operations dashboard — cost, performance, health, routing control | Built (S9.10) |
 | `/ops/evals` | ablation table + calibration + trend, fixture-backed pending a live route | Built (S8.7) |
 
 ## Key components

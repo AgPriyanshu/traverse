@@ -1,7 +1,6 @@
 import { Navigate } from "react-router";
 import type { RouteObject } from "react-router";
 import { AppShell } from "@/components/layout";
-import { NotYetBuilt } from "@/components/ui";
 import { NotFound } from "./not-found";
 import { RouteError } from "./route-error";
 
@@ -135,7 +134,9 @@ export const routes: RouteObject[] = [
         children: [
           {
             index: true,
-            element: <NotYetBuilt screen="The operations dashboard" sprint={9} />,
+            lazy: async () => ({
+              Component: (await import("./ops/dashboard/ops-dashboard")).OpsDashboard,
+            }),
           },
           {
             path: "evals",

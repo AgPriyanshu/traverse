@@ -34,7 +34,11 @@ const ROUTES: [path: string, heading: RegExp][] = [
   ["/projects/p-1/characters/c-1", /not built yet/i],
   ["/projects/p-1/graph", /not built yet/i],
   ["/projects/p-1/ask", /not built yet/i],
-  ["/ops", /the operations dashboard is not built yet/i],
+  // Real as of S9.10 — every panel calls its own live endpoint and each
+  // 501s independently under this test's default mock, so several "Not
+  // built yet" headings render at once; the dashboard's own static "Operations"
+  // heading (not data-derived) is the one unique match.
+  ["/ops", /^operations$/i],
   // Real as of S8.7 — fixture-backed (no live route yet, see
   // plans/sprint-8/HANDOFF.md), so it renders without an API call at all.
   ["/ops/evals", /evaluation results/i],

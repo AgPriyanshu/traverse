@@ -458,7 +458,10 @@ export interface paths {
          * @description Return the subgraph within ``depth`` hops of a character.
          *
          *     Raises:
-         *         HTTPException: 404 when the character is not in the graph.
+         *         HTTPException: 404 when the character is not in the graph, or not yet
+         *             visible at the given reading position (S8.1, PRD F4.5) — the same
+         *             shape as "not in the graph", so a deep link cannot distinguish
+         *             "no such character" from "not there yet".
          */
         get: operations["get_neighbourhood_api_characters__character_id__neighbourhood_get"];
         put?: never;
@@ -479,6 +482,10 @@ export interface paths {
         /**
          * Get Arc
          * @description Return the ordered states of one pair, a single element if unchanged.
+         *
+         *     A state first asserted after the given reading position is dropped from
+         *     the arc entirely, never appended and hidden (S8.1, PRD F4.5) — "how has
+         *     their relationship changed?" must not itself betray that it changes.
          */
         get: operations["get_arc_api_relations_arc_get"];
         put?: never;
@@ -501,7 +508,8 @@ export interface paths {
          * @description Return a relation's quotes and pages, chapter-ordered and paginated.
          *
          *     Raises:
-         *         HTTPException: 404 when the relation does not exist.
+         *         HTTPException: 404 when the relation does not exist, or is not yet
+         *             visible at the given reading position (S8.1, PRD F4.5).
          */
         get: operations["get_evidence_api_relations__relation_id__evidence_get"];
         put?: never;
@@ -607,7 +615,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Tasks */
+        /**
+         * List Tasks
+         * @description Return the queue, highest blast radius first (S7.3).
+         */
         get: operations["list_tasks_api_review_tasks_get"];
         put?: never;
         post?: never;
@@ -626,7 +637,13 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Resolve Task */
+        /**
+         * Resolve Task
+         * @description Apply a decision and resume whatever it was blocking (S7.2, S7.4).
+         *
+         *     Idempotent: resolving an already-resolved task returns its current state
+         *     rather than erroring or re-applying the decision.
+         */
         post: operations["resolve_task_api_review_tasks__task_id__resolve_post"];
         delete?: never;
         options?: never;
@@ -900,6 +917,53 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/ops/review-metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Review Metrics
+         * @description Queue depth, task age, time-to-resolve, outcome mix, correction rate (S7.11).
+         *
+         *     Correction rate is grouped by pipeline stage, not raw task type -- a
+         *     stage humans correct 40% of the time is a quality problem the automated
+         *     metrics miss, and it points Sprint 8's calibration at the right target.
+         */
+        get: operations["review_metrics_api_ops_review_metrics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ops/review-alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Review Alerts
+         * @description Queue-depth, stale-task and orphaned-graph-thread alerts (S7.11).
+         *
+         *     An orphaned thread is a graph paused on an interrupt with no open review
+         *     task pointing at it -- a state leak, and a silent one until this catches it.
+         */
+        get: operations["review_alerts_api_ops_review_alerts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/ops/pipeline/runs": {
         parameters: {
             query?: never;
@@ -932,6 +996,50 @@ export interface paths {
          * @description Every book whose latest run has a stage currently `failed`.
          */
         get: operations["dead_letter_api_ops_pipeline_dead_letter_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ops/eval-runs/latest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Eval Run Latest
+         * @description The most recent ablation run written by ``scripts/run_ablation.py`` (S8.8).
+         *
+         *     404 rather than an empty/zeroed body when no run has ever been recorded —
+         *     "no ablation has run yet" and "the last ablation scored zero" must not
+         *     look the same to a caller.
+         */
+        get: operations["eval_run_latest_api_ops_eval_runs_latest_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ops/eval-runs/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Eval Run By Id
+         * @description One ablation run by id, for a drill-down link off the latest table.
+         */
+        get: operations["eval_run_by_id_api_ops_eval_runs__run_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -982,6 +1090,29 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AblationConfig */
+        AblationConfig: {
+            /**
+             * Axis
+             * @enum {string}
+             */
+            axis: "extraction" | "retrieval" | "model";
+            /** Label */
+            label: string;
+            /** Extraction Mode */
+            extraction_mode?: ("single_pass" | "two_pass") | null;
+            /** Alias Mode */
+            alias_mode?: ("string_only" | "full_cascade") | null;
+            /**
+             * With Human Review
+             * @default false
+             */
+            with_human_review: boolean;
+            /** Retrieval Mode */
+            retrieval_mode?: ("vector_only" | "bm25" | "rerank" | "graph_constrained") | null;
+            /** Model Mode */
+            model_mode?: ("local" | "frontier" | "routed") | null;
+        };
         /** AggregationMissOut */
         AggregationMissOut: {
             /** Question Id */
@@ -1535,6 +1666,52 @@ export interface components {
                 [key: string]: unknown;
             }[];
         };
+        /** EvalResultOut */
+        EvalResultOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Eval Run Id
+             * Format: uuid
+             */
+            eval_run_id: string;
+            /**
+             * Axis
+             * @enum {string}
+             */
+            axis: "extraction" | "retrieval" | "model";
+            /** Label */
+            label: string;
+            /** Book Key */
+            book_key?: string | null;
+            config: components["schemas"]["AblationConfig"];
+            metrics: components["schemas"]["MetricSet"];
+        };
+        /** EvalRunOut */
+        EvalRunOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Corpus Version */
+            corpus_version?: string | null;
+            /** Git Sha */
+            git_sha?: string | null;
+            metrics: components["schemas"]["MetricSet"];
+            /** Notes */
+            notes?: string | null;
+            /** Results */
+            results?: components["schemas"]["EvalResultOut"][];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
         /** EvidenceOut */
         EvidenceOut: {
             /**
@@ -1894,6 +2071,32 @@ export interface components {
              */
             task_type: "merge_characters";
         };
+        /**
+         * MetricSet
+         * @description A comparable metric bundle for one ablation cell.
+         *
+         *     Different axes measure different things — not every field applies to
+         *     every cell, so all are optional except the sample it was measured over.
+         */
+        MetricSet: {
+            /** Precision */
+            precision?: number | null;
+            /** Recall */
+            recall?: number | null;
+            /** F1 */
+            f1?: number | null;
+            /** Accuracy */
+            accuracy?: number | null;
+            /** Ece */
+            ece?: number | null;
+            /** Spoiler Leakage Rate */
+            spoiler_leakage_rate?: number | null;
+            /**
+             * Sample Size
+             * @default 0
+             */
+            sample_size: number;
+        };
         /** MetricsOut */
         MetricsOut: {
             /** Book Id */
@@ -1927,6 +2130,13 @@ export interface components {
              * @default false
              */
             symmetric: boolean;
+        };
+        /** OrphanedThreadOut */
+        OrphanedThreadOut: {
+            /** Graph Thread Id */
+            graph_thread_id: string;
+            /** Reason */
+            reason: string;
         };
         /**
          * PageRefOut
@@ -2133,6 +2343,12 @@ export interface components {
          * @enum {string}
          */
         QueryRoute: "character_lookup" | "relationship_lookup" | "path" | "aggregation" | "series_arc" | "narrative" | "ambiguous";
+        /** QueueDepthByType */
+        QueueDepthByType: {
+            task_type: components["schemas"]["ReviewTaskType"];
+            /** Open Count */
+            open_count: number;
+        };
         /** RateOut */
         RateOut: {
             /** Hit */
@@ -2469,6 +2685,29 @@ export interface components {
          * @enum {string}
          */
         ResolutionMethod: "exact" | "normalised" | "honorific" | "nickname" | "embedding" | "llm" | "human";
+        /** ResolutionOutcomeMix */
+        ResolutionOutcomeMix: {
+            /**
+             * Accepted
+             * @default 0
+             */
+            accepted: number;
+            /**
+             * Corrected
+             * @default 0
+             */
+            corrected: number;
+            /**
+             * Rejected
+             * @default 0
+             */
+            rejected: number;
+            /**
+             * Unknown
+             * @default 0
+             */
+            unknown: number;
+        };
         /** ResolveConflictPayload */
         ResolveConflictPayload: {
             /**
@@ -2484,6 +2723,50 @@ export interface components {
             };
             /** Reason */
             reason: string;
+        };
+        /** ReviewAlertsOut */
+        ReviewAlertsOut: {
+            /** Project Id */
+            project_id?: string | null;
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Queue Depth Threshold */
+            queue_depth_threshold: number;
+            /** Queue Depth Total */
+            queue_depth_total: number;
+            /** Queue Depth Breached */
+            queue_depth_breached: boolean;
+            /** Stale Task Threshold Hours */
+            stale_task_threshold_hours: number;
+            /** Stale Tasks */
+            stale_tasks?: components["schemas"]["StaleTaskOut"][];
+            /** Orphaned Threads */
+            orphaned_threads?: components["schemas"]["OrphanedThreadOut"][];
+            /** Has Alerts */
+            has_alerts: boolean;
+        };
+        /** ReviewMetricsOut */
+        ReviewMetricsOut: {
+            /** Project Id */
+            project_id?: string | null;
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Queue Depth Total */
+            queue_depth_total: number;
+            /** Queue Depth By Type */
+            queue_depth_by_type?: components["schemas"]["QueueDepthByType"][];
+            open_task_age: components["schemas"]["TaskAgeStats"];
+            /** Median Time To Resolve Hours */
+            median_time_to_resolve_hours?: number | null;
+            resolution_outcome_mix: components["schemas"]["ResolutionOutcomeMix"];
+            /** Correction Rate By Stage */
+            correction_rate_by_stage?: components["schemas"]["StageCorrectionRate"][];
         };
         /** ReviewResolution */
         ReviewResolution: {
@@ -2575,6 +2858,25 @@ export interface components {
             /** Height */
             height: number;
         };
+        /** StageCorrectionRate */
+        StageCorrectionRate: {
+            /** Stage */
+            stage: string;
+            /** Task Types */
+            task_types?: components["schemas"]["ReviewTaskType"][];
+            /**
+             * Feedback Count
+             * @default 0
+             */
+            feedback_count: number;
+            /**
+             * Corrected Count
+             * @default 0
+             */
+            corrected_count: number;
+            /** Correction Rate */
+            correction_rate?: number | null;
+        };
         /** StageCost */
         StageCost: {
             /** Stage */
@@ -2630,6 +2932,33 @@ export interface components {
             duration_ms?: number | null;
             /** Error */
             error?: string | null;
+        };
+        /** StaleTaskOut */
+        StaleTaskOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            task_type: components["schemas"]["ReviewTaskType"];
+            /** Priority */
+            priority: number;
+            /** Age Hours */
+            age_hours: number;
+        };
+        /** TaskAgeStats */
+        TaskAgeStats: {
+            /**
+             * Sample Count
+             * @default 0
+             */
+            sample_count: number;
+            /** P50 Hours */
+            p50_hours?: number | null;
+            /** P90 Hours */
+            p90_hours?: number | null;
+            /** Max Hours */
+            max_hours?: number | null;
         };
         /** TokenEvent */
         TokenEvent: {
@@ -3727,6 +4056,8 @@ export interface operations {
         parameters: {
             query?: {
                 depth?: number;
+                limit_book_order?: number | null;
+                limit_chapter?: number | null;
             };
             header?: never;
             path: {
@@ -3779,6 +4110,8 @@ export interface operations {
             query: {
                 a: string;
                 b: string;
+                limit_book_order?: number | null;
+                limit_chapter?: number | null;
             };
             header?: never;
             path?: never;
@@ -3829,6 +4162,8 @@ export interface operations {
             query?: {
                 limit?: number;
                 offset?: number;
+                limit_book_order?: number | null;
+                limit_chapter?: number | null;
             };
             header?: never;
             path: {
@@ -3882,6 +4217,8 @@ export interface operations {
                 from: string;
                 to: string;
                 max_hops?: number;
+                limit_book_order?: number | null;
+                limit_chapter?: number | null;
             };
             header?: never;
             path?: never;
@@ -4733,6 +5070,106 @@ export interface operations {
             };
         };
     };
+    review_metrics_api_ops_review_metrics_get: {
+        parameters: {
+            query?: {
+                project_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewMetricsOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    review_alerts_api_ops_review_alerts_get: {
+        parameters: {
+            query?: {
+                project_id?: string | null;
+                queue_depth_threshold?: number;
+                stale_after_hours?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewAlertsOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
     pipeline_runs_api_ops_pipeline_runs_get: {
         parameters: {
             query?: {
@@ -4799,6 +5236,102 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DeadLetterOut"][];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    eval_run_latest_api_ops_eval_runs_latest_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalRunOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    eval_run_by_id_api_ops_eval_runs__run_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalRunOut"];
                 };
             };
             /** @description Not Found */
