@@ -255,6 +255,71 @@ of pooling ETH-2 exists to rule out, so it's fixed here rather than filed as a
 gap: the fallback is now `get_book_by_hash_in_project`, and a genuine
 cross-project collision surfaces as `IntegrityError` → `409`, not a reuse.
 
+## be1 — Sprint 9 merge-train fast-follow: upload guard wiring (S9.8 + S9.5)
+
+The merge train flagged a real conflict, not just a doc gap: S9.8
+(`api/pipeline/session_privacy.py`) and do1's S9.5
+(`api/ops/upload_guard.py`) were both built against the same `UploadSession`
+table in parallel, each with its own get-or-create/record/sweep trio,
+without either agent seeing the other's finished code. `ai/be1/sprint-9-upload-guard-wiring`
+(cut from `ai-master` after the train) reconciles them. Three decisions:
+
+1. **Session creation and per-upload recording: `session_privacy` wins.**
+   `session_privacy.get_or_create_upload_session`/`record_upload` are the
+   ones actually wired into `api/routes/books.py` (`POST /projects`,
+   `POST /projects/{id}/books`). `upload_guard.start_upload_session` had zero
+   callers outside its own tests before this commit and still has none after
+   it — `books.py` never calls it. Nothing in `upload_guard.py` itself was
+   changed; its parallel `start_upload_session`/`record_upload` are simply
+   unused by the real route now, same as before. (do1's own S9.5 HANDOFF
+   note above already anticipated this: "get-or-create the session row...
+   whatever be1's S9.8 isolation mechanism already uses.")
+
+2. **Quota/abuse checks: `upload_guard` wins**, wired into
+   `POST /projects/{project_id}/books` in this commit:
+   - `check_ip_rate_limit` + `check_session_quota` run right after the
+     idempotent-reingest short circuit (a retry of an already-ingested file
+     must not be counted against, or rejected by, a quota that upload already
+     satisfied) but before anything new is streamed to object storage.
+   - `check_page_limit` (on `upload_guard.count_pdf_pages` over the now-fully
+     -streamed temp file) and `check_public_domain` (on a `pypdfium2` text
+     sample of the first few pages, added in `books.py` rather than touching
+     `upload_guard.py`) run next, before `store.put_stream`/`create_book`.
+   - All four guard checks are skipped when the project has no owning
+     `UploadSession` — the seeded public corpus and
+     `scripts/ingest_series.py`'s token-free path are not visitor demo
+     uploads, and the guard's page/date limits would wrongly reject a
+     full-length seeded novel.
+   - `UploadQuotaExceeded` → 429, `UploadTooLarge` → 413,
+     `check_public_domain` flagging → 422 (hard reject, per ETH-1 — the
+     product-decision call do1's HANDOFF note left open). Covered by
+     `api/tests/pipeline/test_upload_guard_wiring.py`, real HTTP calls
+     through the ASGI app, not unit calls into the guard functions alone.
+
+3. **TTL sweep: one mechanism, not two — and one is currently incomplete.**
+   `api/pipeline/tasks.py`'s `pipeline.sweep_expired_upload_sessions` Celery
+   task called `session_privacy.sweep_expired_upload_sessions` (the correct,
+   full cascade — Postgres, MinIO, graph, Langfuse) but paired it with a
+   `celery_app.conf.beat_schedule` entry that was dead on arrival: no
+   `celery beat` service exists in `docker-compose.yml` (do1-owned), so
+   nothing ever reads that schedule. Meanwhile do1's own
+   `scripts/sweep_upload_sessions.py` (`make upload-sweep`) *is* runnable
+   today — no beat service needed — but calls
+   `upload_guard.sweep_expired_sessions`, which does a shallower delete
+   (no graph cascade, no Langfuse purge, no orphaned-character sweep).
+   Decision: removed the inert `beat_schedule` entry here (kept the task
+   itself, still manually triggerable via `celery_app.send_task(...)` or a
+   future beat service) rather than leave two schedules that could both go
+   live later and race over the same rows. The remaining gap —
+   `make upload-sweep` pointing at the incomplete implementation — is
+   `api/ops/**`/`scripts/**`, both do1-owned, so it is filed as
+   **SCR-2** (`plans/sprint-9/SCR.md`) rather than fixed directly here.
+   Net effect: today, nothing actually schedules any sweep (the HANDOFF
+   prod-readiness checklist above already flagged `make upload-sweep` as not
+   yet cronned), so this is a pre-emptive fix, not a live-bug fix — but it
+   was worth closing before someone wires up the cron and gets a quiet
+   Neo4j/Langfuse leak for their trouble.
+
 ## be1 — S9.9 OCR path (§3.2) — formally deferred
 
 **Decision: deferred, not built.** Checked what exists: `DocumentChunker`

@@ -6,6 +6,7 @@ from pathlib import Path
 from uuid import UUID, uuid4
 
 import anyio
+import pypdfium2 as pdfium
 from fastapi import (
     APIRouter,
     Depends,
@@ -34,6 +35,7 @@ from ..contracts.api import (
 from ..contracts.enums import BookStatus, StageName, StageState
 from ..contracts.pipeline import StageStatus
 from ..db.engine import get_session
+from ..ops import upload_guard
 from ..pipeline import render, repository, session_privacy
 from ..pipeline.metadata import extract_title_author
 from ..pipeline.storage import store
@@ -118,6 +120,33 @@ async def _stream_to_temp_file(file: UploadFile) -> tuple[Path, str]:
         )
 
     return path, digest.hexdigest()
+
+
+def _extract_text_sample(path: Path, *, max_pages: int = 5) -> str:
+    """First few pages' text, for ``upload_guard.check_public_domain``.
+
+    ``pypdfium2`` is already a transitive dependency (``pipeline/metadata.py``
+    uses it for the same file) — a second cheap open here avoids threading a
+    Docling conversion through just to reject an upload before it is stored.
+    A PDF pdfium cannot open returns an empty sample rather than raising: the
+    parse stage is what actually validates the file structurally.
+    """
+    try:
+        document = pdfium.PdfDocument(str(path))
+    except Exception:
+        return ""
+
+    try:
+        parts: list[str] = []
+        for index in range(min(len(document), max_pages)):
+            page = document.get_page(index)
+            try:
+                parts.append(page.get_textpage().get_text_range())
+            finally:
+                page.close()
+        return "\n".join(parts)
+    finally:
+        document.close()
 
 
 @router.get("/projects", response_model=list[ProjectOut])
@@ -250,6 +279,7 @@ async def upload_book(
     file: UploadFile,
     series_order: int | None = Query(default=None),
     x_session_token: str | None = Depends(_session_token),
+    ip: str | None = Depends(_client_ip),
     session: SQLModelAsyncSession = Depends(get_session),
 ) -> BookOut | JSONResponse:
     """Stream an uploaded PDF to storage and queue its ingestion.
@@ -265,8 +295,22 @@ async def upload_book(
 
     A project owned by a different session's upload 404s here exactly like
     every other book-scoped route, before anything is read off the file.
+
+    do1's ``ops.upload_guard`` (S9.5) enforces quota/TTL/public-domain on top
+    of that isolation, but only for a session-owned upload — a project with
+    no owning ``UploadSession`` is the seeded public corpus or
+    ``scripts/ingest_series.py``'s token-free path (session_privacy's own
+    module docstring), and neither is a visitor demo upload the guard's
+    per-visitor limits were built for. Every guard check runs after the
+    idempotent-reingest short circuit above but before anything new is
+    written to object storage or Postgres, so a retry of a file already
+    ingested by this session still returns its existing ``200`` rather than
+    being counted against — or rejected by — a quota that upload already
+    satisfied.
     """
     await session_privacy.get_visible_project(session, project_id, x_session_token)
+
+    owner = await session_privacy.owning_session(session, project_id)
 
     temp_path, content_hash = await _stream_to_temp_file(file)
 
@@ -283,6 +327,44 @@ async def upload_book(
                     "book_id": str(existing.id),
                 },
             )
+
+        if owner is not None:
+            ip_hash = session_privacy.hash_ip(ip)
+            try:
+                if ip_hash is not None:
+                    await upload_guard.check_ip_rate_limit(session, ip_hash)
+                upload_guard.check_session_quota(owner)
+            except upload_guard.UploadQuotaExceeded as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail=str(exc),
+                ) from exc
+
+            data = await anyio.to_thread.run_sync(temp_path.read_bytes)
+
+            try:
+                upload_guard.check_page_limit(upload_guard.count_pdf_pages(data))
+            except upload_guard.UploadTooLarge as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    detail=str(exc),
+                ) from exc
+
+            text_sample = await anyio.to_thread.run_sync(
+                _extract_text_sample, temp_path
+            )
+            guard_result = upload_guard.check_public_domain(text_sample)
+
+            if guard_result.flagged:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail={
+                        "message": (
+                            "this upload does not appear to be public domain"
+                        ),
+                        "reasons": guard_result.reasons,
+                    },
+                )
 
         book_id = uuid4()
         title, author = extract_title_author(
@@ -331,8 +413,10 @@ async def upload_book(
             content={"status": "already_ingested", "book_id": str(book.id)},
         )
 
-    owner = await session_privacy.owning_session(session, project_id)
     if owner is not None:
+        # Same owning session fetched above, before the guard checks — not
+        # re-queried here, so a session that starts with quota to spare and
+        # spends it via a concurrent request is not asked twice.
         await session_privacy.record_upload(session, owner)
 
     await anyio.to_thread.run_sync(ingestion_chain(book.id).apply_async)
