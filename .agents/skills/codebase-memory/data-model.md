@@ -37,9 +37,10 @@ change — worth knowing before you add a stage or a task type.
 | `ingestion_run` / `ingestion_stage` | book_id, stage, state, timings, attempt, error, tokens, cost | S2 |
 | `review_task` | id, book_id, task_type, payload, graph_thread_id, priority, status, resolution | S7.2 for the queue UI/resolution handlers. Writers exist earlier and now write the frozen `ReviewTaskPayload` shape (`api/contracts/api.py`, S7.2 freeze) plus a `dedup_key` the payload union silently drops: `queue_collision_review`/`queue_cross_book_review` (`merge_characters`/`merge_across_books`, S3.4/S5), `pipeline/repository.py::upsert_chapters` (`confirm_chapter_split`, S7.6), `extraction/repository.py::replace_candidates` (`classify_candidate`, S7.6, when a verified rejection resurfaces). All four go through `api/pipeline/verification.py::raise_disagreement`, which is also where the dedup rule lives — no task type reopens something already open or already resolved. |
 | `correction_feedback` | task_type, model_value, human_value, **model confidence at decision time**, evidence | S7.7 — write side is `api/pipeline/verification.py::record_correction_feedback`, called by a review task's resolution handler (S7.2, be2), never by the code that raises the task |
-| `query_log` | question, route, retrieved ids, answer, citations, model, tokens, cost, latency_ms (jsonb), spoiler_chapter_limit, policy_version | S6/S9 |
+| `query_log` | question, route, retrieved ids, answer, citations, model, tokens, cost, latency_ms (jsonb), spoiler_chapter_limit, policy_version | **Built** (S6) — `policy_version` wired S9.6 (`api/query/pipeline.py::_finish`, read from `api/llm/routing.py::get_live_policy()`); `model_used`/token/cost columns still unpopulated by `write_query_log` (S9, do1's cost accounting) |
 | `eval_run` / `eval_result` | config (jsonb), corpus_version, git_sha, metrics | S8 |
-| `routing_policy` / `cost_snapshot` | purpose → model, version | S9 |
+| `routing_policy` | purpose → model, version, append-only | **Built** (S9.6, be2) — `api/llm/policy_repository.py`, `GET`/`PUT /ops/routing-policy` |
+| `cost_snapshot` | rolling-window cost rollup | S9 (do1) |
 | `checkpoints`, `checkpoint_blobs`, `checkpoint_writes`, `checkpoint_migrations` | LangGraph's own tables. **Not in Alembic** — created by `api.graph.checkpoint.setup_checkpointer()`, which owns their migrations. Do not autogenerate against them; Alembic will try to drop them. | Built |
 
 ## Constraints that carry meaning

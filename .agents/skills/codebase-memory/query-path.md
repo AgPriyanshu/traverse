@@ -24,6 +24,7 @@ page. Symbols over line numbers.
 | `resolve_names` (name/nickname/partial/fuzzy/relative cascade, ranked candidates) | `api/extraction/resolution.py` | **Built** (S6.7) — reuses `api/extraction/normalization.py`; never an LLM call |
 | `locate_quote` (exact → whitespace-normalised → fuzzy span match, `None` if unlocated) | `api/pipeline/quotes.py` | **Built** (S6.8) — reuses `local_copy` from `api/pipeline/render.py` |
 | `QueryTimer` (per-stage timing, `as_dict()` → `QueryLog.latency_ms`) | `api/pipeline/timing.py` | **Built** (S6.9) — `api/query/pipeline.py` owns calling `.stage()`/`.mark_ttft()` and persisting the row |
+| `QueryLog.policy_version` | `api/query/pipeline.py::_finish` | **Built** (S9.6) — read from `api/llm/routing.py::get_live_policy()` at answer time, not from the request; `None` until some process in this run has called `GET`/`PUT /ops/routing-policy` at least once (nothing loads it at process start) |
 | `ReadingScope`, spoiler enforcement | `api/query/scope.py`, all graph/query/retrieval surfaces | **Built** (S8.1) — see below |
 
 ## Route classes (Built, S6)
@@ -169,6 +170,26 @@ relationship-lookup and aggregation templates, relation arc, evidence, dense
 and lexical retrieval), each anchored around a synthetic corpus with content
 strictly before and after the checkpoint. Run it after touching any surface
 in this section.
+
+## Answer persistence and an expired-session gotcha (Fixed, S9)
+
+`_finish` (`api/query/pipeline.py`) is the one place `answer_question` writes:
+`write_query_log`, `record_turn`, `set_scope` each `commit()` on the **same**
+request-scoped session (`api/db/engine.py::get_session`, `expire_on_commit=True`
+by default). Every commit expires every ORM object the session is holding,
+including the `Conversation` fetched at the top of the request — a later
+**synchronous** read of `conversation.id`/`.project_id` after that raised
+`greenlet_spawn has not been called` on every single query, right after the
+answer itself had already streamed correctly (Sprint 8 retro, do1). Fixed by
+capturing `conversation.id`/`.project_id` into plain locals *before* the first
+commit and threading those through instead of re-reading the ORM object
+(`set_scope` now takes an explicit `project_id` param for the same reason).
+**This class of bug only reproduces through the real HTTP route** —
+`api/tests/conftest.py`'s `session` fixture deliberately sets
+`expire_on_commit=False` for exactly this reason, so a pipeline test built on
+it (`test_pipeline.py`) passes with or without the bug present. The regression
+test lives at `api/tests/query/test_answer_persistence_session.py` and goes
+through the real `client`/ASGI route on purpose.
 
 ## Related
 

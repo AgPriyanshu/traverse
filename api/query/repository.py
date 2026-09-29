@@ -98,8 +98,16 @@ async def write_query_log(
     latency_ms: dict | None,
     limit_book_order: int | None,
     limit_chapter: int | None,
+    policy_version: int | None = None,
 ) -> QueryLog:
-    """Persist one query for the ops dashboard and the answer-quality harness."""
+    """Persist one query for the ops dashboard and the answer-quality harness.
+
+    ``policy_version`` is the live routing policy's version at answer time
+    (``api/llm/routing.py::get_live_policy``, S9.6) -- without it, a
+    cost/accuracy comparison across a policy flip is uninterpretable, since
+    there would be no way to tell which queries ran under which policy
+    (backend-2.md's S9.6 DoD).
+    """
     row = QueryLog(
         project_id=project_id,
         question=question,
@@ -111,6 +119,7 @@ async def write_query_log(
         latency_ms=latency_ms,
         limit_book_order=limit_book_order,
         limit_chapter=limit_chapter,
+        policy_version=policy_version,
     )
     session.add(row)
     await session.commit()

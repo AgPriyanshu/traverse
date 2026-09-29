@@ -12,8 +12,15 @@ from ..contracts.api import (
     MetricsOut,
     RoutingPolicyOut,
 )
+from ..contracts.enums import LLMPurpose
 from ..contracts.pipeline import IngestionRunOut
 from ..db.engine import get_session
+from ..llm import routing as llm_routing
+from ..llm.policy_repository import (
+    DEFAULT_PURPOSES,
+    get_current_policy,
+    write_new_policy,
+)
 from ..ops import gather_health, pipeline_status
 from ..ops.ablation import get_eval_run, get_latest_eval_run
 from ..ops.answer_judge import AnswerJudgment, JudgeAnswerRequest, judge_answer
@@ -36,10 +43,8 @@ from ..ops.review_metrics import (
     compute_review_alerts,
     compute_review_metrics,
 )
-from ._stub import not_implemented
 
 router = APIRouter(tags=["ops"])
-OWNER = "do1"
 
 
 @router.get("/health", response_model=HealthOut, tags=["ops"])
@@ -286,10 +291,47 @@ async def eval_run_by_id(
 
 
 @router.get("/ops/routing-policy", response_model=RoutingPolicyOut)
-async def get_routing_policy() -> RoutingPolicyOut:
-    not_implemented(OWNER, "S9.6")
+async def get_routing_policy(
+    session: SQLModelAsyncSession = Depends(get_session),
+) -> RoutingPolicyOut:
+    """The live per-purpose model policy (S9.6, F7.3) -- the max-version row.
+
+    Also re-syncs this process's in-memory routing cache
+    (``api/llm/routing.py::route_for`` reads it, not this table directly)
+    from Postgres, so a read from a process that did not make the last PUT
+    -- a fresh API server restart, a Celery worker -- still reflects the
+    persisted policy rather than the hardcoded local-only defaults.
+
+    Returns ``version=0`` with the synthesized defaults when no PUT has ever
+    landed, so a caller always gets a well-defined "current policy" rather
+    than a 404 or an empty body.
+    """
+    current = await get_current_policy(session)
+    if current is None:
+        return RoutingPolicyOut(version=0, purposes=dict(DEFAULT_PURPOSES))
+
+    llm_routing.set_live_policy(current.version, current.purposes)
+    return RoutingPolicyOut(version=current.version, purposes=current.purposes)
 
 
 @router.put("/ops/routing-policy", response_model=RoutingPolicyOut)
-async def set_routing_policy(body: RoutingPolicyOut) -> RoutingPolicyOut:
-    not_implemented(OWNER, "S9.6")
+async def set_routing_policy(
+    body: RoutingPolicyOut,
+    session: SQLModelAsyncSession = Depends(get_session),
+) -> RoutingPolicyOut:
+    """Append the next policy version and flip this process's live routing
+    immediately (S9.6, F7.3) -- the closing-argument demo needs the very next
+    query answered on this same server to visibly use the new mapping.
+
+    ``body.version`` is ignored: the version is the audit trail's own
+    sequence number, assigned server-side from the current max, never
+    client-supplied (migration 0012 -- every PUT is a new row).
+    """
+    unknown = sorted(set(body.purposes) - {purpose.value for purpose in LLMPurpose})
+    if unknown:
+        raise HTTPException(status_code=422, detail=f"unknown purpose(s): {unknown}")
+
+    row = await write_new_policy(session, body.purposes)
+    llm_routing.set_live_policy(row.version, row.purposes)
+
+    return RoutingPolicyOut(version=row.version, purposes=row.purposes)

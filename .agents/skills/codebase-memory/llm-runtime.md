@@ -6,9 +6,10 @@ Every model call in the system. Symbols over line numbers.
 
 | Symbol | Location | Status |
 | --- | --- | --- |
-| `get_llm(purpose, *, mode=None)`, `semaphore()` | `api/llm/client.py` | **Built** — `mode` is the S8.2 ablation override, see below |
-| `structured_call(prompt, schema, *, purpose, book_id, stage, mode=None)` | `api/llm/structured.py` | **Built** — `mode` threads to both `route_for` and `get_llm` |
-| Routing policy (`route_for`, `ModelRoute`) | `api/llm/routing.py` | **Built**, live-switchable S9 |
+| `get_llm(purpose, *, mode=None)`, `semaphore()` | `api/llm/client.py` | **Built** — `mode` is the S8.2 ablation override, see below. `ChatOpenAI` now carries a request timeout (60s local / 120s frontier, S9.7) — there was none anywhere in `api/llm` before, so a wedged connection held its semaphore slot forever instead of failing into the transient-retry path |
+| `structured_call(prompt, schema, *, purpose, book_id, stage, mode=None)` | `api/llm/structured.py` | **Built** — `mode` threads to both `route_for` and `get_llm`. S9.7 added a circuit breaker: a `TransientLLMError` from a **frontier** call for `adjudicate`/`answer`/`judge` gets one immediate local retry (`_structured_call_once`, forced `mode=local`) before propagating, since a query-path caller has no Celery task to retry it for |
+| Routing policy (`route_for`, `ModelRoute`, `set_live_policy`/`get_live_policy`/`clear_live_policy`) | `api/llm/routing.py` | **Built** (S9.6/S9.7) — live-switchable, see below |
+| `RoutingPolicy` repository (`get_current_policy`, `write_new_policy`, `DEFAULT_PURPOSES`) | `api/llm/policy_repository.py` | **Built** (S9.6) — `GET`/`PUT /ops/routing-policy` (`api/routes/ops.py`) |
 | `api/eval/ablation.py::resolve`, `api/eval/calibration.py` | `api/eval/` | **Built** (S8.2, S8.3) — ablation config switching and confidence calibration; see below |
 | `plan_batches(...)` | `api/llm/budget.py` | **Built** — be1 depends on this from S3 |
 | `TransientLLMError` / `PermanentLLMError` / `classify_call_error` | `api/llm/errors.py` | **Built** |
@@ -103,8 +104,12 @@ headroom, not the real concurrency ceiling.
 - **Every call is traced in Langfuse** with `purpose` and `book_id`. The cost
   breakdown (F7.1) reads those tags; a call without them is invisible spend.
 - **Private uploads must never reach a third-party API** unless the user
-  explicitly enabled routing. Enforced at the client layer, below the policy —
-  a policy edit must not be able to bypass it (NFR-residency, ETH-4).
+  explicitly enabled routing. Enforced in `route_for` itself, before `mode` or
+  the live policy are even consulted, for **every** purpose (S9.7 — before
+  this it was judge-only): `settings.inference_mode == local` always wins.
+  There is still no per-book/per-project consent field in the frozen
+  contracts, so this global setting is the only lever there is (NFR-residency,
+  ETH-4; flagged as a gap in `plans/sprint-9/HANDOFF.md`).
 - Local inference is costed at **amortised GPU-hours**, not zero. "Local is
   free" is wrong and the honest number is more persuasive.
 
@@ -118,18 +123,59 @@ mutates a global setting; both are per-call overrides (`hybrid_search(...,
 mode=...)`, `route_for(purpose, mode=...)`), so one eval run can sweep every
 cell in one process without cross-contaminating the next call.
 
-`route_for`'s no-override path is **always local for a non-`judge` purpose**,
-regardless of `settings.inference_mode` — this repo's own dev/test default is
-`INFERENCE_MODE=api` with no `FRONTIER_MODEL` set, so wiring that setting into
-the default path would turn every ordinary call into a hard failure. Only
-`judge` reads `settings.inference_mode` directly (unchanged since before
-S8.2); everything else needs an explicit `mode=`.
+`route_for`'s no-override path is **always local for a non-`judge` purpose**
+unless the live routing policy (S9.6, below) names a different model for
+it — regardless of `settings.inference_mode` otherwise, since this repo's own
+dev/test default is `INFERENCE_MODE=api` with no `FRONTIER_MODEL` set, and
+wiring that setting into the default path would turn every ordinary call into
+a hard failure. `mode=` (this axis) wins over the live policy when both are
+present, so a sweep is never silently redirected by whatever policy happens
+to be live. `settings.inference_mode == local` wins over both (see the
+residency bullet above).
 
 `resolve()` raises `AblationAxisNotOwned` for `config.axis == "extraction"` —
 no `single_pass`/`two_pass` or alias-cascade-depth switch exists anywhere in
 the codebase (be1's `api/pipeline/**`/`api/extraction/**`), and
 `with_human_review` would need one in `api/review/**` (not clearly assigned
 to any agent in `BRANCH.md`'s roster). See `plans/sprint-8/HANDOFF.md`.
+
+## Live routing policy and frontier fallback (Built, S9.6/S9.7)
+
+`RoutingPolicy` (migration 0012, frozen) is **append-only** — every
+`PUT /ops/routing-policy` inserts a new row (`version = max(version) + 1`)
+rather than updating one in place, so the ops dashboard's own cost/accuracy
+delta stays auditable after a flip. The live policy is the max-version row.
+
+`route_for` itself has no DB session (it is called deep inside a hot,
+sync-looking path), so it can't read that table directly. Instead
+`api/llm/routing.py` keeps a process-global cache (`set_live_policy`/
+`get_live_policy`/`clear_live_policy`) that `GET`/`PUT /ops/routing-policy`
+populate. **This means a fresh process (a new API server, a Celery worker)
+has no policy until something in it calls one of those two routes at least
+once** — nothing loads it at startup. `GET` re-syncs the cache as a
+side-effect specifically so a dashboard read after a restart still reflects
+Postgres rather than silently reverting to hardcoded local defaults.
+
+`FRONTIER_ELIGIBLE_PURPOSES = {adjudicate, answer, judge}` (`api/llm/routing.py`)
+is the one place S9.7's fallback is scoped — every other purpose keeps the
+pre-S9.7 hard failure when frontier is requested and unconfigured. For these
+three, asking for frontier (via `mode=api`, a live-policy entry naming a
+non-local model, or `judge`'s own always-frontier default) with no usable
+`settings.frontier_model`/`frontier_api_key` pair degrades to local instead of
+raising, and the returned `ModelRoute.fallback_reason` is set so a caller —
+the eval judge, above all — can tell a degraded local grade apart from a real
+frontier one. `frontier_model`/`frontier_api_key` are blank in this
+environment's `.env` by design (no key provisioned, Sprint 8's do1) — **the
+frontier path itself is therefore unverified against a real provider**;
+`api/tests/llm/test_structured.py::test_frontier_transient_failure_falls_back_to_local_once`
+and `api/tests/llm/test_routing.py`'s fallback tests are as close as this repo
+can get without a human supplying a key. See `plans/sprint-9/HANDOFF.md`.
+
+`structured_call`'s circuit breaker (same three purposes) is a second,
+separate fallback: if a frontier call actually *fails* transiently at
+runtime (not merely unconfigured), it gets one immediate local retry rather
+than propagating — a query-path purpose has no Celery task to retry it for.
+Equally unverified against a real provider outage for the same reason.
 
 ## Confidence calibration (Built, S8.3)
 

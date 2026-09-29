@@ -163,13 +163,30 @@ async def set_scope(
     *,
     limit_book_order: int | None,
     limit_chapter: int | None,
+    project_id: UUID | None = None,
 ) -> None:
-    """Record this turn's reading position as the conversation's carried scope."""
+    """Record this turn's reading position as the conversation's carried scope.
+
+    ``project_id`` should be passed by a caller that may have already
+    committed on this session since ``conversation`` was loaded (the request-
+    scoped session ``api/routes/query.py`` hands in defaults to
+    ``expire_on_commit=True``). Reading ``conversation.project_id`` after an
+    intervening commit hits an expired attribute and SQLAlchemy's async
+    session cannot refresh it outside an awaited call, raising
+    ``greenlet_spawn has not been called`` — a real bug this dodges rather
+    than fixes at the root, since expiring the whole session after every
+    commit is the documented convention (``api/tests/conftest.py``). Defaults
+    to reading it off ``conversation`` for a caller that knows its session
+    has not committed since the object was loaded.
+    """
     if limit_book_order is None:
         return
 
+    resolved_project_id = (
+        project_id if project_id is not None else conversation.project_id
+    )
     book_id = await repository.book_id_for_series_order(
-        session, conversation.project_id, limit_book_order
+        session, resolved_project_id, limit_book_order
     )
     conversation.scope_book_id = book_id
     conversation.scope_chapter = limit_chapter

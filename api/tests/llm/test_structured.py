@@ -11,9 +11,10 @@ from typing import Any
 
 import pytest
 from langchain.messages import AIMessage
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, SecretStr, ValidationError
 
-from api.contracts.enums import LLMPurpose
+from api.config.settings import settings
+from api.contracts.enums import InferenceMode, LLMPurpose
 from api.llm import structured as structured_module
 from api.llm.errors import LengthLimitError, PermanentLLMError, TransientLLMError
 from api.llm.structured import structured_call
@@ -157,6 +158,53 @@ async def test_raises_length_limit_without_a_wasted_retry(
         await structured_call("answer the question", _Answer, purpose=LLMPurpose.ANSWER)
 
     assert len(fake.runnable.prompts) == 1
+
+
+async def test_frontier_transient_failure_falls_back_to_local_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """S9.7's circuit breaker: a query-path purpose has no Celery task to
+    retry a transient frontier failure for it, so one is spent here instead
+    of surfacing the outage -- "a frontier outage must degrade, not fail"
+    (backend-2.md's DoD)."""
+    import httpx
+    import openai
+
+    monkeypatch.setattr(settings, "frontier_model", "claude-frontier")
+    monkeypatch.setattr(settings, "frontier_api_key", SecretStr("test-key"))
+
+    class _RaisingRunnable:
+        async def ainvoke(self, messages: list[Any]) -> dict[str, Any]:
+            request = httpx.Request("POST", "https://frontier.example/v1/x")
+            raise openai.APIConnectionError(request=request)
+
+    class _FailingFrontierChatModel:
+        def with_structured_output(self, schema: type[BaseModel], *, include_raw: bool):
+            return _RaisingRunnable()
+
+    local_fake = _FakeChatModel(
+        [
+            {
+                "raw": AIMessage("ok"),
+                "parsed": _Answer(value="ok"),
+                "parsing_error": None,
+            }
+        ]
+    )
+
+    def fake_get_llm(purpose, *, mode=None):
+        return _FailingFrontierChatModel() if mode == InferenceMode.API else local_fake
+
+    monkeypatch.setattr(structured_module, "get_llm", fake_get_llm)
+
+    result = await structured_call(
+        "answer the question",
+        _Answer,
+        purpose=LLMPurpose.ANSWER,
+        mode=InferenceMode.API,
+    )
+
+    assert result == _Answer(value="ok")
 
 
 async def test_call_failure_is_classified(monkeypatch: pytest.MonkeyPatch) -> None:
