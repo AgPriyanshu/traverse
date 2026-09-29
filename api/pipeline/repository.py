@@ -6,8 +6,9 @@ place instead of at forty call sites.
 """
 
 import logging
+import re
 from dataclasses import dataclass
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import delete, func, insert, select, update
 from sqlalchemy.exc import IntegrityError
@@ -17,6 +18,7 @@ from ..contracts.api import BookOut, ChapterOut, ChunkOut, ProjectDetailOut, Pro
 from ..contracts.enums import (
     BookStatus,
     DetectionMethod,
+    ProjectKind,
     ReviewTaskType,
     StageName,
     StageState,
@@ -54,11 +56,19 @@ async def create_book(
     storage_key: str | None = None,
     id: UUID | None = None,
 ) -> Book:
-    """Create a book, or return the existing one with the same content hash.
+    """Create a book, or return the existing one with the same content hash
+    **in the same project**.
 
     Idempotent re-ingest (PRD F1.5) is handled by catching the unique violation
     rather than checking first: a check-then-insert races two workers uploading
     the same file and produces a duplicate anyway.
+
+    The fallback lookup is project-scoped, not global (ETH-2, S9.8): reusing a
+    hash match from a *different* project would either pool a private upload
+    into someone else's project or hand back an id the caller cannot otherwise
+    reach. ``content_hash`` is still unique across the whole install, so a
+    genuine cross-project collision re-raises the ``IntegrityError`` instead —
+    ``routes/books.py`` turns that into an honest 409 rather than a leak.
 
     Args:
         session: Open session; this function commits.
@@ -74,7 +84,12 @@ async def create_book(
             through rather than left to the default factory so the two agree.
 
     Returns:
-        The new book, or the pre-existing one with that ``content_hash``.
+        The new book, or the pre-existing one in this project with that
+        ``content_hash``.
+
+    Raises:
+        IntegrityError: The content hash collides with a book in a
+            *different* project. Never swallowed into a cross-project reuse.
     """
     book = Book(
         project_id=project_id,
@@ -92,7 +107,7 @@ async def create_book(
         await session.commit()
     except IntegrityError:
         await session.rollback()
-        existing = await get_book_by_hash(session, content_hash)
+        existing = await get_book_by_hash_in_project(session, project_id, content_hash)
 
         if existing is None:
             raise
@@ -112,6 +127,76 @@ async def get_book_by_hash(
     book = (await session.execute(statement)).scalars().first()
 
     return book
+
+
+async def get_book_by_hash_in_project(
+    session: SQLModelAsyncSession, project_id: UUID, content_hash: str
+) -> Book | None:
+    """Return the book with this content hash **within one project**, if any.
+
+    Deliberately narrower than :func:`get_book_by_hash` (ETH-2, S9.8): reusing
+    a content-hash match from a *different* project — someone else's private
+    upload, or even the public corpus — would either pool a private session's
+    upload into another project's book or hand back an id the caller cannot
+    otherwise reach. ``content_hash`` is still unique across the whole
+    install (frozen schema), so a genuine cross-project collision is rejected
+    by the caller rather than silently reused; see ``routes/books.py``.
+    """
+    statement = select(Book).where(
+        Book.content_hash == content_hash,
+        Book.project_id == project_id,  # type: ignore[arg-type]
+    )
+    book = (await session.execute(statement)).scalars().first()
+
+    return book
+
+
+async def create_project(
+    session: SQLModelAsyncSession,
+    *,
+    name: str,
+    kind: ProjectKind = ProjectKind.STANDALONE,
+    slug: str | None = None,
+) -> Project:
+    """Create a project with a unique, URL-safe slug derived from its name.
+
+    Args:
+        session: Open session; this function commits.
+        name: Display name.
+        kind: Standalone or series; defaults to standalone.
+        slug: Explicit slug override. Otherwise derived from ``name`` plus a
+            short random suffix, since ``project.slug`` is unique and two
+            demo uploads of the same public-domain title are expected.
+    """
+    project = Project(
+        name=name,
+        slug=slug or _unique_slug(name),
+        kind=kind,
+    )
+    session.add(project)
+    await session.commit()
+    await session.refresh(project)
+
+    return project
+
+
+def _unique_slug(name: str) -> str:
+    base = re.sub(r"[^a-z0-9]+", "-", name.strip().lower()).strip("-") or "project"
+
+    return f"{base}-{uuid4().hex[:8]}"
+
+
+async def count_books_in_project(
+    session: SQLModelAsyncSession, project_id: UUID
+) -> int:
+    """Return how many books remain in a project — the delete cascade's signal
+    that a session-owned project has nothing left in it (S9.8)."""
+    statement = (
+        select(func.count()).select_from(Book).where(Book.project_id == project_id)  # type: ignore[arg-type]
+    )
+    total = (await session.execute(statement)).scalar_one()
+
+    return total
 
 
 async def get_book(session: SQLModelAsyncSession, book_id: UUID) -> Book | None:

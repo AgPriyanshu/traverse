@@ -116,7 +116,7 @@ freeze).
 | Non-English source text | BGE-M3 already multilingual; blocker is prompts and eval labor | Post-launch |
 | Fine-tuning | PRD §3.2 — prompting and routing only | Out of scope |
 | Multi-tenancy | Demo workspace only | Post-launch |
-| OCR path for scanned PDFs | Docling tesserocr is installed but untuned; public-domain corpus is digital | Sprint 9 if time, else post-launch |
+| OCR path for scanned PDFs | Formally deferred at Sprint 9 (be1, S9.9): RapidOCR's weights are not in the offline model cache (`make warm-models` never pre-warmed them), so building the routing/quality-measurement without a network-reachable test run would be untested code. No scanned fixture exists either. See `plans/sprint-9/HANDOFF.md` for the reason and the concrete steps to build it. | Post-launch |
 
 ---
 
