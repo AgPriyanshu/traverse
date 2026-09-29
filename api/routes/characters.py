@@ -28,7 +28,10 @@ async def list_characters(
     tier: ImportanceTier | None = Query(default=None),
     q: str | None = Query(default=None, description="Alias-aware search"),
     book_id: UUID | None = Query(default=None),
-    limit_book_order: int | None = Query(default=None),
+    limit_book_order: int = Query(
+        ...,
+        description="Required reading position (api/query/scope.py)",
+    ),
     limit_chapter: int | None = Query(default=None),
     session: SQLModelAsyncSession = Depends(get_session),
 ) -> list[CharacterOut]:
@@ -58,7 +61,10 @@ async def list_characters(
 @router.get("/characters/{character_id}", response_model=CharacterDetailOut)
 async def get_character(
     character_id: UUID,
-    limit_book_order: int | None = Query(default=None),
+    limit_book_order: int = Query(
+        ...,
+        description="Required reading position (api/query/scope.py)",
+    ),
     limit_chapter: int | None = Query(default=None),
     session: SQLModelAsyncSession = Depends(get_session),
 ) -> CharacterDetailOut:
@@ -88,7 +94,10 @@ async def list_mentions(
     character_id: UUID,
     limit: int = Query(default=50, le=500),
     offset: int = 0,
-    limit_book_order: int | None = Query(default=None),
+    limit_book_order: int = Query(
+        ...,
+        description="Required reading position (api/query/scope.py)",
+    ),
     limit_chapter: int | None = Query(default=None),
     session: SQLModelAsyncSession = Depends(get_session),
 ) -> list[MentionOut]:
@@ -117,7 +126,10 @@ async def list_mentions(
 )
 async def list_appearances(
     character_id: UUID,
-    limit_book_order: int | None = Query(default=None),
+    limit_book_order: int = Query(
+        ...,
+        description="Required reading position (api/query/scope.py)",
+    ),
     limit_chapter: int | None = Query(default=None),
     session: SQLModelAsyncSession = Depends(get_session),
 ) -> list[AppearanceOut]:

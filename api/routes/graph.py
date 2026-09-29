@@ -39,7 +39,10 @@ async def get_graph(
     ),
     families: list[RelationFamily] | None = Query(default=None),
     min_confidence: float = Query(default=0.0, ge=0.0, le=1.0),
-    limit_book_order: int | None = Query(default=None),
+    limit_book_order: int = Query(
+        ...,
+        description="Required reading position (api/query/scope.py)",
+    ),
     limit_chapter: int | None = Query(default=None),
     session: SQLModelAsyncSession = Depends(get_session),
 ) -> GraphOut:
@@ -69,7 +72,10 @@ async def get_graph(
 async def get_neighbourhood(
     character_id: UUID,
     depth: int = Query(default=1, ge=1, le=2),
-    limit_book_order: int | None = Query(default=None),
+    limit_book_order: int = Query(
+        ...,
+        description="Required reading position (api/query/scope.py)",
+    ),
     limit_chapter: int | None = Query(default=None),
     session: SQLModelAsyncSession = Depends(get_session),
 ) -> GraphOut:
@@ -95,7 +101,10 @@ async def get_neighbourhood(
 async def get_arc(
     a: UUID,
     b: UUID,
-    limit_book_order: int | None = Query(default=None),
+    limit_book_order: int = Query(
+        ...,
+        description="Required reading position (api/query/scope.py)",
+    ),
     limit_chapter: int | None = Query(default=None),
     session: SQLModelAsyncSession = Depends(get_session),
 ) -> RelationArcOut:
@@ -116,7 +125,10 @@ async def get_evidence(
     relation_id: UUID,
     limit: int = Query(default=20, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
-    limit_book_order: int | None = Query(default=None),
+    limit_book_order: int = Query(
+        ...,
+        description="Required reading position (api/query/scope.py)",
+    ),
     limit_chapter: int | None = Query(default=None),
     session: SQLModelAsyncSession = Depends(get_session),
 ) -> list[EvidenceOut]:
@@ -143,7 +155,10 @@ async def get_path(
     from_id: UUID = Query(alias="from"),
     to_id: UUID = Query(alias="to"),
     max_hops: int = Query(default=4, ge=1, le=4),
-    limit_book_order: int | None = Query(default=None),
+    limit_book_order: int = Query(
+        ...,
+        description="Required reading position (api/query/scope.py)",
+    ),
     limit_chapter: int | None = Query(default=None),
     session: SQLModelAsyncSession = Depends(get_session),
 ) -> GraphPathOut:

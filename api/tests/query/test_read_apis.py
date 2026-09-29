@@ -115,7 +115,9 @@ async def test_roster_of_an_empty_project_is_an_empty_list(
     client: AsyncClient, project: Project
 ):
     """S1.7: a real query against real, empty tables — not a stubbed literal."""
-    response = await client.get(f"/api/projects/{project.id}/characters")
+    response = await client.get(
+        f"/api/projects/{project.id}/characters", params={"limit_book_order": 1}
+    )
 
     assert response.status_code == 200
     assert response.json() == []
@@ -123,7 +125,9 @@ async def test_roster_of_an_empty_project_is_an_empty_list(
 
 async def test_roster_of_an_unknown_project_is_404(client: AsyncClient):
     """An empty list means "no characters yet"; a typo must not look the same."""
-    response = await client.get(f"/api/projects/{uuid.uuid4()}/characters")
+    response = await client.get(
+        f"/api/projects/{uuid.uuid4()}/characters", params={"limit_book_order": 1}
+    )
 
     assert response.status_code == 404
 
@@ -147,13 +151,17 @@ async def test_roster_filters_are_accepted_on_empty_tables(
 
 
 async def test_unknown_character_is_404(client: AsyncClient):
-    response = await client.get(f"/api/characters/{uuid.uuid4()}")
+    response = await client.get(
+        f"/api/characters/{uuid.uuid4()}", params={"limit_book_order": 1}
+    )
 
     assert response.status_code == 404
 
 
 async def test_empty_graph_has_no_nodes_or_edges(client: AsyncClient, project: Project):
-    response = await client.get(f"/api/projects/{project.id}/graph")
+    response = await client.get(
+        f"/api/projects/{project.id}/graph", params={"limit_book_order": 1}
+    )
 
     assert response.status_code == 200
     payload = GraphOut.model_validate(response.json())
@@ -163,7 +171,9 @@ async def test_empty_graph_has_no_nodes_or_edges(client: AsyncClient, project: P
 
 
 async def test_graph_of_an_unknown_project_is_404(client: AsyncClient):
-    response = await client.get(f"/api/projects/{uuid.uuid4()}/graph")
+    response = await client.get(
+        f"/api/projects/{uuid.uuid4()}/graph", params={"limit_book_order": 1}
+    )
 
     assert response.status_code == 404
 
@@ -214,7 +224,9 @@ async def test_get_character_returns_aliases_attributes_and_histogram(
     """S3.6: alias detail, attributes and a per-chapter histogram, one query each."""
     character, _mentions = await _seeded_character(project, book)
 
-    response = await client.get(f"/api/characters/{character.id}")
+    response = await client.get(
+        f"/api/characters/{character.id}", params={"limit_book_order": 1}
+    )
 
     assert response.status_code == 200
     payload = CharacterDetailOut.model_validate(response.json())
@@ -248,10 +260,12 @@ async def test_list_mentions_paginates_and_orders_by_page(
     character, _mentions = await _seeded_character(project, book)
 
     first_page = await client.get(
-        f"/api/characters/{character.id}/mentions", params={"limit": 2, "offset": 0}
+        f"/api/characters/{character.id}/mentions",
+        params={"limit": 2, "offset": 0, "limit_book_order": 1},
     )
     second_page = await client.get(
-        f"/api/characters/{character.id}/mentions", params={"limit": 2, "offset": 2}
+        f"/api/characters/{character.id}/mentions",
+        params={"limit": 2, "offset": 2, "limit_book_order": 1},
     )
 
     assert first_page.status_code == 200
@@ -278,7 +292,9 @@ async def test_list_mentions_respects_chapter_limit(
 
 
 async def test_list_mentions_unknown_character_is_404(client: AsyncClient):
-    response = await client.get(f"/api/characters/{uuid.uuid4()}/mentions")
+    response = await client.get(
+        f"/api/characters/{uuid.uuid4()}/mentions", params={"limit_book_order": 1}
+    )
 
     assert response.status_code == 404
 
@@ -305,7 +321,9 @@ async def test_merge_endpoint_combines_characters(
     assert body["id"] == str(target.id)
     assert "Miss Elizabeth Bennet" in body["aliases"]
 
-    missing = await client.get(f"/api/characters/{source.id}")
+    missing = await client.get(
+        f"/api/characters/{source.id}", params={"limit_book_order": 1}
+    )
     assert missing.status_code == 404
 
 

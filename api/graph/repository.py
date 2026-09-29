@@ -1,7 +1,7 @@
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, true
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
@@ -93,7 +93,7 @@ def _within_reading_position(
     if series_order != limit_book_order:
         return series_order < limit_book_order
     if limit_chapter is None:
-        return chapter is None
+        return True
 
     return chapter is None or chapter <= limit_chapter
 
@@ -177,7 +177,7 @@ async def list_characters(
                 first_book.scalar_subquery() < scope.book_order,
                 (first_book.scalar_subquery() == scope.book_order)
                 & (
-                    Character.first_chapter.is_(None)
+                    true()
                     if scope.chapter is None
                     else Character.first_chapter <= scope.chapter
                 ),
@@ -569,7 +569,7 @@ def _mention_reading_position_filter(statement, *, scope: ReadingScope):
             Book.series_order < scope.book_order,
             (Book.series_order == scope.book_order)
             & (
-                Chapter.number.is_(None)
+                true()
                 if scope.chapter is None
                 else Chapter.number <= scope.chapter
             ),
@@ -754,7 +754,7 @@ async def get_graph_from_postgres(
                 Relation.first_book_order < scope.book_order,
                 (Relation.first_book_order == scope.book_order)
                 & (
-                    Relation.first_chapter.is_(None)
+                    true()
                     if scope.chapter is None
                     else Relation.first_chapter <= scope.chapter
                 ),
@@ -835,7 +835,7 @@ def _evidence_reading_position_filter(statement, *, scope: ReadingScope):
             RelationEvidence.book_order < scope.book_order,
             (RelationEvidence.book_order == scope.book_order)
             & (
-                RelationEvidence.chapter_no.is_(None)
+                true()
                 if scope.chapter is None
                 else RelationEvidence.chapter_no <= scope.chapter
             ),

@@ -13,7 +13,12 @@ pytestmark = pytest.mark.models
 
 async def test_search_of_an_unknown_project_is_404(client: AsyncClient):
     response = await client.get(
-        "/api/search", params={"project_id": str(uuid.uuid4()), "q": "anything"}
+        "/api/search",
+        params={
+            "project_id": str(uuid.uuid4()),
+            "q": "anything",
+            "limit_book_order": 1,
+        },
     )
 
     assert response.status_code == 404
@@ -23,7 +28,12 @@ async def test_search_on_empty_project_returns_no_chunks(
     client: AsyncClient, project: Project
 ):
     response = await client.get(
-        "/api/search", params={"project_id": str(project.id), "q": "anything"}
+        "/api/search",
+        params={
+            "project_id": str(project.id),
+            "q": "anything",
+            "limit_book_order": 1,
+        },
     )
 
     assert response.status_code == 200
@@ -54,7 +64,11 @@ async def test_search_finds_a_seeded_chunk_with_both_scores(
 
     response = await client.get(
         "/api/search",
-        params={"project_id": str(project.id), "q": "Darcy dancing at the ball"},
+        params={
+            "project_id": str(project.id),
+            "q": "Darcy dancing at the ball",
+            "limit_book_order": 1,
+        },
     )
 
     assert response.status_code == 200

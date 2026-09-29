@@ -100,7 +100,10 @@ async def search(
     q: str,
     book_id: UUID | None = Query(default=None),
     limit: int = Query(default=20, le=100),
-    limit_book_order: int | None = Query(default=None),
+    limit_book_order: int = Query(
+        ...,
+        description="Required reading position (api/query/scope.py)",
+    ),
     limit_chapter: int | None = Query(default=None),
     session: SQLModelAsyncSession = Depends(get_session),
 ) -> SearchResultOut:

@@ -22,13 +22,17 @@ MAX_HOPS = 4
 MAX_DEPTH = 2
 
 # A position is visible when it is at or before the reader's. With no chapter
-# limit, only positions with no chapter at all are visible inside that book,
-# matching ``repository._within_reading_position``.
+# limit ($lch IS NULL), every position within that book is visible regardless
+# of its own first_chapter, matching graph/repository.py's reading-position
+# filters (S9's fix: this previously read `$lch IS NOT NULL AND ...`, which
+# inverted the intent — it showed only chapter-less positions instead of
+# lifting the chapter cap entirely).
 _VISIBLE = """(
   $lbo IS NULL OR {a}.first_book_order IS NULL OR {a}.first_book_order < $lbo
   OR ({a}.first_book_order = $lbo
       AND ({a}.first_chapter IS NULL
-           OR ($lch IS NOT NULL AND {a}.first_chapter <= $lch)))
+           OR $lch IS NULL
+           OR {a}.first_chapter <= $lch))
 )"""
 
 _NODES = f"""

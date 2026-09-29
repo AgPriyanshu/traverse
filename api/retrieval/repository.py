@@ -8,7 +8,7 @@ from functools import lru_cache
 from uuid import UUID
 
 from sentence_transformers import SentenceTransformer
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, true
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
@@ -81,7 +81,7 @@ def _reading_position_filter(statement, *, scope: ReadingScope):
             Book.series_order < scope.book_order,
             (Book.series_order == scope.book_order)
             & (
-                chapter_number.is_(None)
+                true()
                 if scope.chapter is None
                 else chapter_number <= scope.chapter
             ),

@@ -6,7 +6,7 @@ Views and the pipeline call this module; they do not build statements inline
 
 from uuid import UUID
 
-from sqlalchemy import or_
+from sqlalchemy import or_, true
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
@@ -185,7 +185,7 @@ def _evidence_visible_at(statement, *, scope: ReadingScope):
             RelationEvidence.book_order < scope.book_order,
             (RelationEvidence.book_order == scope.book_order)
             & (
-                RelationEvidence.chapter_no.is_(None)
+                true()
                 if scope.chapter is None
                 else RelationEvidence.chapter_no <= scope.chapter
             ),
