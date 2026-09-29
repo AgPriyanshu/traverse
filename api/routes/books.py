@@ -196,6 +196,11 @@ async def create_project(
     upload_session = await session_privacy.get_or_create_upload_session(
         session, x_session_token, ip=ip
     )
+    # Captured before any later commit: link_session_to_project's own commit
+    # expires this object's attributes (default expire_on_commit=True), and
+    # reading session_token afterward crashes with a greenlet MissingGreenlet
+    # error trying to lazily reload it outside an awaitable context.
+    session_token = upload_session.session_token
 
     if upload_session.project_id is not None:
         raise HTTPException(
@@ -204,13 +209,9 @@ async def create_project(
         )
 
     project = await repository.create_project(session, name=body.name, kind=body.kind)
-    await session_privacy.link_session_to_project(session, upload_session, project.id)
-
-    response.headers[session_privacy.SESSION_TOKEN_HEADER] = (
-        upload_session.session_token
-    )
-
-    return ProjectOut(
+    # Built before link_session_to_project's commit expires `project`'s
+    # attributes too — same lazy-reload crash as `session_token` above.
+    project_out = ProjectOut(
         id=project.id,
         name=project.name,
         slug=project.slug,
@@ -220,6 +221,11 @@ async def create_project(
         relation_count=0,
         updated_at=project.updated_at,
     )
+    await session_privacy.link_session_to_project(session, upload_session, project.id)
+
+    response.headers[session_privacy.SESSION_TOKEN_HEADER] = session_token
+
+    return project_out
 
 
 @router.get("/projects/{project_id}", response_model=ProjectDetailOut)
