@@ -6,8 +6,18 @@ from pathlib import Path
 from uuid import UUID, uuid4
 
 import anyio
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    Header,
+    HTTPException,
+    Query,
+    Response,
+    UploadFile,
+    status,
+)
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import IntegrityError
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
 from ..contracts.api import (
@@ -24,8 +34,7 @@ from ..contracts.api import (
 from ..contracts.enums import BookStatus, StageName, StageState
 from ..contracts.pipeline import StageStatus
 from ..db.engine import get_session
-from ..db.models import Project
-from ..pipeline import render, repository
+from ..pipeline import render, repository, session_privacy
 from ..pipeline.metadata import extract_title_author
 from ..pipeline.storage import store
 from ..tasks import ingestion_chain
@@ -37,6 +46,29 @@ OWNER = "be1"
 # Matches the streaming chunk size ``pipeline/storage.py`` already reads with.
 _READ_CHUNK = 1 << 20
 _PDF_MAGIC = b"%PDF-"
+
+
+async def _session_token(
+    x_session_token: str | None = Header(
+        default=None, alias=session_privacy.SESSION_TOKEN_HEADER
+    ),
+) -> str | None:
+    """The caller's demo-upload session token, if any (ETH-2).
+
+    A plain header dependency rather than a new contract type: session scoping
+    is a transport-level concern (who is asking), not part of the frozen
+    request/response shapes in ``contracts/api.py``.
+    """
+    return x_session_token
+
+
+async def _client_ip(
+    x_forwarded_for: str | None = Header(default=None),
+) -> str | None:
+    if not x_forwarded_for:
+        return None
+
+    return x_forwarded_for.split(",")[0].strip()
 
 
 async def _stream_to_temp_file(file: UploadFile) -> tuple[Path, str]:
@@ -90,26 +122,85 @@ async def _stream_to_temp_file(file: UploadFile) -> tuple[Path, str]:
 
 @router.get("/projects", response_model=list[ProjectOut])
 async def list_projects(
+    x_session_token: str | None = Depends(_session_token),
     session: SQLModelAsyncSession = Depends(get_session),
 ) -> list[ProjectOut]:
-    """List every project with its book, character and relation counts."""
-    projects = await repository.list_projects(session)
+    """List every project this caller may see, with book/character/relation counts.
 
-    return projects
+    A project owned by a *different* session's upload never appears here
+    (ETH-2, S9.8) — only the public, unowned corpus and, if the caller sent a
+    matching token, their own.
+    """
+    projects = await repository.list_projects(session)
+    visible = await session_privacy.visible_project_ids(
+        session, [project.id for project in projects], x_session_token
+    )
+
+    return [project for project in projects if project.id in visible]
 
 
 @router.post(
     "/projects", response_model=ProjectOut, status_code=status.HTTP_201_CREATED
 )
-async def create_project(body: ProjectCreate) -> ProjectOut:
-    not_implemented(OWNER, "S5.9")
+async def create_project(
+    body: ProjectCreate,
+    response: Response,
+    x_session_token: str | None = Depends(_session_token),
+    ip: str | None = Depends(_client_ip),
+    session: SQLModelAsyncSession = Depends(get_session),
+) -> ProjectOut:
+    """Create a project, private to the caller's upload session by construction.
+
+    Every project made through this route is linked 1:1 to an ``UploadSession``
+    (ETH-2, migration 0012) — there is no path here that lands a caller's
+    upload in a shared or default project. The seeded, public-domain demo
+    corpus is the only project anyone can read without a session token, and it
+    is inserted directly by ``scripts/seed_series.py``, never through this
+    endpoint. A demo session owns at most one project — the frozen
+    ``upload_session.project_id`` column is single-valued, matching do1's
+    S9.5 "1 book" visitor quota.
+
+    The response carries the caller's session token back in the
+    ``X-Session-Token`` header (minted fresh if none was sent) so the client
+    can replay it on every later call for this upload.
+    """
+    upload_session = await session_privacy.get_or_create_upload_session(
+        session, x_session_token, ip=ip
+    )
+
+    if upload_session.project_id is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="this session already owns a project",
+        )
+
+    project = await repository.create_project(session, name=body.name, kind=body.kind)
+    await session_privacy.link_session_to_project(session, upload_session, project.id)
+
+    response.headers[session_privacy.SESSION_TOKEN_HEADER] = (
+        upload_session.session_token
+    )
+
+    return ProjectOut(
+        id=project.id,
+        name=project.name,
+        slug=project.slug,
+        kind=project.kind,
+        book_count=0,
+        character_count=0,
+        relation_count=0,
+        updated_at=project.updated_at,
+    )
 
 
 @router.get("/projects/{project_id}", response_model=ProjectDetailOut)
 async def get_project(
-    project_id: UUID, session: SQLModelAsyncSession = Depends(get_session)
+    project_id: UUID,
+    x_session_token: str | None = Depends(_session_token),
+    session: SQLModelAsyncSession = Depends(get_session),
 ) -> ProjectDetailOut:
     """Return one project and the books it contains, in series order."""
+    await session_privacy.get_visible_project(session, project_id, x_session_token)
     project = await repository.get_project_detail(session, project_id)
 
     if project is None:
@@ -129,17 +220,24 @@ async def reorder_books(project_id: UUID, body: BookOrderUpdate) -> ProjectDetai
 async def list_books(
     project_id: UUID | None = Query(default=None),
     book_status: BookStatus | None = Query(default=None, alias="status"),
+    x_session_token: str | None = Depends(_session_token),
     session: SQLModelAsyncSession = Depends(get_session),
 ) -> list[BookOut]:
-    """List books across every project, or filter to one.
+    """List books across every project this caller may see, or filter to one.
 
     A flat list rather than fanning `GET /projects` out into N detail calls —
     the library screen is the first thing a user sees, and it grows worse in a
-    series project, where a reader may have many books (SCR-6).
+    series project, where a reader may have many books (SCR-6). Books in a
+    project owned by a different session are filtered out exactly like
+    `GET /projects` (ETH-2, S9.8) — passing another session's private
+    ``project_id`` returns an empty list, the same as a nonexistent one.
     """
     books = await repository.list_books(session, project_id, book_status)
+    visible = await session_privacy.visible_project_ids(
+        session, [book.project_id for book in books], x_session_token
+    )
 
-    return books
+    return [book for book in books if book.project_id in visible]
 
 
 @router.post(
@@ -151,27 +249,31 @@ async def upload_book(
     project_id: UUID,
     file: UploadFile,
     series_order: int | None = Query(default=None),
+    x_session_token: str | None = Depends(_session_token),
     session: SQLModelAsyncSession = Depends(get_session),
 ) -> BookOut | JSONResponse:
     """Stream an uploaded PDF to storage and queue its ingestion.
 
     Hashing happens while the file streams to a temp path so a 200 MB upload
-    never sits in memory whole (F1.1). A ``content_hash`` collision short
-    circuits everything after it (F1.5): the object is never re-uploaded and
-    the caller gets back the book that already exists, at ``200`` rather than
-    ``202`` since nothing was queued.
-    """
-    project = await session.get(Project, project_id)
+    never sits in memory whole (F1.1). A ``content_hash`` collision within the
+    **same** project short circuits everything after it (F1.5): the object is
+    never re-uploaded and the caller gets back the book that already exists,
+    at ``200`` rather than ``202`` since nothing was queued. A collision
+    against a *different* project's book is never reused (ETH-2, S9.8) — that
+    would either pool this upload into someone else's project or hand back an
+    id the caller cannot otherwise reach — and is reported as ``409`` instead.
 
-    if project is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="project not found"
-        )
+    A project owned by a different session's upload 404s here exactly like
+    every other book-scoped route, before anything is read off the file.
+    """
+    await session_privacy.get_visible_project(session, project_id, x_session_token)
 
     temp_path, content_hash = await _stream_to_temp_file(file)
 
     try:
-        existing = await repository.get_book_by_hash(session, content_hash)
+        existing = await repository.get_book_by_hash_in_project(
+            session, project_id, content_hash
+        )
 
         if existing is not None:
             return JSONResponse(
@@ -189,29 +291,49 @@ async def upload_book(
         storage_key = f"books/{book_id}/source.pdf"
         await store.put_stream(storage_key, temp_path, content_type="application/pdf")
 
-        book = await repository.create_book(
-            session,
-            id=book_id,
-            project_id=project_id,
-            title=title,
-            author=author,
-            content_hash=content_hash,
-            series_order=series_order,
-            storage_key=storage_key,
-        )
+        try:
+            book = await repository.create_book(
+                session,
+                id=book_id,
+                project_id=project_id,
+                title=title,
+                author=author,
+                content_hash=content_hash,
+                series_order=series_order,
+                storage_key=storage_key,
+            )
+        except IntegrityError:
+            # The hash matches a book in a *different* project — never reused
+            # (see the docstring). Clean up the object this request just wrote
+            # under its own book_id before reporting the conflict.
+            await store.delete_prefix(f"books/{book_id}/")
+
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "identical content has already been ingested under a "
+                    "different project; duplicate uploads across projects "
+                    "are not supported"
+                ),
+            ) from None
     finally:
         await anyio.to_thread.run_sync(temp_path.unlink, True)
 
     if book.id != book_id:
-        # Lost a concurrent-upload race for this content_hash: another
-        # request's row won, so the object just written at our own book_id is
-        # orphaned. Report the winner rather than a book nothing points at.
+        # Lost a concurrent-upload race for this content_hash within the same
+        # project: another request's row won, so the object just written at
+        # our own book_id is orphaned. Report the winner rather than a book
+        # nothing points at.
         await store.delete_prefix(f"books/{book_id}/")
 
         return JSONResponse(
             status_code=status.HTTP_200_OK,
             content={"status": "already_ingested", "book_id": str(book.id)},
         )
+
+    owner = await session_privacy.owning_session(session, project_id)
+    if owner is not None:
+        await session_privacy.record_upload(session, owner)
 
     await anyio.to_thread.run_sync(ingestion_chain(book.id).apply_async)
     out = await repository.get_book_out(session, book.id)
@@ -221,9 +343,12 @@ async def upload_book(
 
 @router.get("/books/{book_id}", response_model=BookOut)
 async def get_book(
-    book_id: UUID, session: SQLModelAsyncSession = Depends(get_session)
+    book_id: UUID,
+    x_session_token: str | None = Depends(_session_token),
+    session: SQLModelAsyncSession = Depends(get_session),
 ) -> BookOut:
     """Return one book."""
+    await session_privacy.get_visible_book(session, book_id, x_session_token)
     book = await repository.get_book_out(session, book_id)
 
     if book is None:
@@ -236,7 +361,9 @@ async def get_book(
 
 @router.get("/books/{book_id}/status", response_model=BookStatusOut)
 async def get_book_status(
-    book_id: UUID, session: SQLModelAsyncSession = Depends(get_session)
+    book_id: UUID,
+    x_session_token: str | None = Depends(_session_token),
+    session: SQLModelAsyncSession = Depends(get_session),
 ) -> BookStatusOut:
     """Return a book's ingestion progress, stage by stage.
 
@@ -247,13 +374,7 @@ async def get_book_status(
     fail, so the column alone would report every book "queued" forever,
     including one already dead-lettered (see HANDOFF.md).
     """
-    book = await repository.get_book(session, book_id)
-
-    if book is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="book not found"
-        )
-
+    await session_privacy.get_visible_book(session, book_id, x_session_token)
     stages = await repository.get_stage_statuses(session, book_id)
     run = await repository.get_latest_run(session, book_id)
 
@@ -299,6 +420,7 @@ def _first_incomplete_stage(statuses: list[StageStatus]) -> StageName | None:
 async def reprocess_book(
     book_id: UUID,
     from_stage: str | None = Query(default=None),
+    x_session_token: str | None = Depends(_session_token),
     session: SQLModelAsyncSession = Depends(get_session),
 ) -> BookStatusOut:
     """Re-run ingestion for a book from a named stage onward.
@@ -310,12 +432,7 @@ async def reprocess_book(
     a "Retry" action does not require the caller to already know which stage
     is dead-lettered.
     """
-    book = await repository.get_book(session, book_id)
-
-    if book is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="book not found"
-        )
+    await session_privacy.get_visible_book(session, book_id, x_session_token)
 
     if from_stage is not None:
         stage_name = _parse_stage(from_stage)
@@ -346,22 +463,31 @@ async def reprocess_book(
 
 
 @router.delete("/books/{book_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_book(book_id: UUID) -> None:
-    not_implemented(OWNER, "S8.8")
+async def delete_book(
+    book_id: UUID,
+    x_session_token: str | None = Depends(_session_token),
+    session: SQLModelAsyncSession = Depends(get_session),
+) -> None:
+    """Delete a book from every store it touched — Postgres, object storage,
+    and the graph and trace stores its ingestion wrote to (ETH-2, S9.8).
+
+    Idempotent (``session_privacy.delete_book_cascade``): a book that does not
+    exist, or was never visible to this caller, both 404 rather than silently
+    no-opping, since a caller must not be able to distinguish "already
+    deleted" from "never existed" for someone else's book.
+    """
+    await session_privacy.get_visible_book(session, book_id, x_session_token)
+    await session_privacy.delete_book_cascade(session, book_id)
 
 
 @router.get("/books/{book_id}/chapters", response_model=list[ChapterOut])
 async def list_chapters(
-    book_id: UUID, session: SQLModelAsyncSession = Depends(get_session)
+    book_id: UUID,
+    x_session_token: str | None = Depends(_session_token),
+    session: SQLModelAsyncSession = Depends(get_session),
 ) -> list[ChapterOut]:
     """Return a book's chapters, in page order, each with its chunk count."""
-    book = await repository.get_book(session, book_id)
-
-    if book is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="book not found"
-        )
-
+    await session_privacy.get_visible_book(session, book_id, x_session_token)
     chapters = await repository.list_chapters_out(session, book_id)
 
     return chapters
@@ -372,16 +498,11 @@ async def list_chunks(
     book_id: UUID,
     limit: int = Query(default=50, le=500),
     offset: int = 0,
+    x_session_token: str | None = Depends(_session_token),
     session: SQLModelAsyncSession = Depends(get_session),
 ) -> list[ChunkOut]:
     """Return a page of a book's chunks, in document order."""
-    book = await repository.get_book(session, book_id)
-
-    if book is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="book not found"
-        )
-
+    await session_privacy.get_visible_book(session, book_id, x_session_token)
     chunks = await repository.list_chunks_out(
         session, book_id, limit=limit, offset=offset
     )
@@ -391,7 +512,10 @@ async def list_chunks(
 
 @router.get("/books/{book_id}/pages/{page}", response_model=PageRenderOut)
 async def render_page(
-    book_id: UUID, page: int, session: SQLModelAsyncSession = Depends(get_session)
+    book_id: UUID,
+    page: int,
+    x_session_token: str | None = Depends(_session_token),
+    session: SQLModelAsyncSession = Depends(get_session),
 ) -> PageRenderOut:
     """Return a page's rendered image, dimensions and text-span boxes.
 
@@ -399,12 +523,7 @@ async def render_page(
     a re-request for the same page never re-touches the source. See
     ``pipeline/render.py`` and the coordinate contract in ``HANDOFF.md``.
     """
-    book = await repository.get_book(session, book_id)
-
-    if book is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="book not found"
-        )
+    book = await session_privacy.get_visible_book(session, book_id, x_session_token)
 
     if book.storage_key is None:
         raise HTTPException(

@@ -27,7 +27,7 @@ from ..workers.errors import PermanentError, TransientError
 from ..workers.locks import book_roster_lock, project_roster_lock
 from ..workers.policy import RETRY_POLICY
 from ..workers.stages import StageRecord, stage
-from . import repository, scene_stage
+from . import repository, scene_stage, session_privacy
 from .chunking import DocumentChunker
 from .storage import StorageError, store
 
@@ -429,3 +429,40 @@ def resolve_aliases(book_id: str) -> dict:
 def reconcile_characters(book_id: str) -> dict:
     """Merge this book's roster into the project-wide one."""
     return _execute(book_id, StageName.RECONCILE_CHARACTERS, _reconcile_characters)
+
+
+# Not one of the frozen ``STAGES`` — this runs on its own schedule, never as
+# part of ``ingestion_chain`` (S9.8's demo-upload TTL, do1's S9.5).
+_SWEEP_TASK_NAME = "pipeline.sweep_expired_upload_sessions"
+
+
+async def _sweep_expired_upload_sessions() -> dict:
+    async with db_session() as session:
+        return await session_privacy.sweep_expired_upload_sessions(session)
+
+
+@celery_app.task(name=_SWEEP_TASK_NAME)
+def sweep_expired_upload_sessions() -> dict:
+    """Delete every expired, not-yet-swept demo upload session's data.
+
+    Registered under its own name rather than a frozen stage — nothing
+    upstream ever enqueues this as part of a book's ingestion. It only runs
+    when something schedules it: a Celery beat entry (below) if a beat worker
+    is running, or a manual ``celery_app.send_task(...)`` / HTTP trigger
+    otherwise. **No beat service exists in ``docker-compose.yml`` yet** — that
+    file is do1-owned (BRANCH.md); see ``plans/sprint-9/HANDOFF.md`` for the
+    one-line service this needs at integration.
+    """
+    return asyncio.run(_sweep_expired_upload_sessions())
+
+
+# Wired here (be1's own module) rather than in the frozen ``api/tasks.py``, so
+# a beat worker picks this up the moment one exists without another edit to a
+# file this agent may not touch (BRANCH.md §1).
+celery_app.conf.beat_schedule = {
+    **(celery_app.conf.beat_schedule or {}),
+    _SWEEP_TASK_NAME: {
+        "task": _SWEEP_TASK_NAME,
+        "schedule": 3600.0,
+    },
+}
