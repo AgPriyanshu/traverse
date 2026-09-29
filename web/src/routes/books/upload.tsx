@@ -1,6 +1,7 @@
 import {
   Box,
   Button,
+  Checkbox,
   Field,
   HStack,
   Heading,
@@ -15,7 +16,7 @@ import { useRef, useState } from "react";
 import type { ChangeEvent, DragEvent } from "react";
 import { useNavigate } from "react-router";
 import { PageHeader } from "@/components/layout";
-import { ErrorState, LoadingSkeleton, toaster } from "@/components/ui";
+import { ErrorState, LoadingSkeleton, StatusDot, toaster } from "@/components/ui";
 import { UploadIcon } from "@/components/ui/icons";
 import type { ProjectKind, UploadProgress } from "@/lib/api";
 import {
@@ -25,7 +26,15 @@ import {
   useUploadBook,
 } from "@/lib/api";
 import { formatBytes } from "@/lib/format";
+import { EXTRACTION_PURPOSES, isEgress, useEffectivePolicy } from "@/lib/inference-mode";
 import { MAX_UPLOAD_BYTES, validateUpload } from "./validate-upload";
+
+const PURPOSE_LABEL: Record<string, string> = {
+  chapter_classify: "chapter detection",
+  character_extract: "character extraction",
+  relation_extract: "relationship extraction",
+  adjudicate: "adjudication",
+};
 
 type Destination = "existing" | "new";
 
@@ -61,6 +70,7 @@ export const Upload = () => {
   // A retry must not re-create the project or re-hash the file — it resends
   // exactly what the first attempt sent (S2.11).
   const [createdProjectId, setCreatedProjectId] = useState<string | null>(null);
+  const [egressConsent, setEgressConsent] = useState(false);
 
   // Refs.
   const inputRef = useRef<HTMLInputElement>(null);
@@ -72,13 +82,17 @@ export const Upload = () => {
   const projects = useProjects();
   const createProject = useCreateProject();
   const uploadBook = useUploadBook();
+  const { policy: routingPolicy, isLive: routingPolicyIsLive } = useEffectivePolicy();
 
   // Variables.
   const submitError = uploadBook.error ?? createProject.error;
+  const egressPurposes = EXTRACTION_PURPOSES.filter((purpose) => isEgress(routingPolicy[purpose]));
+  const needsEgressConsent = egressPurposes.length > 0;
   const canSubmit =
     file !== null &&
     fileError === null &&
-    (destination === "existing" ? projectId !== "" : projectName.trim() !== "");
+    (destination === "existing" ? projectId !== "" : projectName.trim() !== "") &&
+    (!needsEgressConsent || egressConsent);
   const isSubmitting = uploadBook.isPending || createProject.isPending;
 
   // Handlers.
@@ -359,6 +373,38 @@ export const Upload = () => {
               </NativeSelect.Root>
             </Field.Root>
           ) : null}
+        </Stack>
+
+        <Stack gap="4">
+          <SectionHeading step={3} title="Where this book's content goes" />
+
+          {needsEgressConsent ? (
+            <Stack
+              gap="3"
+              borderWidth="1px"
+              borderColor="status.warn"
+              borderRadius="lg"
+              bg="bg.sunken"
+              padding="4"
+            >
+              <StatusDot
+                tone="warn"
+                label={`This book will be sent to a frontier API for ${egressPurposes.map((purpose) => PURPOSE_LABEL[purpose]).join(", ")}, under the current routing policy${routingPolicyIsLive ? "" : " (preview — live routing not wired up yet, S9.6)"}.`}
+              />
+              <Checkbox.Root
+                checked={egressConsent}
+                onCheckedChange={(details) => { setEgressConsent(details.checked === true); }}
+              >
+                <Checkbox.HiddenInput />
+                <Checkbox.Control />
+                <Checkbox.Label textStyle="small" color="fg">
+                  I understand this book&apos;s pages will leave this machine and be sent to an external API for processing.
+                </Checkbox.Label>
+              </Checkbox.Root>
+            </Stack>
+          ) : (
+            <StatusDot tone="ok" label="Fully local — this book's content never leaves this machine." />
+          )}
         </Stack>
 
         <Stack gap="4">

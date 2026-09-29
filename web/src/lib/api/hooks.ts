@@ -628,3 +628,36 @@ export const useSetRoutingPolicy = () => {
     },
   });
 };
+
+export const useQueryLatency = (projectId: string | undefined) => {
+  return useQuery({
+    queryKey: queryKeys.queryLatency(projectId ?? ""),
+    queryFn: () =>
+      request(() =>
+        client.GET("/api/ops/query-latency", {
+          params: { query: { project_id: projectId as string } },
+        }),
+      ),
+    enabled: Boolean(projectId),
+  });
+};
+
+type ReviewAlertsParams = QueryParams<"/api/ops/review-alerts", "get">;
+
+export const useReviewAlerts = (params?: ReviewAlertsParams) => {
+  return useQuery({
+    queryKey: queryKeys.reviewAlerts(params),
+    queryFn: () =>
+      request(() =>
+        client.GET("/api/ops/review-alerts", { params: { query: params } }),
+      ),
+  });
+};
+
+export const useEvalRunLatest = () => {
+  return useQuery({
+    queryKey: queryKeys.evalRunLatest(),
+    queryFn: () => request(() => client.GET("/api/ops/eval-runs/latest")),
+    retry: false,
+  });
+};

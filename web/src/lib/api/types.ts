@@ -102,6 +102,12 @@ export type Metrics = Schemas["MetricsOut"];
 export type IngestionRun = Schemas["IngestionRunOut"];
 export type DeadLetter = Schemas["DeadLetterOut"];
 export type RoutingPolicy = Schemas["RoutingPolicyOut"];
+export type QueryLatency = Schemas["QueryLatencyOut"];
+export type ReviewAlerts = Schemas["ReviewAlertsOut"];
+export type EvalRun = Schemas["EvalRunOut"];
+export type EvalResult = Schemas["EvalResultOut"];
+export type AblationConfig = Schemas["AblationConfig"];
+export type MetricSet = Schemas["MetricSet"];
 
 /** The query-string parameters the contract declares for one operation. */
 export type QueryParams<

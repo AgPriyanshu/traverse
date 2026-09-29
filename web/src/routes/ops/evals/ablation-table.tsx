@@ -1,4 +1,4 @@
-import { Badge, Box, Button, HStack, Heading, Stack, Table, Text } from "@chakra-ui/react";
+import { Badge, Box, Button, HStack, Heading, Stack, Table, Text, VisuallyHidden } from "@chakra-ui/react";
 import { formatPercent } from "@/lib/format";
 import {
   AXIS_LABEL,
@@ -73,7 +73,7 @@ export const AblationTable = ({ results, onDrillIn }: AblationTableProps) => {
                         {metric === "spoiler_leakage_rate" ? "Spoiler leakage" : metric === "ece" ? "ECE" : metric[0]?.toUpperCase() + metric.slice(1)}
                       </Table.ColumnHeader>
                     ))}
-                    <Table.ColumnHeader />
+                    <Table.ColumnHeader><VisuallyHidden>Actions</VisuallyHidden></Table.ColumnHeader>
                   </Table.Row>
                 </Table.Header>
                 <Table.Body>

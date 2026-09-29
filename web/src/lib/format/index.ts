@@ -122,6 +122,32 @@ export const formatPercent = (value: number | null | undefined, digits = 1): str
   return `${(value * 100).toFixed(digits)}%`;
 };
 
+/**
+ * USD, adaptive precision — a per-query cost ($0.0034) and a rolling total
+ * ($128.40) round to zero and lose all resolution at the same fixed digit
+ * count, so anything under a dollar keeps 4 places and anything at or above
+ * it keeps 2.
+ */
+export const formatCurrency = (value: number | null | undefined): string => {
+  if (value === null || value === undefined) { return "—"; }
+  const digits = Math.abs(value) < 1 ? 4 : 2;
+  return `$${value.toLocaleString(undefined, {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  })}`;
+};
+
+/** A signed percentage-point delta — "+3.0 pts" / "−3.0 pts" / "0.0 pts", never a bare "-3". */
+export const formatPointsDelta = (
+  value: number | null | undefined,
+  digits = 1,
+): string => {
+  if (value === null || value === undefined) { return "—"; }
+  const points = value * 100;
+  const sign = points > 0 ? "+" : points < 0 ? "−" : "±";
+  return `${sign}${Math.abs(points).toFixed(digits)} pts`;
+};
+
 const KILOBYTE = 1024;
 
 export const formatBytes = (bytes: number): string => {

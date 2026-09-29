@@ -2,6 +2,7 @@ import { Box, Flex, HStack, Span } from "@chakra-ui/react";
 import { Link as RouterLink } from "react-router";
 import { ColorModeToggle } from "@/components/ui/color-mode-toggle";
 import { HealthIndicator } from "./health-indicator";
+import { InferenceModeIndicator } from "./inference-mode-indicator";
 import { NavLinks } from "./nav-links";
 import { PRIMARY_NAV } from "./nav-items";
 
@@ -46,7 +47,8 @@ export const TopBar = () => {
           </HStack>
         </RouterLink>
 
-        <HStack gap="1">
+        <HStack gap="1" wrap="wrap" justify="flex-end">
+          <InferenceModeIndicator />
           <HealthIndicator />
           <ColorModeToggle />
         </HStack>

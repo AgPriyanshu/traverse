@@ -10,6 +10,10 @@ const notImplemented = (path: string) =>
   );
 
 const ROUTES: [path: string, heading: RegExp][] = [
+  // The landing screen's own heading is static, not data-derived, so it
+  // renders the same whether `useProjects()` 501s (this file's default
+  // mock) or succeeds — unlike most rows below.
+  ["/", /ask a novel anything/i],
   ["/books", /library/i],
   ["/books/upload", /add a book/i],
   ["/books/abc-123", /ingestion/i],
@@ -34,7 +38,11 @@ const ROUTES: [path: string, heading: RegExp][] = [
   ["/projects/p-1/characters/c-1", /not built yet/i],
   ["/projects/p-1/graph", /not built yet/i],
   ["/projects/p-1/ask", /not built yet/i],
-  ["/ops", /the operations dashboard is not built yet/i],
+  // Real as of S9.10 — every panel calls its own live endpoint and each
+  // 501s independently under this test's default mock, so several "Not
+  // built yet" headings render at once; the dashboard's own static "Operations"
+  // heading (not data-derived) is the one unique match.
+  ["/ops", /^operations$/i],
   // Real as of S8.7 — fixture-backed (no live route yet, see
   // plans/sprint-8/HANDOFF.md), so it renders without an API call at all.
   ["/ops/evals", /evaluation results/i],
@@ -78,10 +86,10 @@ describe("the route table", () => {
     expect(consoleError).not.toHaveBeenCalled();
   });
 
-  it("redirects the root to the library", async () => {
+  it("renders the public landing screen at the root (S9.13)", async () => {
     renderRoute("/");
     expect(
-      await screen.findByRole("heading", { name: /library/i }),
+      await screen.findByRole("heading", { name: /ask a novel anything/i }),
     ).toBeInTheDocument();
   });
 

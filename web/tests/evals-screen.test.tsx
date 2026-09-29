@@ -1,6 +1,7 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
+import { expectNoAxeViolations } from "./axe";
 import { renderRoute } from "./render";
 
 describe("the eval results screen (S8.7)", () => {
@@ -19,6 +20,13 @@ describe("the eval results screen (S8.7)", () => {
 
     const model = screen.getByRole("heading", { name: /^model$/i }).closest("section") as HTMLElement;
     expect(within(model).getAllByText(/routed/i).length).toBeGreaterThan(0);
+  });
+
+  it("has no automatically detectable accessibility violations (S9.12)", async () => {
+    const { container } = renderRoute("/ops/evals");
+    await screen.findByRole("heading", { name: /evaluation results/i });
+
+    await expectNoAxeViolations(container);
   });
 
   it("shows a delta against the axis baseline for a non-baseline row", async () => {

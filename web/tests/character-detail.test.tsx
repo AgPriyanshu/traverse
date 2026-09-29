@@ -1,6 +1,7 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { expectNoAxeViolations } from "./axe";
 import { renderRoute } from "./render";
 
 const PROJECT_ID = "project-1";
@@ -116,6 +117,20 @@ describe("the character detail page", () => {
     expect(screen.getAllByText("Protagonist").length).toBeGreaterThan(0);
     expect(screen.getByText("nickname table")).toBeInTheDocument();
     expect(screen.getByText("Red")).toBeInTheDocument();
+  });
+
+  it("has no automatically detectable accessibility violations (S9.12)", async () => {
+    mockApi({
+      [`/api/books/${BOOK_1}/chapters`]: [chapter(), chapter({ id: "ch-2", number: 2, page_start: 41, page_end: 90 })],
+      [`/api/projects/${PROJECT_ID}`]: project(),
+      [`/api/characters/${CHARACTER_ID}/mentions`]: [mention()],
+      [`/api/characters/${CHARACTER_ID}`]: characterDetail(),
+    });
+
+    const { container } = renderRoute(`/projects/${PROJECT_ID}/characters/${CHARACTER_ID}`);
+    await screen.findByRole("heading", { name: "Anne Shirley" });
+
+    await expectNoAxeViolations(container);
   });
 
   it("lists a per-book appearance with first page, tier, mentions, and aliases for that book", async () => {

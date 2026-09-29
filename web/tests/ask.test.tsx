@@ -1,6 +1,7 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetConversations } from "@/routes/ask/conversation-store";
+import { expectNoAxeViolations } from "./axe";
 import { renderRoute } from "./render";
 
 const BOOK_ID = "book-1";
@@ -169,6 +170,19 @@ describe("the ask screen", () => {
     ).toBeInTheDocument();
   });
 
+  it("labels the inference mode at the point of use (S9.11, ETH-4)", async () => {
+    mockApi();
+    renderRoute(`/books/${BOOK_ID}/ask`);
+
+    // `GET /ops/routing-policy` isn't stubbed by this file's `mockApi`, so it
+    // falls through to the generic 404 — the same "policy unavailable, fall
+    // back to fully local" path `@/lib/inference-mode`'s `useEffectivePolicy`
+    // takes under be2's real S9.6 501 stub.
+    expect(
+      await screen.findByText(/this question is answered fully on this machine/i),
+    ).toBeInTheDocument();
+  });
+
   it("streams tokens and renders an inline, clickable citation with its own claim", async () => {
     mockApi({ onQuery: () => ANSWER_FRAMES });
     renderRoute(`/books/${BOOK_ID}/ask`);
@@ -187,6 +201,16 @@ describe("the ask screen", () => {
 
     // The route decision is shown, subtly (S6.10).
     expect(await screen.findByText(/answered from the character record/i)).toBeInTheDocument();
+  });
+
+  it("has no automatically detectable accessibility violations, mid-conversation (S9.12)", async () => {
+    mockApi({ onQuery: () => ANSWER_FRAMES });
+    const { container } = renderRoute(`/books/${BOOK_ID}/ask`);
+
+    fireEvent.click(await screen.findByRole("button", { name: /who is elizabeth bennet/i }));
+    await screen.findByTestId("answer-text");
+
+    await expectNoAxeViolations(container);
   });
 
   it("renders an abstention as a considered answer, not an error", async () => {

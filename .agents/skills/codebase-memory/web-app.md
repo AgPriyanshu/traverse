@@ -191,6 +191,136 @@ generated `Schemas[...]` types the moment a real route exists —
 two imports from `./fixtures`). 233 Vitest tests, all passing; `pnpm
 tsc --noEmit`, `pnpm lint`, `pnpm build` all clean.
 
+**Built (S9.10, fe1):** the ops dashboard (`routes/ops/dashboard/`, real route
+at `/ops`, replacing the `<NotYetBuilt>` stub) — four panels in reading order:
+`cost-panel.tsx` (live off `GET /ops/metrics` with no `book_id`, which sums
+every run ever recorded — `StackedCostBar` renders cost-by-stage as one hue at
+a graduated opacity step per stage rather than a fabricated categorical
+palette, since `tokens.ts` has no per-stage colour and is frozen),
+`performance-panel.tsx` (live off `GET /ops/query-latency`, project-scoped —
+picks one project via a `NativeSelect`, no cross-project aggregate route
+exists; `PercentileBarChart` renders p50/p95/p99 as one hue at three opacity
+steps, an ordered-magnitude encoding, not three categorical colours; the
+GPU/KV-occupancy and queue-depth half of F7.2 has no contract field yet,
+do1's S9.2, and is a labelled placeholder rather than a fabricated chart),
+`health-panel.tsx` (live off `GET /ops/pipeline/runs`, `/pipeline/dead-letter`,
+`/review-alerts`, `GET /books` for title lookup — folds the review queue's own
+alerts in, since a stuck queue is as much a health signal as a failed stage),
+and `routing-control-panel.tsx`, the F7.3 "closing-argument screen": per-purpose
+model selection (`answer`/`judge` foregrounded, the four extraction purposes
+collapsed) that recomputes cost-per-query and the eval accuracy delta
+together on every change, client-side, before any network round trip.
+
+Two honest seams in the routing panel, both commented in
+`routing-control-panel.tsx` and `fixtures.ts`: (1) `GET/PUT /ops/routing-policy`
+are still `not_implemented` stubs (S9.6, be2) — the panel opens on a local
+`DEFAULT_POLICY` fixture and edits entirely client-side; "Apply to live
+traffic" attempts the real `PUT` and reports whether it actually took, same
+pattern as `useSetRoutingPolicy`'s existing S1 scaffolding. (2) cost-per-query
+is a labelled fixture unit-cost table (`fixtures.ts`'s `PURPOSE_UNIT_COST_USD`)
+— there is no live per-call cost meter (`CostBreakdown`, `./types.ts`, has no
+route yet, and FastAPI only emits a schema for a type a route references, so
+it can never come from `pnpm gen:api` until one exists). Accuracy is real
+when this worktree's database has a recorded ablation run
+(`GET /ops/eval-runs/latest`, built since S8.8 — confirmed live against the
+shared integration stack, which had a real run recorded) and falls back to a
+labelled fixture (`FALLBACK_MODEL_AXIS_RESULTS`) only when it 404s, same
+graceful-degrade shape as the S8.7 evals screen.
+
+**`schema.d.ts` was regenerated against the shared integration stack's live
+API** (`API_URL=http://localhost:8000 pnpm gen:api`) while building this —
+`EvalRunOut`/`EvalResultOut`/`AblationConfig`/`MetricSet`/`ReviewAlertsOut`/
+`QueryLatencyOut` are now generated types (`lib/api/types.ts` re-exports them
+as `EvalRun`/`EvalResult`/`AblationConfig`/`MetricSet`/`ReviewAlerts`/
+`QueryLatency`), where before only `evals/types.ts`'s S8.7 hand-mirror had
+them. **`evals/types.ts` was deliberately left as-is** (out of S9.10's scope
+to refactor Sprint 8 code); a future sprint touching that screen should switch
+it to the generated types and delete the duplicate, per its own file-header
+note. 235 Vitest tests, all passing (`tests/ops-dashboard.test.tsx` proves the
+routing panel's core claim — selecting a different model for `answer` moves
+both the cost tile and the accuracy tile in the same render); `pnpm
+tsc --noEmit`, `pnpm lint`, `pnpm build` all clean (`pnpm build`'s `vite
+build` step itself verified via a scratch `--outDir`, since this worktree's
+checked-in `dist/` had root-owned files left over from an unrelated prior
+container run and is gitignored either way).
+
+**Built (S9.11, fe1):** inference-mode labelling (ETH-4/NFR-residency) —
+`lib/inference-mode.ts` is the one shared definition of `LlmPurpose`/
+`ModelChoice`/`PurposePolicy`/`DEFAULT_POLICY`/`isEgress`, and the
+`useEffectivePolicy()` hook every consumer below reads through: live off
+`GET /ops/routing-policy` when it answers, `DEFAULT_POLICY` (fully local
+except the eval-only `judge` purpose) when it 501s — the same graceful-degrade
+shape S9.10's routing panel already used, now factored out so both read one
+definition rather than two that can drift. Three consumers:
+`components/layout/inference-mode-indicator.tsx` (persistent, in `<TopBar>`
+next to `<HealthIndicator>` — reads the `answer` purpose specifically, since
+that is what a live ask actually calls), `routes/ask/inference-mode-note.tsx`
+(the same fact repeated at the point of use, directly above `<AskComposer>`),
+and `routes/books/upload.tsx`'s new step 3 (reads `EXTRACTION_PURPOSES` —
+`chapter_classify`/`character_extract`/`relation_extract`/`adjudicate` — and
+gates the submit button on a `Checkbox` consent when any of them would leave
+the machine; no gate at all, just a reassurance line, when they're all local).
+`plans/sprint-9/SCR.md` SCR-1 flags the real gap this can't close yet: no
+`QueryEvent` carries which mode *actually* served a given past answer (only
+the current policy), since `DoneEvent`/`RouteEvent` have no such field —
+`QueryRoute` is the retrieval classification, not the inference mode. 240
+Vitest tests, all passing (`tests/inference-mode.test.tsx` plus one added to
+`tests/ask.test.tsx`); `pnpm tsc --noEmit`, `pnpm lint`, `pnpm build` clean.
+
+**Built (S9.12, fe1):** the accessibility pass (NFR-a11y) — `jest-axe` +
+`axe-core` added as devDependencies (no dedicated Vitest entry point exists,
+so `tests/axe.ts` wires `expect.extend`/the `toHaveNoViolations` matcher and
+augments Vitest's own `Assertion` interface by hand, `tests/setup.ts` calls
+`expect.extend` once for every test file). A real `runAxe(container)` check
+was added to the highest-interactivity screens the brief named first — the
+review queue, the graph explorer's list view (its documented non-visual
+equivalent), and both ops-dashboard states — plus character detail, the ask
+screen (landing and mid-conversation), and the evals screen. **Found and
+fixed three real violations, not zero**, which is the honest signal this
+sweep did something: (1) `percentile-bar-chart.tsx` used `role="table"`/
+`role="row"` on plain `<div>`s with no `cell`/`columnheader` children —
+`aria-required-children` failure, fixed by switching to `role="list"`/
+`role="listitem"`, which carries no such requirement; (2) `ablation-table.tsx`
+had an empty `<Table.ColumnHeader />` for the drill-down button column —
+`empty-table-header`, fixed with a `<VisuallyHidden>Actions</VisuallyHidden>`
+label; (3) `routing-control-panel.tsx`'s cost-trend `<svg>` had a literal
+`width={560}` with no responsive scaling — not an axe finding but a genuine
+400px overflow bug, caught by a manual widths grep across `src/` rather than
+axe (axe does not check viewport overflow), fixed the same way
+`sparkline-bars.tsx` already does it elsewhere (`width="100%"` +
+`viewBox`, `preserveAspectRatio`). **What this sweep did not do**: a live
+Lighthouse or browser-driven axe run against a running dev server (no
+browser-automation tool was available in this session) — `runAxe` is
+axe-core against jsdom-rendered markup, which catches ARIA/name/role/table
+structure but not real paint-time layout overflow, so the widths grep above
+is a deliberate supplement, not a redundant belt-and-braces check. Contrast
+(`tests/contrast.test.ts`, Sprint 1) and the review queue's keyboard-only
+speed proof (`tests/review-speed.test.tsx`, Sprint 7) were already built and
+were re-run, not re-authored, as part of confirming this sweep's baseline.
+246 Vitest tests, all passing; `pnpm tsc --noEmit`, `pnpm lint`, `pnpm build`
+clean.
+
+**Built (S9.13, fe1):** the public landing state (PRD §9.1) —
+`routes/landing/landing.tsx`, now mounted at `/` in place of the old
+`<Navigate to="/books">`. `featuredProjectFor()` picks a project to
+showcase (a slug matching `pride.?and.?prejudice`, else the one with the
+most characters, else none) from whatever `useProjects()` returns — no
+project id is hardcoded, so this works against a freshly seeded demo
+instance or a from-scratch dev checkout alike. Reuses `<SuggestedQuestions>`
+(S6.10, already built for exactly this "never a blank landing state" job)
+and wires its `onAsk` to navigate to `/projects/:id/ask?q=<question>`, which
+`AskScreen`'s new `autoAskQuestion` prop (read from `?q=` by `project/ask.tsx`)
+asks automatically on mount — a real click-to-cited-answer path through the
+same SSE/citation machinery every other ask route uses, not a landing-only
+reimplementation. Zero projects renders an upload-onboarding `<EmptyState>`
+rather than a blank page. The upload sandbox's quota (PRD §11: one PDF, ≤150
+pages, auto-deleted after 24h) is stated as plain copy on both the landing
+page and would need the same treatment on `books/upload.tsx` if do1's S9.5
+backend enforcement ships a live quota field to render instead — today it is
+UI-only messaging, not backed by a live route. 252 Vitest tests, all passing
+(`tests/landing.test.tsx`, axe-checked); `pnpm tsc --noEmit`, `pnpm lint`,
+`pnpm build` clean.
+
 **Known gap:** `MentionOut` and `EvidenceOut` carry a page but no `SpanBox`, so their click-through lands on the page without a highlight (Sprint 3 SCR-9, Sprint 4 SCR-10). The roster sparkline gap (Sprint 3 SCR-1) is closed for the single-book roster; its series-roster descendant reopens a version of it (Sprint 5 SCR-1 — see above).
 
 `web/src/design-system/tokens.ts` **exists** (DCR-1, landed at the Sprint 2
@@ -243,10 +373,12 @@ src/
                               spelled key.
       query-client.ts           createQueryClient() — no retry on 4xx/501.
       hooks.ts                  One TanStack hook per contract endpoint. Notable:
-                              `useLibrary()` fans out `useProjects` + `useQueries`
-                              over `GET /projects/{id}` because there is no flat
-                              book list yet (SCR-1) — collapses to one call with no
-                              screen change when that lands. `useBookStatus` polls
+                              `useBooks()` (`GET /api/books`, flat across every
+                              project) plus `useProjects()` is what `library.tsx`
+                              and `landing.tsx` (S9.13) both read — the fan-out
+                              `useLibrary()` hook this map once planned (SCR-1)
+                              was never built; the flat books endpoint landed
+                              instead and made it unnecessary. `useBookStatus` polls
                               at 2s, backs off to 10s after 5 minutes (a ref tracks
                               poll start per bookId), and returns `false` on a
                               terminal status or a query error. `useUploadBook`
@@ -496,8 +628,8 @@ project roster.
 
 | Route | Screen | Sprint |
 | --- | --- | --- |
-| `/` | redirect to `/books` | Built |
-| `/books` | library (real data via `useLibrary`) | Built |
+| `/` | public landing — featured demo project, 3 suggested questions, upload-sandbox pointer | Built (S9.13) |
+| `/books` | library (real data via `useBooks`+`useProjects`) | Built |
 | `/books/upload` | upload — drag/drop, PDF+200MB validation, real 501 error surface | Built |
 | `/books/:id` | ingestion progress stepper, retry-from-stage, local ETA | Built |
 | `/books/:id/chapters` | chapters + chunk inspector | Built |
@@ -511,7 +643,7 @@ project roster.
 | `/projects/:id/characters/:cid` | character detail + appearances section (moved from `/books/:id/...`, S3.11) | Built (S5) |
 | `/projects/:id/graph` | series graph, book filter, reading-position slider (moved from `/books/:id/graph`, S4) | Built (S5) |
 | `/projects/:id/ask` | Q&A with citations, scoped to the project's reading position (S8.6) | Built (S6) |
-| `/ops` | operations dashboard | S9 |
+| `/ops` | operations dashboard — cost, performance, health, routing control | Built (S9.10) |
 | `/ops/evals` | ablation table + calibration + trend, fixture-backed pending a live route | Built (S8.7) |
 
 ## Key components
@@ -550,9 +682,10 @@ project roster.
   it cross-origin. `vite.config.ts` proxies `/api` and `/health` to
   `VITE_API_BASE_URL` in dev; the container must do the same with nginx. The
   client always requests same-origin (`API_BASE_URL = window.location.origin`).
-- The contract has **no flat book list** (SCR-1) — only `ProjectDetailOut.books`.
-  `useLibrary()` is the one hook that fans out; every screen should read
-  through it rather than re-deriving books from `useProjects` + N detail calls.
+- **SCR-1 is resolved** — the contract gained a flat `GET /api/books` at some
+  point after this gotcha was written, so `useBooks()` reads it directly; the
+  fan-out `useLibrary()` hook this entry used to describe was never built and
+  should not be assumed to exist.
 - Chakra v3's `<Icon>` defaults to `asChild` — see `components/ui/icons.tsx`.
 - URL search params hold filters, selected entity, page, and the spoiler chapter
   limit — citations are links and must survive a reload. First exercised at
