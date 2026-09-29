@@ -27,6 +27,7 @@ from ..extraction.resolution import CharacterRef, resolve_names
 from ..graph import ontology
 from ..graph import queries as graph_queries
 from ..graph import repository as graph_repository
+from ..llm import routing as llm_routing
 from ..pipeline.timing import QueryTimer
 from . import conversation as conversation_mod
 from . import gender, generation, grounding, repository, retrieval, router
@@ -468,8 +469,24 @@ async def _finish(
     for index, citation in enumerate(answer.citations):
         yield CitationEvent(type="citation", index=index, citation=citation)
 
+    # Captured before any commit below: ``write_query_log``/``record_turn``
+    # each commit on this same request-scoped session, which (unlike the
+    # test session, ``api/tests/conftest.py``) defaults to
+    # ``expire_on_commit=True``. Reading ``conversation.id``/``.project_id``
+    # synchronously after that expires them mid-generator raised
+    # ``greenlet_spawn has not been called`` on every query route — a real,
+    # previously-unfixed bug (Sprint 8 retro, do1) — because SQLAlchemy's
+    # async session cannot refresh an expired attribute outside an awaited
+    # call. Capturing the plain values once, up front, avoids ever touching
+    # the ORM object again after it is expired.
+    conversation_id = conversation.id
+    conversation_project_id = conversation.project_id
+
     resolved_ids = [ref.character_id for ref in resolved]
     resolved_names = [ref.canonical_name for ref in resolved]
+
+    live_policy = llm_routing.get_live_policy()
+    policy_version = live_policy[0] if live_policy is not None else None
 
     log = await repository.write_query_log(
         session,
@@ -483,10 +500,11 @@ async def _finish(
         latency_ms=timer.as_dict(),
         limit_book_order=request.limit_book_order,
         limit_chapter=request.limit_chapter,
+        policy_version=policy_version,
     )
     await conversation_mod.record_turn(
         session,
-        conversation_id=conversation.id,
+        conversation_id=conversation_id,
         question=request.question,
         answer=answer.text,
         resolved_character_ids=resolved_ids,
@@ -498,11 +516,12 @@ async def _finish(
         conversation,
         limit_book_order=request.limit_book_order,
         limit_chapter=request.limit_chapter,
+        project_id=conversation_project_id,
     )
 
     yield DoneEvent(
         type="done",
-        thread_id=conversation.id,
+        thread_id=conversation_id,
         citation_count=len(answer.citations),
         latency_ms=timer.as_dict().get("total_ms"),
         abstained=answer.abstained,

@@ -7,6 +7,7 @@ the same Langfuse trace — a silent retry would corrupt Sprint 9's cost
 accounting (F7.1).
 """
 
+import logging
 from typing import Any, TypeVar
 
 from langchain.messages import HumanMessage
@@ -14,9 +15,16 @@ from pydantic import BaseModel
 
 from ..contracts.enums import InferenceMode, LLMPurpose
 from .client import get_llm, semaphore
-from .errors import LengthLimitError, PermanentLLMError, classify_call_error
-from .routing import route_for
+from .errors import (
+    LengthLimitError,
+    PermanentLLMError,
+    TransientLLMError,
+    classify_call_error,
+)
+from .routing import FRONTIER_ELIGIBLE_PURPOSES, ModelRoute, route_for
 from .tracing import trace_generation
+
+logger = logging.getLogger(__name__)
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -60,13 +68,63 @@ async def structured_call(
         PermanentLLMError: The reply still fails schema validation on the
             second attempt.
         TransientLLMError: The call itself failed for a reason a later
-            attempt could plausibly survive (network, 5xx, 429, timeout).
-            Not retried here — see ``errors.py``; that retry is Celery's job.
+            attempt could plausibly survive (network, 5xx, 429, timeout). Not
+            retried here in general -- see ``errors.py``; that retry is
+            Celery's job. The one exception is a frontier call for
+            ``adjudicate``/``answer``/``judge`` (S9.7's circuit breaker,
+            backend-2.md's DoD: "a frontier outage must degrade, not fail"):
+            that gets one immediate local retry before this propagates, since
+            a query-path caller has no Celery task to retry it for.
     """
     route = route_for(purpose, mode=mode)
-    model = get_llm(purpose, mode=mode).with_structured_output(
-        schema, include_raw=True
-    )
+
+    try:
+        return await _structured_call_once(
+            prompt,
+            schema,
+            purpose=purpose,
+            book_id=book_id,
+            stage=stage,
+            route=route,
+            mode=mode,
+        )
+    except TransientLLMError:
+        if not route.frontier or purpose not in FRONTIER_ELIGIBLE_PURPOSES:
+            raise
+
+        logger.warning(
+            "purpose=%s frontier call failed transiently; falling back to "
+            "local vLLM for this call (circuit breaker, S9.7) instead of "
+            "surfacing the outage to a caller with no Celery retry of its own.",
+            purpose.value,
+        )
+        local_route = route_for(purpose, mode=InferenceMode.LOCAL)
+        return await _structured_call_once(
+            prompt,
+            schema,
+            purpose=purpose,
+            book_id=book_id,
+            stage=stage,
+            route=local_route,
+            mode=InferenceMode.LOCAL,
+        )
+
+
+async def _structured_call_once(
+    prompt: str,
+    schema: type[T],
+    *,
+    purpose: LLMPurpose,
+    book_id: str | None,
+    stage: str | None,
+    route: ModelRoute,
+    mode: InferenceMode | None,
+) -> T:
+    """One routed attempt sequence -- the pre-S9.7 body of ``structured_call``,
+    unchanged apart from taking its resolved ``route`` from the caller so the
+    circuit breaker above can re-run it against a forced-local route without
+    re-deriving (and risking disagreeing about) which model actually answered."""
+    model = get_llm(purpose, mode=mode).with_structured_output(schema, include_raw=True)
 
     current_prompt = prompt
     parsing_error: BaseException | None = None

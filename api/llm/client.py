@@ -18,6 +18,16 @@ from .routing import route_for
 _semaphore: asyncio.Semaphore | None = None
 _semaphore_loop: asyncio.AbstractEventLoop | None = None
 
+# No timeout existed anywhere in api/llm before this (Sprint 8 retro, do1) --
+# a wedged vLLM connection or a hung frontier request just blocked its
+# semaphore slot forever instead of failing into the transient-error retry
+# path. The openai SDK raises ``APITimeoutError``, a subclass of
+# ``APIConnectionError`` (see ``api/llm/errors.py::classify_call_error``), so
+# a timeout already lands as a retryable ``TransientLLMError`` once this is
+# set -- no error-classification change needed, only the missing deadline.
+_LOCAL_REQUEST_TIMEOUT_S = 60.0
+_FRONTIER_REQUEST_TIMEOUT_S = 120.0
+
 
 def semaphore() -> asyncio.Semaphore:
     """Return the concurrency limiter for the running event loop, sized from settings.
@@ -61,6 +71,7 @@ def get_llm(purpose: LLMPurpose, *, mode: InferenceMode | None = None) -> ChatOp
             model=route.model,
             base_url=route.base_url,
             api_key=api_key or SecretStr("not-needed"),
+            timeout=_FRONTIER_REQUEST_TIMEOUT_S,
         )
 
     # Qwen3 reasons before answering unless told not to, and without a cap a
@@ -72,6 +83,7 @@ def get_llm(purpose: LLMPurpose, *, mode: InferenceMode | None = None) -> ChatOp
         base_url=route.base_url,
         api_key=SecretStr("not-needed"),
         max_tokens=settings.llm_max_output_tokens,
+        timeout=_LOCAL_REQUEST_TIMEOUT_S,
         extra_body={
             "chat_template_kwargs": {"enable_thinking": settings.llm_enable_thinking}
         },
