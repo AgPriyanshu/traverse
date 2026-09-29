@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
 from ..contracts.api import (
+    CostBreakdown,
     DeadLetterOut,
     EvalRunOut,
     HealthOut,
@@ -18,8 +19,17 @@ from ..ops import gather_health, pipeline_status
 from ..ops.ablation import get_eval_run, get_latest_eval_run
 from ..ops.answer_judge import AnswerJudgment, JudgeAnswerRequest, judge_answer
 from ..ops.answer_quality import AnswerQualityOut, compute_answer_quality
+from ..ops.budget_guard import BudgetStatusOut, compute_budget_status
+from ..ops.cost_telemetry import (
+    compute_cost_breakdown,
+    list_cost_snapshots,
+    rolling_window,
+    save_cost_snapshot,
+)
 from ..ops.extraction_cost import ExtractionCostOut, compute_extraction_cost
 from ..ops.extraction_quality import ExtractionQualityOut, compute_extraction_quality
+from ..ops.performance_telemetry import PerformanceOut, compute_performance
+from ..ops.pipeline_health import PipelineHealthOut, compute_pipeline_health
 from ..ops.query_latency import QueryLatencyOut, compute_query_latency
 from ..ops.reconciliation_quality import (
     ReconciliationQualityOut,
@@ -61,6 +71,90 @@ async def metrics(
     """Per-stage cost and timing (S2.17). ``prefix_cache_hit_rate`` is live from
     vLLM as of S3.15 (``api/ops/vllm_metrics.py``) when running local inference."""
     return await pipeline_status.get_metrics(session, book_id=book_id)
+
+
+@router.get("/ops/cost-breakdown", response_model=CostBreakdown)
+async def cost_breakdown(
+    window: str = Query(default="daily", pattern="^(daily|monthly)$"),
+    persist: bool = Query(default=False),
+    session: SQLModelAsyncSession = Depends(get_session),
+) -> CostBreakdown:
+    """Rolling cost by stage and by purpose, plus query/book counts (S9.1, F7.1).
+
+    ``window=daily`` is the last 24h, ``window=monthly`` the last 30 days --
+    both always computed live from ``IngestionStage``/``QueryLog``, never from
+    a stale snapshot. ``persist=true`` additionally writes the result to
+    ``cost_snapshot`` so ``GET /ops/cost-snapshots`` has a point to plot; a
+    plain read never has that side effect on its own.
+    """
+    days = 1 if window == "daily" else 30
+    window_start, window_end = rolling_window(days=days)
+    result = await compute_cost_breakdown(
+        session, window_start=window_start, window_end=window_end
+    )
+    if persist:
+        await save_cost_snapshot(session, result)
+    return result
+
+
+@router.get("/ops/cost-snapshots", response_model=list[CostBreakdown])
+async def cost_snapshots(
+    limit: int = Query(default=90, le=365),
+    session: SQLModelAsyncSession = Depends(get_session),
+) -> list[CostBreakdown]:
+    """Stored cost-snapshot history, newest first -- the rolling-spend chart's feed."""
+    rows = await list_cost_snapshots(session, limit=limit)
+    return [
+        CostBreakdown(
+            window_start=row.window_start,
+            window_end=row.window_end,
+            total_cost_usd=row.total_cost_usd,
+            by_stage=row.by_stage,
+            by_purpose=row.by_purpose,
+            query_count=row.query_count,
+            book_count=row.book_count,
+        )
+        for row in rows
+    ]
+
+
+@router.get("/ops/performance", response_model=PerformanceOut)
+async def performance(
+    book_id: UUID | None = Query(default=None),
+    session: SQLModelAsyncSession = Depends(get_session),
+) -> PerformanceOut:
+    """Stage latency percentiles, ingestion throughput, GPU/KV pressure,
+    Celery queue depth and prefix-cache hit rate in one screen (S9.2, F7.2).
+
+    Pure presentation over data every stage has written since Sprint 2 --
+    see ``api/ops/performance_telemetry.py`` for what each field reads.
+    """
+    return await compute_performance(session, book_id=book_id)
+
+
+@router.get("/ops/pipeline-health", response_model=PipelineHealthOut)
+async def pipeline_health(
+    book_id: UUID | None = Query(default=None),
+    limit: int = Query(default=50, le=200),
+    session: SQLModelAsyncSession = Depends(get_session),
+) -> PipelineHealthOut:
+    """Run history, per-stage failure rate, retry outcomes and dead-letter,
+    each with a trace link (S9.3, F7.4) -- "what broke and where" on one screen.
+    """
+    return await compute_pipeline_health(session, book_id=book_id, limit=limit)
+
+
+@router.get("/ops/budget-status", response_model=BudgetStatusOut)
+async def budget_status(
+    session: SQLModelAsyncSession = Depends(get_session),
+) -> BudgetStatusOut:
+    """Monthly spend vs. the configured budget cap (S9.4, §9.1).
+
+    Visibility only from this route; ``scripts/budget_monitor.py`` is what
+    acts on a breach (pausing ``celery-worker``) so a public deploy degrades
+    rather than running up an unbounded bill.
+    """
+    return await compute_budget_status(session)
 
 
 @router.get("/ops/extraction-quality", response_model=ExtractionQualityOut)
