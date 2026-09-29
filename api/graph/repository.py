@@ -621,18 +621,37 @@ async def _mentions_per_chapter(
 
 
 def _context_snippet(
-    text: str, start: int | None, end: int | None, *, pad: int = 80
+    text: str,
+    start: int | None,
+    end: int | None,
+    *,
+    surface_form: str | None = None,
+    pad: int = 80,
 ) -> str | None:
-    """Return a short window of ``text`` around a mention's character span.
+    """Return a short window of ``text`` around a mention.
+
+    Uses the recorded character span when there is one. Mentions written
+    without offsets would otherwise carry no context at all — and so no
+    citation — so fall back to the first occurrence of the surface form, then
+    to the opening of the chunk, which is still the passage the mention lives
+    in.
 
     Args:
         text: The chunk's full text.
         start: The mention's start offset, or ``None`` if unrecorded.
         end: The mention's end offset, or ``None`` if unrecorded.
+        surface_form: The mention's own text, used to locate it when the
+            offsets are missing.
         pad: Characters of surrounding context on each side.
     """
-    if start is None or end is None:
+    if not text:
         return None
+
+    if start is None or end is None:
+        found = text.lower().find(surface_form.lower()) if surface_form else -1
+        if found < 0:
+            return text[: pad * 2].strip() or None
+        start, end = found, found + len(surface_form or "")
 
     lo = max(0, start - pad)
     hi = min(len(text), end + pad)
@@ -695,7 +714,12 @@ async def list_mentions(
             book_id=mention.book_id,
             surface_form=mention.surface_form,
             page=mention.page,
-            context=_context_snippet(text, mention.char_start, mention.char_end),
+            context=_context_snippet(
+                text,
+                mention.char_start,
+                mention.char_end,
+                surface_form=mention.surface_form,
+            ),
             resolution_method=mention.resolution_method,
         )
         for mention, text in result.all()

@@ -30,6 +30,7 @@ from .grounding import GroundedAnswer, abstain
 from .scope import ReadingScope
 
 _MAX_MENTION_CITATIONS = 5
+_MAX_CHARACTER_RELATIONS = 5
 _MAX_AGGREGATION_RESULTS = 200
 
 
@@ -78,29 +79,70 @@ async def _relation_sentence(
 
 
 async def render_character_lookup(
-    character: CharacterDetailOut | None, mentions: list[MentionOut]
+    session: SQLModelAsyncSession,
+    character: CharacterDetailOut | None,
+    mentions: list[MentionOut],
+    relations: list[RelationOut],
+    *,
+    scope: ReadingScope,
 ) -> GroundedAnswer:
-    """Render a character-record answer with top mention passages cited.
+    """Render a descriptive character answer, every claim from the record.
+
+    Assembled, never free-generated: aliases, first appearance, attributes and
+    the strongest visible relationships all come straight from stored rows, so
+    grounding is true by construction; relationship sentences carry their own
+    evidence citations, the rest cite top mention passages.
 
     Args:
+        session: An open database session, for relationship evidence.
         character: The resolved character, or ``None`` when resolution found
             nobody by that name in this project — the abstention case.
         mentions: Top evidence passages for the character, page-ordered.
+        relations: Visible relations touching the character, strongest first.
+        scope: The reader's position, so each relation's cited evidence stays
+            inside it.
     """
     if character is None:
         return abstain("No character by that name is established in this project.")
 
-    sentence = (
-        f"{character.canonical_name} is a {character.importance_tier.value}-tier "
-        f"character, mentioned {character.mention_count} times."
+    name = character.canonical_name
+    other_names = [a for a in character.aliases if a != name][:4]
+    opening = f"{name}"
+    if other_names:
+        opening += f" (also called {', '.join(other_names)})"
+    opening += (
+        f" is a {character.importance_tier.value} character, mentioned "
+        f"{character.mention_count} times"
     )
-    for attribute in character.attributes[:3]:
-        sentence += f" {attribute.label.capitalize()}: {attribute.value}."
+    if character.first_chapter is not None and character.first_page is not None:
+        opening += (
+            f", first appearing in chapter {character.first_chapter} "
+            f"(page {character.first_page})"
+        )
+    parts = [opening + "."]
+
+    facts = [
+        f"{_humanize(a.label)}: {a.value}" for a in character.attributes[:4] if a.value
+    ]
+    if facts:
+        parts.append("Recorded details: " + "; ".join(facts) + ".")
 
     citation_list: list[CitationOut] = []
+    relation_sentences: list[str] = []
+    for relation in relations[:_MAX_CHARACTER_RELATIONS]:
+        sentence, relation_citations = await _relation_sentence(
+            session, relation, scope=scope, top_n=1
+        )
+        relation_sentences.append(sentence)
+        citation_list.extend(relation_citations)
+    if relation_sentences:
+        parts.append("Relationships: " + " ".join(relation_sentences))
+
+    seen_chunks = {c.chunk_id for c in citation_list if c.chunk_id}
     for mention in mentions[:_MAX_MENTION_CITATIONS]:
-        if not mention.context:
+        if not mention.context or mention.chunk_id in seen_chunks:
             continue
+        seen_chunks.add(mention.chunk_id)
         citation = CitationOut(
             book_id=mention.book_id,
             page_start=mention.page,
@@ -110,7 +152,9 @@ async def render_character_lookup(
         )
         citation_list.append(citation)
 
-    return GroundedAnswer(text=sentence, citations=citation_list, abstained=False)
+    return GroundedAnswer(
+        text=" ".join(parts), citations=citation_list, abstained=False
+    )
 
 
 async def render_relationship_lookup(

@@ -245,7 +245,15 @@ async def answer_question(
                 )
                 or []
             )
-            answer = await generation.render_character_lookup(character, mentions)
+            candidate_ids = await repository.top_relation_ids_for_character(
+                session, subject.ref.character_id
+            )
+            character_relations = await graph_repository.relations_out(
+                session, candidate_ids, scope=scope
+            )
+            answer = await generation.render_character_lookup(
+                session, character, mentions, character_relations, scope=scope
+            )
 
         elif route is QueryRoute.RELATIONSHIP_LOOKUP:
             rows = await run_template(

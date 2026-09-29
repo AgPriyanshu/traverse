@@ -275,3 +275,33 @@ async def relation_speaker(
     )
 
     return result.first()
+
+
+async def top_relation_ids_for_character(
+    session: SQLModelAsyncSession, character_id: UUID, *, limit: int = 12
+) -> list[UUID]:
+    """Return a character's strongest relation ids, either direction.
+
+    Over-fetches; the caller hydrates through ``relations_out``, which drops
+    anything beyond the reader's position, then keeps the first few.
+
+    Args:
+        session: An open database session.
+        character_id: The character whose relations to list.
+        limit: Candidate ids to return, by confidence.
+    """
+    statement = (
+        select(Relation.id)
+        .where(
+            or_(
+                Relation.subject_character_id == character_id,
+                Relation.object_character_id == character_id,
+            )
+        )
+        .order_by(Relation.confidence.desc(), Relation.id)
+        .limit(limit)
+    )
+    result = await session.exec(statement)
+    relation_ids = list(result.all())
+
+    return relation_ids
