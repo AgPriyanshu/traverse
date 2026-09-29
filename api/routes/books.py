@@ -359,9 +359,7 @@ async def upload_book(
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail={
-                        "message": (
-                            "this upload does not appear to be public domain"
-                        ),
+                        "message": ("this upload does not appear to be public domain"),
                         "reasons": guard_result.reasons,
                     },
                 )

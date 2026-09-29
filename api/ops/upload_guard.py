@@ -178,7 +178,8 @@ async def count_sessions_for_ip_since(
     session: SQLModelAsyncSession, ip_hash: str, *, since: datetime
 ) -> int:
     result = await session.execute(
-        select(func.count()).select_from(UploadSession)  # type: ignore[arg-type]
+        select(func.count())
+        .select_from(UploadSession)  # type: ignore[arg-type]
         .where(UploadSession.ip_hash == ip_hash)  # type: ignore[arg-type]
         .where(UploadSession.created_at >= since)  # type: ignore[operator]
     )
@@ -264,21 +265,29 @@ async def sweep_expired_sessions(session: SQLModelAsyncSession) -> int:
     """
     now = datetime.now(UTC)
     expired = (
-        await session.execute(
-            select(UploadSession)
-            .where(UploadSession.expires_at < now)  # type: ignore[operator]
-            .where(UploadSession.deleted_at.is_(None))  # type: ignore[union-attr]
+        (
+            await session.execute(
+                select(UploadSession)
+                .where(UploadSession.expires_at < now)  # type: ignore[operator]
+                .where(UploadSession.deleted_at.is_(None))  # type: ignore[union-attr]
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     cleaned = 0
     for row in expired:
         if row.project_id is not None:
             books = (
-                await session.execute(
-                    select(Book.id).where(Book.project_id == row.project_id)  # type: ignore[arg-type]
+                (
+                    await session.execute(
+                        select(Book.id).where(Book.project_id == row.project_id)  # type: ignore[arg-type]
+                    )
                 )
-            ).scalars().all()
+                .scalars()
+                .all()
+            )
             for book_id in books:
                 await delete_prefix(f"books/{book_id}/")
 

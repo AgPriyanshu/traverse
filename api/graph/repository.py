@@ -1164,12 +1164,16 @@ async def list_evidence(
         .where(RelationEvidence.relation_id == relation_id)
     )
     statement = _evidence_reading_position_filter(statement, scope=scope)
-    statement = statement.order_by(
-        RelationEvidence.book_order,
-        func.coalesce(RelationEvidence.chapter_no, 0),
-        RelationEvidence.page_start,
-        RelationEvidence.id,
-    ).limit(limit).offset(offset)
+    statement = (
+        statement.order_by(
+            RelationEvidence.book_order,
+            func.coalesce(RelationEvidence.chapter_no, 0),
+            RelationEvidence.page_start,
+            RelationEvidence.id,
+        )
+        .limit(limit)
+        .offset(offset)
+    )
 
     rows = (await session.exec(statement)).all()
 

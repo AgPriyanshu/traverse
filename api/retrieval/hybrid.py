@@ -148,7 +148,8 @@ async def hybrid_search(
     from . import rerank as rerank_module
 
     effective_character_ids = (
-        character_ids if mode is None or mode is RetrievalMode.GRAPH_CONSTRAINED
+        character_ids
+        if mode is None or mode is RetrievalMode.GRAPH_CONSTRAINED
         else None
     )
 

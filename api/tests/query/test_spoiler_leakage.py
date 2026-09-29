@@ -174,12 +174,8 @@ async def test_spoiler_leakage_rate_is_zero_across_every_read_surface(
             session, project.id, scope=scope
         )
         roster_ids = {c.id for c in roster}
-        record(
-            "roster: future same-book character", future_same_book.id in roster_ids
-        )
-        record(
-            "roster: future next-book character", future_next_book.id in roster_ids
-        )
+        record("roster: future same-book character", future_same_book.id in roster_ids)
+        record("roster: future next-book character", future_next_book.id in roster_ids)
 
         # 2. Character detail (deep link).
         record(
@@ -302,9 +298,7 @@ async def test_spoiler_leakage_rate_is_zero_across_every_read_surface(
         record("aggregation template: found a future edge", bool(agg_rows))
 
         # 11. Retrieval — a chunk whose chapter is beyond the reading position.
-        future_query_embedding = retrieval_repository.embed_query(
-            "friendship deepened"
-        )
+        future_query_embedding = retrieval_repository.embed_query("friendship deepened")
         dense = await retrieval_repository.dense_search(
             session,
             project_id=project.id,

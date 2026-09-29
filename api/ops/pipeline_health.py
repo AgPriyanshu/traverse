@@ -67,7 +67,8 @@ async def compute_failure_rates(
     statement = select(IngestionStage.stage, IngestionStage.state)
     if book_id is not None:
         statement = statement.join(
-            IngestionRun, IngestionStage.run_id == IngestionRun.id  # type: ignore[arg-type]
+            IngestionRun,
+            IngestionStage.run_id == IngestionRun.id,  # type: ignore[arg-type]
         ).where(IngestionRun.book_id == book_id)  # type: ignore[arg-type]
 
     rows = (await session.execute(statement)).all()
@@ -101,7 +102,8 @@ async def compute_retry_outcomes(
     statement = statement.where(IngestionStage.attempt > 0)  # type: ignore[operator]
     if book_id is not None:
         statement = statement.join(
-            IngestionRun, IngestionStage.run_id == IngestionRun.id  # type: ignore[arg-type]
+            IngestionRun,
+            IngestionStage.run_id == IngestionRun.id,  # type: ignore[arg-type]
         ).where(IngestionRun.book_id == book_id)  # type: ignore[arg-type]
 
     rows = (await session.execute(statement)).all()

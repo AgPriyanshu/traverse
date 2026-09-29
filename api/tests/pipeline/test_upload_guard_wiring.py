@@ -147,7 +147,9 @@ def _one_page_pdf(text: str) -> bytes:
     ]
     stream_body = f"BT /F1 12 Tf 10 100 Td ({text}) Tj ET".encode()
     objects.append(
-        b"<< /Length " + str(len(stream_body)).encode() + b" >>\nstream\n"
+        b"<< /Length "
+        + str(len(stream_body)).encode()
+        + b" >>\nstream\n"
         + stream_body
         + b"\nendstream"
     )
@@ -175,9 +177,7 @@ class TestPublicDomainRejection:
     async def test_a_flagged_upload_is_422(self, client: AsyncClient) -> None:
         token, project_id = await _create_session_project(client, "Copyrighted")
 
-        flagged_pdf = _one_page_pdf(
-            "All rights reserved. ISBN 978-0-00-000000-0"
-        )
+        flagged_pdf = _one_page_pdf("All rights reserved. ISBN 978-0-00-000000-0")
         response = await client.post(
             f"/api/projects/{project_id}/books",
             files={"file": ("scan.pdf", flagged_pdf, "application/pdf")},

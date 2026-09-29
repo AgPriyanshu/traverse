@@ -228,9 +228,7 @@ async def get_neighbourhood(
             | {r["source"] for r in rows}
             | {r["target"] for r in rows}
         )
-        node_rows = await (
-            await neo.run(node_query, ids=sorted(ids), **params)
-        ).data()
+        node_rows = await (await neo.run(node_query, ids=sorted(ids), **params)).data()
 
     visible_ids = {row["n"]["id"] for row in node_rows}
     edges = [

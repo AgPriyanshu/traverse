@@ -82,11 +82,9 @@ class TestLabelCorrectness:
 class TestReliabilityDiagram:
     def test_perfectly_calibrated_confidence_has_zero_ece(self):
         samples = [
-            calibration.LabelledSample(confidence=0.5, correct=i < 5)
-            for i in range(10)
+            calibration.LabelledSample(confidence=0.5, correct=i < 5) for i in range(10)
         ] + [
-            calibration.LabelledSample(confidence=0.9, correct=i < 9)
-            for i in range(10)
+            calibration.LabelledSample(confidence=0.9, correct=i < 9) for i in range(10)
         ]
 
         bins, ece = calibration.reliability_diagram(samples, n_bins=10)
@@ -98,8 +96,7 @@ class TestReliabilityDiagram:
         # confidence=0.9 but only 50% actually correct -- a 0.4 gap, over
         # every sample, so ECE is exactly 0.4 regardless of bin count.
         samples = [
-            calibration.LabelledSample(confidence=0.9, correct=i < 5)
-            for i in range(10)
+            calibration.LabelledSample(confidence=0.9, correct=i < 5) for i in range(10)
         ]
 
         _bins, ece = calibration.reliability_diagram(samples, n_bins=10)

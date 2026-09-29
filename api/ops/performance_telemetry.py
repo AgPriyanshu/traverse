@@ -84,7 +84,8 @@ async def _stage_latency_percentiles(
     )
     if book_id is not None:
         statement = statement.join(
-            IngestionRun, IngestionStage.run_id == IngestionRun.id  # type: ignore[arg-type]
+            IngestionRun,
+            IngestionStage.run_id == IngestionRun.id,  # type: ignore[arg-type]
         ).where(IngestionRun.book_id == book_id)  # type: ignore[arg-type]
 
     rows = (await session.execute(statement)).all()
