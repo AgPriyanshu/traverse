@@ -1,4 +1,3 @@
-import { Navigate } from "react-router";
 import type { RouteObject } from "react-router";
 import { AppShell } from "@/components/layout";
 import { NotFound } from "./not-found";
@@ -15,7 +14,12 @@ export const routes: RouteObject[] = [
     element: <AppShell />,
     errorElement: <RouteError />,
     children: [
-      { index: true, element: <Navigate to="/books" replace /> },
+      {
+        index: true,
+        lazy: async () => ({
+          Component: (await import("./landing/landing")).Landing,
+        }),
+      },
 
       {
         path: "books",

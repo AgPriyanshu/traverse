@@ -300,6 +300,27 @@ were re-run, not re-authored, as part of confirming this sweep's baseline.
 246 Vitest tests, all passing; `pnpm tsc --noEmit`, `pnpm lint`, `pnpm build`
 clean.
 
+**Built (S9.13, fe1):** the public landing state (PRD §9.1) —
+`routes/landing/landing.tsx`, now mounted at `/` in place of the old
+`<Navigate to="/books">`. `featuredProjectFor()` picks a project to
+showcase (a slug matching `pride.?and.?prejudice`, else the one with the
+most characters, else none) from whatever `useProjects()` returns — no
+project id is hardcoded, so this works against a freshly seeded demo
+instance or a from-scratch dev checkout alike. Reuses `<SuggestedQuestions>`
+(S6.10, already built for exactly this "never a blank landing state" job)
+and wires its `onAsk` to navigate to `/projects/:id/ask?q=<question>`, which
+`AskScreen`'s new `autoAskQuestion` prop (read from `?q=` by `project/ask.tsx`)
+asks automatically on mount — a real click-to-cited-answer path through the
+same SSE/citation machinery every other ask route uses, not a landing-only
+reimplementation. Zero projects renders an upload-onboarding `<EmptyState>`
+rather than a blank page. The upload sandbox's quota (PRD §11: one PDF, ≤150
+pages, auto-deleted after 24h) is stated as plain copy on both the landing
+page and would need the same treatment on `books/upload.tsx` if do1's S9.5
+backend enforcement ships a live quota field to render instead — today it is
+UI-only messaging, not backed by a live route. 252 Vitest tests, all passing
+(`tests/landing.test.tsx`, axe-checked); `pnpm tsc --noEmit`, `pnpm lint`,
+`pnpm build` clean.
+
 **Known gap:** `MentionOut` and `EvidenceOut` carry a page but no `SpanBox`, so their click-through lands on the page without a highlight (Sprint 3 SCR-9, Sprint 4 SCR-10). The roster sparkline gap (Sprint 3 SCR-1) is closed for the single-book roster; its series-roster descendant reopens a version of it (Sprint 5 SCR-1 — see above).
 
 `web/src/design-system/tokens.ts` **exists** (DCR-1, landed at the Sprint 2
@@ -352,10 +373,12 @@ src/
                               spelled key.
       query-client.ts           createQueryClient() — no retry on 4xx/501.
       hooks.ts                  One TanStack hook per contract endpoint. Notable:
-                              `useLibrary()` fans out `useProjects` + `useQueries`
-                              over `GET /projects/{id}` because there is no flat
-                              book list yet (SCR-1) — collapses to one call with no
-                              screen change when that lands. `useBookStatus` polls
+                              `useBooks()` (`GET /api/books`, flat across every
+                              project) plus `useProjects()` is what `library.tsx`
+                              and `landing.tsx` (S9.13) both read — the fan-out
+                              `useLibrary()` hook this map once planned (SCR-1)
+                              was never built; the flat books endpoint landed
+                              instead and made it unnecessary. `useBookStatus` polls
                               at 2s, backs off to 10s after 5 minutes (a ref tracks
                               poll start per bookId), and returns `false` on a
                               terminal status or a query error. `useUploadBook`
@@ -605,8 +628,8 @@ project roster.
 
 | Route | Screen | Sprint |
 | --- | --- | --- |
-| `/` | redirect to `/books` | Built |
-| `/books` | library (real data via `useLibrary`) | Built |
+| `/` | public landing — featured demo project, 3 suggested questions, upload-sandbox pointer | Built (S9.13) |
+| `/books` | library (real data via `useBooks`+`useProjects`) | Built |
 | `/books/upload` | upload — drag/drop, PDF+200MB validation, real 501 error surface | Built |
 | `/books/:id` | ingestion progress stepper, retry-from-stage, local ETA | Built |
 | `/books/:id/chapters` | chapters + chunk inspector | Built |
@@ -659,9 +682,10 @@ project roster.
   it cross-origin. `vite.config.ts` proxies `/api` and `/health` to
   `VITE_API_BASE_URL` in dev; the container must do the same with nginx. The
   client always requests same-origin (`API_BASE_URL = window.location.origin`).
-- The contract has **no flat book list** (SCR-1) — only `ProjectDetailOut.books`.
-  `useLibrary()` is the one hook that fans out; every screen should read
-  through it rather than re-deriving books from `useProjects` + N detail calls.
+- **SCR-1 is resolved** — the contract gained a flat `GET /api/books` at some
+  point after this gotcha was written, so `useBooks()` reads it directly; the
+  fan-out `useLibrary()` hook this entry used to describe was never built and
+  should not be assumed to exist.
 - Chakra v3's `<Icon>` defaults to `asChild` — see `components/ui/icons.tsx`.
 - URL search params hold filters, selected entity, page, and the spoiler chapter
   limit — citations are links and must survive a reload. First exercised at

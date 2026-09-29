@@ -1,4 +1,4 @@
-import { useParams } from "react-router";
+import { useParams, useSearchParams } from "react-router";
 import { ErrorState, LoadingSkeleton } from "@/components/ui";
 import { useProject } from "@/lib/api";
 import { AskScreen } from "../ask/ask-screen";
@@ -13,6 +13,8 @@ import { useReadingPositionContext } from "./reading-position-context";
 export const ProjectAsk = () => {
   // Hooks.
   const { projectId = "" } = useParams();
+  const [searchParams] = useSearchParams();
+  const autoAskQuestion = searchParams.get("q") ?? undefined;
 
   // Context.
   const { position, label: positionLabel } = useReadingPositionContext();
@@ -35,7 +37,13 @@ export const ProjectAsk = () => {
     label: position === null ? `the whole of ${project.data.name}` : `${project.data.name} — ${positionLabel.toLowerCase()}`,
   };
 
-  return <AskScreen scope={scope} heading={`Ask about ${project.data.name}`} />;
+  return (
+    <AskScreen
+      scope={scope}
+      heading={`Ask about ${project.data.name}`}
+      autoAskQuestion={autoAskQuestion}
+    />
+  );
 };
 
 export default ProjectAsk;

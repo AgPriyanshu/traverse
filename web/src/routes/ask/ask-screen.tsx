@@ -1,4 +1,5 @@
 import { Heading, Stack, Text } from "@chakra-ui/react";
+import { useEffect, useRef } from "react";
 import { AskComposer } from "./ask-composer";
 import { ConversationThread } from "./conversation-thread";
 import { InferenceModeNote } from "./inference-mode-note";
@@ -10,6 +11,8 @@ import type { AskScope } from "./types";
 export type AskScreenProps = {
   scope: AskScope;
   heading: string;
+  /** A deep-linked question to ask immediately on landing here (S9.13's landing screen, `?q=`) — fires once, never re-fires on a re-render. */
+  autoAskQuestion?: string;
 };
 
 /**
@@ -18,9 +21,20 @@ export type AskScreenProps = {
  * `AskScope` they resolve (README's "build everything project-aware from the
  * first line").
  */
-export const AskScreen = ({ scope, heading }: AskScreenProps) => {
+export const AskScreen = ({ scope, heading, autoAskQuestion }: AskScreenProps) => {
   // Hooks.
   const { turns, isActive, ask, respondToInterrupt } = useConversation(scope);
+
+  // Refs.
+  const hasAutoAskedRef = useRef(false);
+
+  // useEffects.
+  useEffect(() => {
+    if (autoAskQuestion && !hasAutoAskedRef.current && turns.length === 0) {
+      hasAutoAskedRef.current = true;
+      ask(autoAskQuestion);
+    }
+  }, [autoAskQuestion, ask, turns.length]);
 
   return (
     <Stack gap="6">

@@ -10,6 +10,10 @@ const notImplemented = (path: string) =>
   );
 
 const ROUTES: [path: string, heading: RegExp][] = [
+  // The landing screen's own heading is static, not data-derived, so it
+  // renders the same whether `useProjects()` 501s (this file's default
+  // mock) or succeeds — unlike most rows below.
+  ["/", /ask a novel anything/i],
   ["/books", /library/i],
   ["/books/upload", /add a book/i],
   ["/books/abc-123", /ingestion/i],
@@ -82,10 +86,10 @@ describe("the route table", () => {
     expect(consoleError).not.toHaveBeenCalled();
   });
 
-  it("redirects the root to the library", async () => {
+  it("renders the public landing screen at the root (S9.13)", async () => {
     renderRoute("/");
     expect(
-      await screen.findByRole("heading", { name: /library/i }),
+      await screen.findByRole("heading", { name: /ask a novel anything/i }),
     ).toBeInTheDocument();
   });
 
