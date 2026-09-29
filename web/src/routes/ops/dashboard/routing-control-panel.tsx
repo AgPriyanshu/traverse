@@ -2,16 +2,15 @@ import { Badge, Button, Field, Heading, HStack, NativeSelect, SimpleGrid, Stack,
 import { useMemo, useState } from "react";
 import { toaster } from "@/components/ui";
 import { isApiError, useEvalRunLatest, useRoutingPolicy, useSetRoutingPolicy } from "@/lib/api";
-import type { RoutingPolicy } from "@/lib/api";
 import { formatCurrency, formatPointsDelta } from "@/lib/format";
+import { DEFAULT_POLICY, LLM_PURPOSES, MODEL_CHOICES, QUERY_PURPOSES, asPolicyRecord } from "@/lib/inference-mode";
 import {
   COST_TREND,
-  DEFAULT_POLICY,
   FALLBACK_MODEL_AXIS_RESULTS,
   costPerQueryFor,
 } from "./fixtures";
 import type { LlmPurpose, ModelChoice } from "./types";
-import { LLM_PURPOSES, MODEL_CHOICES, QUERY_PURPOSES, findModelAxisResult } from "./types";
+import { findModelAxisResult } from "./types";
 
 const MODEL_LABEL: Record<ModelChoice, string> = {
   local: "Local (Qwen3-8B-AWQ)",
@@ -26,15 +25,6 @@ const PURPOSE_LABEL: Record<LlmPurpose, string> = {
   adjudicate: "Adjudication",
   answer: "Answering a query",
   judge: "Judging an answer (eval only)",
-};
-
-const asPolicyRecord = (policy: RoutingPolicy): Record<LlmPurpose, ModelChoice> => {
-  const record = {} as Record<LlmPurpose, ModelChoice>;
-  for (const purpose of LLM_PURPOSES) {
-    const value = (policy.purposes ?? {})[purpose];
-    record[purpose] = value === "frontier" || value === "routed" ? value : "local";
-  }
-  return record;
 };
 
 /**

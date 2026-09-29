@@ -1,6 +1,7 @@
 import { Heading, Stack, Text } from "@chakra-ui/react";
 import { AskComposer } from "./ask-composer";
 import { ConversationThread } from "./conversation-thread";
+import { InferenceModeNote } from "./inference-mode-note";
 import { ScopeBanner } from "./scope-banner";
 import { SuggestedQuestions } from "./suggested-questions";
 import { useConversation } from "./use-conversation";
@@ -41,6 +42,7 @@ export const AskScreen = ({ scope, heading }: AskScreenProps) => {
         <ConversationThread turns={turns} onRespondToInterrupt={respondToInterrupt} />
       )}
 
+      <InferenceModeNote />
       <AskComposer onAsk={ask} disabled={isActive} />
     </Stack>
   );

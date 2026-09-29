@@ -1,5 +1,16 @@
 import type { AblationConfig, MetricSet, RoutingPolicy } from "@/lib/api";
 
+export type {
+  LlmPurpose,
+  ModelChoice,
+  PurposePolicy,
+} from "@/lib/inference-mode";
+export {
+  LLM_PURPOSES,
+  MODEL_CHOICES,
+  QUERY_PURPOSES,
+} from "@/lib/inference-mode";
+
 /**
  * Hand-mirrored from `api/contracts/api.py`'s `CostBreakdown` — no route
  * returns it yet (be2/do1 own the routing-policy engine and its cost
@@ -19,30 +30,6 @@ export type CostBreakdown = {
   query_count: number;
   book_count: number;
 };
-
-export const LLM_PURPOSES = [
-  "chapter_classify",
-  "character_extract",
-  "relation_extract",
-  "adjudicate",
-  "answer",
-  "judge",
-] as const;
-
-export type LlmPurpose = (typeof LLM_PURPOSES)[number];
-
-/** The two purposes a query in flight can actually route through — the ones ETH-4/NFR-residency care about. */
-export const QUERY_PURPOSES: readonly LlmPurpose[] = ["answer", "judge"];
-
-export type ModelChoice = "local" | "frontier" | "routed";
-
-export const MODEL_CHOICES: readonly ModelChoice[] = [
-  "local",
-  "frontier",
-  "routed",
-];
-
-export type PurposePolicy = Record<LlmPurpose, ModelChoice>;
 
 /**
  * A synthetic day-over-day cost trend annotated with policy changes

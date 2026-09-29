@@ -244,6 +244,29 @@ build` step itself verified via a scratch `--outDir`, since this worktree's
 checked-in `dist/` had root-owned files left over from an unrelated prior
 container run and is gitignored either way).
 
+**Built (S9.11, fe1):** inference-mode labelling (ETH-4/NFR-residency) —
+`lib/inference-mode.ts` is the one shared definition of `LlmPurpose`/
+`ModelChoice`/`PurposePolicy`/`DEFAULT_POLICY`/`isEgress`, and the
+`useEffectivePolicy()` hook every consumer below reads through: live off
+`GET /ops/routing-policy` when it answers, `DEFAULT_POLICY` (fully local
+except the eval-only `judge` purpose) when it 501s — the same graceful-degrade
+shape S9.10's routing panel already used, now factored out so both read one
+definition rather than two that can drift. Three consumers:
+`components/layout/inference-mode-indicator.tsx` (persistent, in `<TopBar>`
+next to `<HealthIndicator>` — reads the `answer` purpose specifically, since
+that is what a live ask actually calls), `routes/ask/inference-mode-note.tsx`
+(the same fact repeated at the point of use, directly above `<AskComposer>`),
+and `routes/books/upload.tsx`'s new step 3 (reads `EXTRACTION_PURPOSES` —
+`chapter_classify`/`character_extract`/`relation_extract`/`adjudicate` — and
+gates the submit button on a `Checkbox` consent when any of them would leave
+the machine; no gate at all, just a reassurance line, when they're all local).
+`plans/sprint-9/SCR.md` SCR-1 flags the real gap this can't close yet: no
+`QueryEvent` carries which mode *actually* served a given past answer (only
+the current policy), since `DoneEvent`/`RouteEvent` have no such field —
+`QueryRoute` is the retrieval classification, not the inference mode. 240
+Vitest tests, all passing (`tests/inference-mode.test.tsx` plus one added to
+`tests/ask.test.tsx`); `pnpm tsc --noEmit`, `pnpm lint`, `pnpm build` clean.
+
 **Known gap:** `MentionOut` and `EvidenceOut` carry a page but no `SpanBox`, so their click-through lands on the page without a highlight (Sprint 3 SCR-9, Sprint 4 SCR-10). The roster sparkline gap (Sprint 3 SCR-1) is closed for the single-book roster; its series-roster descendant reopens a version of it (Sprint 5 SCR-1 — see above).
 
 `web/src/design-system/tokens.ts` **exists** (DCR-1, landed at the Sprint 2

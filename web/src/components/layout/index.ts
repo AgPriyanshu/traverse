@@ -1,5 +1,6 @@
 export { AppShell } from "./app-shell";
 export { HealthIndicator } from "./health-indicator";
+export { InferenceModeIndicator } from "./inference-mode-indicator";
 export { NavLinks } from "./nav-links";
 export { PageHeader } from "./page-header";
 export { SideNav } from "./side-nav";

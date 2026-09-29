@@ -1,6 +1,8 @@
-import type { AblationConfig, EvalResult, EvalRun, MetricSet, RoutingPolicy } from "@/lib/api";
+import type { AblationConfig, EvalResult, EvalRun, MetricSet } from "@/lib/api";
+import { DEFAULT_POLICY, LLM_PURPOSES } from "@/lib/inference-mode";
 import type { CostBreakdown, CostTrendPoint, LlmPurpose, ModelChoice } from "./types";
-import { LLM_PURPOSES } from "./types";
+
+export { DEFAULT_POLICY };
 
 /**
  * Illustrative unit economics — $ per call, by purpose and model choice.
@@ -38,19 +40,6 @@ export const costPerQueryFor = (policy: Record<LlmPurpose, ModelChoice>): number
     if (calls === 0) { return total; }
     return total + calls * PURPOSE_UNIT_COST_USD[purpose][policy[purpose]];
   }, 0);
-};
-
-/** The policy this dashboard opens with until a live `GET /ops/routing-policy` (S9.6) replaces it. */
-export const DEFAULT_POLICY: RoutingPolicy = {
-  version: 0,
-  purposes: {
-    chapter_classify: "local",
-    character_extract: "local",
-    relation_extract: "local",
-    adjudicate: "local",
-    answer: "local",
-    judge: "frontier",
-  },
 };
 
 const day = (offset: number): string => {
