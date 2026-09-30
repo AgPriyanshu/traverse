@@ -1,13 +1,14 @@
-import { Box, Button, Heading, HStack, Input, Stack, Text } from "@chakra-ui/react";
+import { Box, Button, Heading, HStack, Input, Link, Stack, Text } from "@chakra-ui/react";
 import { useMemo } from "react";
-import { useParams, useSearchParams } from "react-router";
+import { Link as RouterLink, useSearchParams } from "react-router";
 import { EmptyState, ErrorState, LoadingSkeleton } from "@/components/ui";
 import type { Book, Character, ImportanceTier } from "@/lib/api";
-import { useCharacters, useProject } from "@/lib/api";
+import { useBook, useCharacters, useProject } from "@/lib/api";
 import { formatCount } from "@/lib/format";
 import { CharacterRow } from "./character-row";
 import { TIER_LABEL, TIER_ORDER } from "./character-labels";
 import { bookById, sortedBooks } from "./project-lookup";
+import { useProjectScope } from "./project-scope";
 import { useReadingPositionContext } from "./reading-position-context";
 
 type SortKey = "mentions" | "first" | "name";
@@ -54,17 +55,18 @@ const sortCharacters = (characters: Character[], sort: SortKey): Character[] => 
  */
 export const Characters = () => {
   // Hooks.
-  const { projectId = "" } = useParams();
+  const { projectId, basePath, bookId, bookOrder } = useProjectScope();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Context.
-  const { position } = useReadingPositionContext();
+  const { limitBookOrder, limitChapter } = useReadingPositionContext();
 
   // Apis.
   const project = useProject(projectId);
+  const book = useBook(bookId ?? undefined);
   const characters = useCharacters(projectId, {
-    limit_book_order: position?.bookOrder ?? undefined,
-    limit_chapter: position?.chapter ?? undefined,
+    limit_book_order: limitBookOrder,
+    limit_chapter: limitChapter ?? undefined,
   });
 
   // Variables.
@@ -77,7 +79,11 @@ export const Characters = () => {
   // useMemos.
   const books = useMemo(() => sortedBooks(project.data?.books ?? EMPTY_BOOKS), [project.data]);
   const byId = useMemo(() => bookById(books), [books]);
-  const roster = characters.data ?? EMPTY_ROSTER;
+  const roster = useMemo(() => {
+    const everyone = characters.data ?? EMPTY_ROSTER;
+    if (bookOrder === null) { return everyone; }
+    return everyone.filter((character) => (character.appears_in_books ?? []).includes(bookOrder));
+  }, [characters.data, bookOrder]);
   const totalMentions = useMemo(
     () => roster.reduce((sum, character) => sum + character.mention_count, 0),
     [roster],
@@ -133,15 +139,24 @@ export const Characters = () => {
     <Stack gap="7">
       <Stack gap="2">
         <Heading as="h2" textStyle="heading">
-          Everyone in {project.data?.name ?? "this series"}
+          Everyone in {(bookId ? book.data?.title : project.data?.name) ?? "this series"}
         </Heading>
         {roster.length > 0 ? (
           <Text textStyle="body" color="fg.muted" maxW="measure">
             {formatCount(roster.length, "person", "people")}, gathered from{" "}
             {formatCount(totalMentions, "mention")}
-            {books.length > 1 ? ` across ${formatCount(books.length, "book")}` : ""}.
+            {bookId === null && books.length > 1 ? ` across ${formatCount(books.length, "book")}` : ""}.
             A returning character keeps one row — open anyone to see which
             volumes they appear in and where they first turn up in each.
+          </Text>
+        ) : null}
+        {bookId !== null && books.length > 1 ? (
+          <Text textStyle="small">
+            <Link asChild>
+              <RouterLink to={`/projects/${projectId}/characters`}>
+                See everyone across the {formatCount(books.length, "book")} in {project.data?.name ?? "this series"}
+              </RouterLink>
+            </Link>
           </Text>
         ) : null}
       </Stack>
@@ -176,7 +191,7 @@ export const Characters = () => {
             ))}
           </HStack>
 
-          {books.length > 1 ? (
+          {bookId === null && books.length > 1 ? (
             <HStack gap="1.5" wrap="wrap" role="group" aria-label="New in book">
               <FilterButton
                 label="Any book"
@@ -259,7 +274,7 @@ export const Characters = () => {
               <CharacterRow
                 key={character.id}
                 character={character}
-                projectId={projectId}
+                basePath={basePath}
                 books={books}
               />
             ))}

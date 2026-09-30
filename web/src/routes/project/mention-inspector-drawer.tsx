@@ -4,6 +4,7 @@ import { ErrorState, LoadingSkeleton, PageRef } from "@/components/ui";
 import type { Book, CharacterDetail, Mention } from "@/lib/api";
 import { RESOLUTION_METHOD_LABEL } from "./character-labels";
 import { bookById } from "./project-lookup";
+import { useReadingPositionContext } from "./reading-position-context";
 import { usePagedMentions } from "./use-paged-mentions";
 
 const DRAWER_PAGE_SIZE = 200;
@@ -31,6 +32,9 @@ export const MentionInspectorDrawer = ({
   // States.
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
 
+  // Context.
+  const { limitBookOrder, limitChapter } = useReadingPositionContext();
+
   // Variables.
   const byId = bookById(books);
 
@@ -38,6 +42,8 @@ export const MentionInspectorDrawer = ({
   const mentions = usePagedMentions(open ? characterId : undefined, {
     pageSize: DRAWER_PAGE_SIZE,
     expectedTotal: character.mention_count,
+    limitBookOrder,
+    limitChapter: limitChapter ?? undefined,
   });
 
   // useMemos.

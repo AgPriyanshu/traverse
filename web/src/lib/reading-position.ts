@@ -106,3 +106,19 @@ export const limitsForBook = (
   }
   return { limitBookOrder: bookOrder, limitChapter: position.chapter };
 };
+
+/**
+ * The server params a project-wide screen sends for a series position. The
+ * endpoints require `limit_book_order`, so "caught up" (`null`) is expressed
+ * as the last book's own order with no chapter cap — never an omitted value.
+ */
+export const limitsForProject = (
+  position: SeriesPosition | null,
+  books: readonly Book[],
+): { limitBookOrder: number; limitChapter: number | null } => {
+  if (position !== null) {
+    return { limitBookOrder: position.bookOrder, limitChapter: position.chapter };
+  }
+  const lastOrder = books.reduce((highest, book) => Math.max(highest, orderOf(book)), 1);
+  return { limitBookOrder: lastOrder, limitChapter: null };
+};

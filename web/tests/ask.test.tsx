@@ -273,7 +273,7 @@ describe("the ask screen", () => {
     });
 
     fireEvent.click(within(answer).getByRole("link"));
-    expect(await screen.findByText(/page 12/i)).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /page 12/i })).toBeInTheDocument();
 
     await router.navigate(-1);
 

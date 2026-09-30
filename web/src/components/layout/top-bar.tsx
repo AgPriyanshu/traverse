@@ -28,19 +28,31 @@ export const TopBar = () => {
       >
         <RouterLink to="/books" aria-label="Traverse — go to the library">
           <HStack gap="2.5">
-            <Box
-              width="2.5"
-              height="2.5"
-              bg="accent.solid"
-              borderRadius="sm"
-              aria-hidden="true"
-            />
+            <Box asChild color="accent.solid" flexShrink="0">
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="2.5" y="4" width="4" height="16" rx="1" />
+                <path d="M2.5 8.5h4M2.5 15.5h4" />
+                <rect x="8.5" y="4" width="4" height="16" rx="1" />
+                <path d="M8.5 8.5h4" />
+                <rect x="16.3" y="5.5" width="4" height="14.5" rx="1" transform="rotate(-10 18.3 12.75)" />
+              </svg>
+            </Box>
             <Span
               fontFamily="heading"
               fontSize="subheading"
-              fontWeight="500"
-              letterSpacing="0.01em"
-              color="fg"
+              fontWeight="600"
+              letterSpacing="-0.01em"
+              color="accent.solid"
             >
               Traverse
             </Span>

@@ -5,6 +5,7 @@ import type { Book } from "@/lib/api";
 import { useEvidence } from "@/lib/api";
 import { formatCount } from "@/lib/format";
 import type { EdgeContext } from "./edge-context";
+import { useReadingPositionContext } from "../reading-position-context";
 import { EvidenceItem } from "./evidence-item";
 import { FamilyBadge } from "./family-stroke";
 import { RelationArc } from "./relation-arc";
@@ -49,8 +50,16 @@ const EvidenceBody = ({ target, books, onClose }: EvidenceBodyProps) => {
   // States.
   const [offset, setOffset] = useState(0);
 
+  // Context.
+  const { limitBookOrder, limitChapter } = useReadingPositionContext();
+
   // Apis.
-  const evidence = useEvidence(edge.id, { limit: EVIDENCE_PAGE_SIZE, offset });
+  const evidence = useEvidence(edge.id, {
+    limit: EVIDENCE_PAGE_SIZE,
+    offset,
+    limit_book_order: limitBookOrder,
+    limit_chapter: limitChapter ?? undefined,
+  });
 
   // useMemos.
   const items = useMemo(() => {

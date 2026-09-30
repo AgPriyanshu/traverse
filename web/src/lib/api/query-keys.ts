@@ -28,17 +28,18 @@ export const queryKeys = {
     ["characters", characterId, params ?? {}] as const,
   characterMentions: (characterId: string, params?: Params) =>
     ["characters", characterId, "mentions", params ?? {}] as const,
-  characterAppearances: (characterId: string) =>
-    ["characters", characterId, "appearances"] as const,
-  characterNeighbourhood: (characterId: string, depth: number) =>
-    ["characters", characterId, "neighbourhood", depth] as const,
+  characterAppearances: (characterId: string, params?: Params) =>
+    ["characters", characterId, "appearances", params ?? {}] as const,
+  characterNeighbourhood: (characterId: string, depth: number, params?: Params) =>
+    ["characters", characterId, "neighbourhood", depth, params ?? {}] as const,
 
   ontology: () => ["ontology"] as const,
   relationEvidence: (relationId: string, params?: Params) =>
     ["relations", relationId, "evidence", params ?? {}] as const,
-  relationArc: (a: string, b: string) => ["relations", "arc", a, b] as const,
-  graphPath: (from: string, to: string, maxHops: number) =>
-    ["graph", "path", from, to, maxHops] as const,
+  relationArc: (a: string, b: string, params?: Params) =>
+    ["relations", "arc", a, b, params ?? {}] as const,
+  graphPath: (from: string, to: string, maxHops: number, params?: Params) =>
+    ["graph", "path", from, to, maxHops, params ?? {}] as const,
 
   search: (params: Params) => ["search", params ?? {}] as const,
 

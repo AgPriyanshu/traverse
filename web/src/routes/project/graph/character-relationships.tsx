@@ -5,6 +5,7 @@ import { EmptyState, ErrorState, LoadingSkeleton } from "@/components/ui";
 import type { Book, GraphEdge, RelationFamily } from "@/lib/api";
 import { useNeighbourhood } from "@/lib/api";
 import { formatCount, formatSeriesOrderRun } from "@/lib/format";
+import { useReadingPositionContext } from "../reading-position-context";
 import { buildNodeIndex, contextFor } from "./edge-context";
 import { EvidencePanel } from "./evidence-panel";
 import { FamilyBadge } from "./family-stroke";
@@ -13,21 +14,28 @@ import { FAMILY_LABEL, FAMILY_ORDER, predicateLabel } from "./relation-style";
 
 export type CharacterRelationshipsProps = {
   characterId: string;
-  projectId: string;
+  basePath: string;
   books: readonly Book[];
 };
 
 /** A character's relationships grouped by family; each row opens the same evidence panel the graph uses (S4.13, extended across volumes in S5.12). */
 export const CharacterRelationships = ({
   characterId,
-  projectId,
+  basePath,
   books,
 }: CharacterRelationshipsProps) => {
   // Hooks.
   const [searchParams, setSearchParams] = useSearchParams();
 
+  // Context.
+  const { limitBookOrder, limitChapter } = useReadingPositionContext();
+
   // Apis.
-  const hood = useNeighbourhood(characterId, 1);
+  const hood = useNeighbourhood(
+    characterId,
+    { limit_book_order: limitBookOrder, limit_chapter: limitChapter ?? undefined },
+    1,
+  );
 
   // useMemos.
   const nodeIndex = useMemo(() => buildNodeIndex(hood.data), [hood.data]);
@@ -101,7 +109,7 @@ export const CharacterRelationships = ({
                 >
                   <HStack gap="2" wrap="wrap" align="baseline">
                     <Link asChild fontWeight="600">
-                      <RouterLink to={`/projects/${projectId}/characters/${otherId}`}>
+                      <RouterLink to={`${basePath}/characters/${otherId}`}>
                         {otherName}
                       </RouterLink>
                     </Link>

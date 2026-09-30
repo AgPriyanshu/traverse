@@ -1,6 +1,6 @@
-import { Box, Stack, Text } from "@chakra-ui/react";
-import { NavLinks } from "./nav-links";
+import { Box, Heading, Stack } from "@chakra-ui/react";
 import { PRIMARY_NAV } from "./nav-items";
+import { NavLinks } from "./nav-links";
 
 export const SideNav = () => {
   return (
@@ -17,15 +17,15 @@ export const SideNav = () => {
       <Stack gap="6" position="sticky" top="20">
         {PRIMARY_NAV.map((section) => (
           <Stack key={section.heading} gap="2">
-            <Text
-              textStyle="data"
+            {/* Not a heading: the group is already labelled via NavLinks' aria-label, and a second "Library" heading duplicates the page's own h1 in the outline. */}
+            <Heading
+              as="p"
               color="fg.subtle"
               paddingInline="2.5"
-              textTransform="lowercase"
-              letterSpacing="0.06em"
+              cursor={"default"}
             >
               {section.heading}
-            </Text>
+            </Heading>
             <NavLinks items={section.items} ariaLabel={section.heading} />
           </Stack>
         ))}

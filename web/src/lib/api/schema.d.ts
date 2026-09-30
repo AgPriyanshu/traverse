@@ -13,11 +13,31 @@ export interface paths {
         };
         /**
          * List Projects
-         * @description List every project with its book, character and relation counts.
+         * @description List every project this caller may see, with book/character/relation counts.
+         *
+         *     A project owned by a *different* session's upload never appears here
+         *     (ETH-2, S9.8) — only the public, unowned corpus and, if the caller sent a
+         *     matching token, their own.
          */
         get: operations["list_projects_api_projects_get"];
         put?: never;
-        /** Create Project */
+        /**
+         * Create Project
+         * @description Create a project, private to the caller's upload session by construction.
+         *
+         *     Every project made through this route is linked 1:1 to an ``UploadSession``
+         *     (ETH-2, migration 0012) — there is no path here that lands a caller's
+         *     upload in a shared or default project. The seeded, public-domain demo
+         *     corpus is the only project anyone can read without a session token, and it
+         *     is inserted directly by ``scripts/seed_series.py``, never through this
+         *     endpoint. A demo session owns at most one project — the frozen
+         *     ``upload_session.project_id`` column is single-valued, matching do1's
+         *     S9.5 "1 book" visitor quota.
+         *
+         *     The response carries the caller's session token back in the
+         *     ``X-Session-Token`` header (minted fresh if none was sent) so the client
+         *     can replay it on every later call for this upload.
+         */
         post: operations["create_project_api_projects_post"];
         delete?: never;
         options?: never;
@@ -71,11 +91,14 @@ export interface paths {
         };
         /**
          * List Books
-         * @description List books across every project, or filter to one.
+         * @description List books across every project this caller may see, or filter to one.
          *
          *     A flat list rather than fanning `GET /projects` out into N detail calls —
          *     the library screen is the first thing a user sees, and it grows worse in a
-         *     series project, where a reader may have many books (SCR-6).
+         *     series project, where a reader may have many books (SCR-6). Books in a
+         *     project owned by a different session are filtered out exactly like
+         *     `GET /projects` (ETH-2, S9.8) — passing another session's private
+         *     ``project_id`` returns an empty list, the same as a nonexistent one.
          */
         get: operations["list_books_api_books_get"];
         put?: never;
@@ -100,10 +123,28 @@ export interface paths {
          * @description Stream an uploaded PDF to storage and queue its ingestion.
          *
          *     Hashing happens while the file streams to a temp path so a 200 MB upload
-         *     never sits in memory whole (F1.1). A ``content_hash`` collision short
-         *     circuits everything after it (F1.5): the object is never re-uploaded and
-         *     the caller gets back the book that already exists, at ``200`` rather than
-         *     ``202`` since nothing was queued.
+         *     never sits in memory whole (F1.1). A ``content_hash`` collision within the
+         *     **same** project short circuits everything after it (F1.5): the object is
+         *     never re-uploaded and the caller gets back the book that already exists,
+         *     at ``200`` rather than ``202`` since nothing was queued. A collision
+         *     against a *different* project's book is never reused (ETH-2, S9.8) — that
+         *     would either pool this upload into someone else's project or hand back an
+         *     id the caller cannot otherwise reach — and is reported as ``409`` instead.
+         *
+         *     A project owned by a different session's upload 404s here exactly like
+         *     every other book-scoped route, before anything is read off the file.
+         *
+         *     do1's ``ops.upload_guard`` (S9.5) enforces quota/TTL/public-domain on top
+         *     of that isolation, but only for a session-owned upload — a project with
+         *     no owning ``UploadSession`` is the seeded public corpus or
+         *     ``scripts/ingest_series.py``'s token-free path (session_privacy's own
+         *     module docstring), and neither is a visitor demo upload the guard's
+         *     per-visitor limits were built for. Every guard check runs after the
+         *     idempotent-reingest short circuit above but before anything new is
+         *     written to object storage or Postgres, so a retry of a file already
+         *     ingested by this session still returns its existing ``200`` rather than
+         *     being counted against — or rejected by — a quota that upload already
+         *     satisfied.
          */
         post: operations["upload_book_api_projects__project_id__books_post"];
         delete?: never;
@@ -126,7 +167,16 @@ export interface paths {
         get: operations["get_book_api_books__book_id__get"];
         put?: never;
         post?: never;
-        /** Delete Book */
+        /**
+         * Delete Book
+         * @description Delete a book from every store it touched — Postgres, object storage,
+         *     and the graph and trace stores its ingestion wrote to (ETH-2, S9.8).
+         *
+         *     Idempotent (``session_privacy.delete_book_cascade``): a book that does not
+         *     exist, or was never visible to this caller, both 404 rather than silently
+         *     no-opping, since a caller must not be able to distinguish "already
+         *     deleted" from "never existed" for someone else's book.
+         */
         delete: operations["delete_book_api_books__book_id__delete"];
         options?: never;
         head?: never;
@@ -696,6 +746,121 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/ops/cost-breakdown": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Cost Breakdown
+         * @description Rolling cost by stage and by purpose, plus query/book counts (S9.1, F7.1).
+         *
+         *     ``window=daily`` is the last 24h, ``window=monthly`` the last 30 days --
+         *     both always computed live from ``IngestionStage``/``QueryLog``, never from
+         *     a stale snapshot. ``persist=true`` additionally writes the result to
+         *     ``cost_snapshot`` so ``GET /ops/cost-snapshots`` has a point to plot; a
+         *     plain read never has that side effect on its own.
+         */
+        get: operations["cost_breakdown_api_ops_cost_breakdown_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ops/cost-snapshots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Cost Snapshots
+         * @description Stored cost-snapshot history, newest first -- the rolling-spend chart's feed.
+         */
+        get: operations["cost_snapshots_api_ops_cost_snapshots_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ops/performance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Performance
+         * @description Stage latency percentiles, ingestion throughput, GPU/KV pressure,
+         *     Celery queue depth and prefix-cache hit rate in one screen (S9.2, F7.2).
+         *
+         *     Pure presentation over data every stage has written since Sprint 2 --
+         *     see ``api/ops/performance_telemetry.py`` for what each field reads.
+         */
+        get: operations["performance_api_ops_performance_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ops/pipeline-health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pipeline Health
+         * @description Run history, per-stage failure rate, retry outcomes and dead-letter,
+         *     each with a trace link (S9.3, F7.4) -- "what broke and where" on one screen.
+         */
+        get: operations["pipeline_health_api_ops_pipeline_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ops/budget-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Budget Status
+         * @description Monthly spend vs. the configured budget cap (S9.4, §9.1).
+         *
+         *     Visibility only from this route; ``scripts/budget_monitor.py`` is what
+         *     acts on a breach (pausing ``celery-worker``) so a public deploy degrades
+         *     rather than running up an unbounded bill.
+         */
+        get: operations["budget_status_api_ops_budget_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/ops/extraction-quality": {
         parameters: {
             query?: never;
@@ -1055,9 +1220,31 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Routing Policy */
+        /**
+         * Get Routing Policy
+         * @description The live per-purpose model policy (S9.6, F7.3) -- the max-version row.
+         *
+         *     Also re-syncs this process's in-memory routing cache
+         *     (``api/llm/routing.py::route_for`` reads it, not this table directly)
+         *     from Postgres, so a read from a process that did not make the last PUT
+         *     -- a fresh API server restart, a Celery worker -- still reflects the
+         *     persisted policy rather than the hardcoded local-only defaults.
+         *
+         *     Returns ``version=0`` with the synthesized defaults when no PUT has ever
+         *     landed, so a caller always gets a well-defined "current policy" rather
+         *     than a 404 or an empty body.
+         */
         get: operations["get_routing_policy_api_ops_routing_policy_get"];
-        /** Set Routing Policy */
+        /**
+         * Set Routing Policy
+         * @description Append the next policy version and flip this process's live routing
+         *     immediately (S9.6, F7.3) -- the closing-argument demo needs the very next
+         *     query answered on this same server to visibly use the new mapping.
+         *
+         *     ``body.version`` is ignored: the version is the audit trail's own
+         *     sequence number, assigned server-side from the current max, never
+         *     client-supplied (migration 0012 -- every PUT is a new row).
+         */
         put: operations["set_routing_policy_api_ops_routing_policy_put"];
         post?: never;
         delete?: never;
@@ -1293,6 +1480,21 @@ export interface components {
             estimated_seconds_remaining?: number | null;
             /** Trace Url */
             trace_url?: string | null;
+        };
+        /** BudgetStatusOut */
+        BudgetStatusOut: {
+            /** Budget Usd */
+            budget_usd: number;
+            /** Spent Usd */
+            spent_usd: number;
+            /** Remaining Usd */
+            remaining_usd: number;
+            /** Pct Used */
+            pct_used: number;
+            /** Warning */
+            warning: boolean;
+            /** Breached */
+            breached: boolean;
         };
         /**
          * CandidateKind
@@ -1571,6 +1773,42 @@ export interface components {
             evidence?: components["schemas"]["EvidenceOut"][];
             /** Reason */
             reason: string;
+        };
+        /** CostBreakdown */
+        CostBreakdown: {
+            /**
+             * Window Start
+             * Format: date-time
+             */
+            window_start: string;
+            /**
+             * Window End
+             * Format: date-time
+             */
+            window_end: string;
+            /**
+             * Total Cost Usd
+             * @default 0
+             */
+            total_cost_usd: number;
+            /** By Stage */
+            by_stage?: {
+                [key: string]: number;
+            };
+            /** By Purpose */
+            by_purpose?: {
+                [key: string]: number;
+            };
+            /**
+             * Query Count
+             * @default 0
+             */
+            query_count: number;
+            /**
+             * Book Count
+             * @default 0
+             */
+            book_count: number;
         };
         /** DeadLetterOut */
         DeadLetterOut: {
@@ -2183,6 +2421,43 @@ export interface components {
             /** N */
             n: number;
         };
+        /**
+         * PerformanceOut
+         * @description ``GET /ops/performance`` response -- S9.2.
+         */
+        PerformanceOut: {
+            /** Book Id */
+            book_id: string | null;
+            /** Stage Latency Ms */
+            stage_latency_ms: {
+                [key: string]: components["schemas"]["PercentileSetOut"];
+            };
+            /** Ingestion Throughput */
+            ingestion_throughput: components["schemas"]["ThroughputOut"][];
+            /** Prefix Cache Hit Rate */
+            prefix_cache_hit_rate: number | null;
+            /** Gpu Kv Cache Usage Pct */
+            gpu_kv_cache_usage_pct: number | null;
+            queue_depth: components["schemas"]["QueueDepthOut"];
+            /** Inference Mode */
+            inference_mode: string;
+        };
+        /**
+         * PipelineHealthOut
+         * @description ``GET /ops/pipeline-health`` response -- S9.3.
+         */
+        PipelineHealthOut: {
+            /** Book Id */
+            book_id: string | null;
+            /** Runs */
+            runs: components["schemas"]["IngestionRunOut"][];
+            /** Failure Rates */
+            failure_rates: components["schemas"]["StageFailureRateOut"][];
+            /** Retry Outcomes */
+            retry_outcomes: components["schemas"]["RetryOutcomeOut"][];
+            /** Dead Letters */
+            dead_letters: components["schemas"]["DeadLetterOut"][];
+        };
         /** PredicateScoreOut */
         PredicateScoreOut: {
             /** Predicate */
@@ -2348,6 +2623,26 @@ export interface components {
             task_type: components["schemas"]["ReviewTaskType"];
             /** Open Count */
             open_count: number;
+        };
+        /**
+         * QueueDepthOut
+         * @description Best-effort, from ``celery inspect`` -- not a broker-side backlog count.
+         *
+         *     ``active`` + ``reserved`` + ``scheduled`` is what the workers this host
+         *     can see are currently holding, not what is still sitting unclaimed in
+         *     RabbitMQ (that needs the management HTTP API, which is not wired up --
+         *     see HANDOFF.md). ``None`` for any field the broker did not answer within
+         *     the inspect timeout, same convention as ``api/ops/healthcheck.py``.
+         */
+        QueueDepthOut: {
+            /** Active */
+            active: number | null;
+            /** Reserved */
+            reserved: number | null;
+            /** Scheduled */
+            scheduled: number | null;
+            /** Reachable */
+            reachable: boolean;
         };
         /** RateOut */
         RateOut: {
@@ -2724,6 +3019,24 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /**
+         * RetryOutcomeOut
+         * @description One stage's retried rows: did the last attempt land, or not.
+         *
+         *     ``retried`` is any row with ``attempt > 0`` -- the stage's own
+         *     upsert-in-place convention (`api/ops/pipeline_status.py`'s docstring)
+         *     means ``attempt`` is already the retry count, not a separate counter.
+         */
+        RetryOutcomeOut: {
+            /** Stage */
+            stage: string;
+            /** Retried */
+            retried: number;
+            /** Eventually Succeeded */
+            eventually_succeeded: number;
+            /** Still Failed */
+            still_failed: number;
+        };
         /** ReviewAlertsOut */
         ReviewAlertsOut: {
             /** Project Id */
@@ -2902,6 +3215,17 @@ export interface components {
              */
             duration_ms: number;
         };
+        /** StageFailureRateOut */
+        StageFailureRateOut: {
+            /** Stage */
+            stage: string;
+            /** Total */
+            total: number;
+            /** Failed */
+            failed: number;
+            /** Failure Rate */
+            failure_rate: number;
+        };
         /**
          * StageName
          * @description The frozen ingestion stages. These strings are also the Celery task names.
@@ -2960,6 +3284,16 @@ export interface components {
             /** Max Hours */
             max_hours?: number | null;
         };
+        /** ThroughputOut */
+        ThroughputOut: {
+            /**
+             * Book Id
+             * Format: uuid
+             */
+            book_id: string;
+            /** Pages Per Minute */
+            pages_per_minute: number | null;
+        };
         /** TokenEvent */
         TokenEvent: {
             /**
@@ -2982,7 +3316,9 @@ export interface operations {
     list_projects_api_projects_get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "X-Session-Token"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -3029,7 +3365,10 @@ export interface operations {
     create_project_api_projects_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "X-Session-Token"?: string | null;
+                "x-forwarded-for"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -3080,7 +3419,9 @@ export interface operations {
     get_project_api_projects__project_id__get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "X-Session-Token"?: string | null;
+            };
             path: {
                 project_id: string;
             };
@@ -3185,7 +3526,9 @@ export interface operations {
                 project_id?: string | null;
                 status?: components["schemas"]["BookStatus"] | null;
             };
-            header?: never;
+            header?: {
+                "X-Session-Token"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -3234,7 +3577,10 @@ export interface operations {
             query?: {
                 series_order?: number | null;
             };
-            header?: never;
+            header?: {
+                "X-Session-Token"?: string | null;
+                "x-forwarded-for"?: string | null;
+            };
             path: {
                 project_id: string;
             };
@@ -3287,7 +3633,9 @@ export interface operations {
     get_book_api_books__book_id__get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "X-Session-Token"?: string | null;
+            };
             path: {
                 book_id: string;
             };
@@ -3336,7 +3684,9 @@ export interface operations {
     delete_book_api_books__book_id__delete: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "X-Session-Token"?: string | null;
+            };
             path: {
                 book_id: string;
             };
@@ -3383,7 +3733,9 @@ export interface operations {
     get_book_status_api_books__book_id__status_get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "X-Session-Token"?: string | null;
+            };
             path: {
                 book_id: string;
             };
@@ -3434,7 +3786,9 @@ export interface operations {
             query?: {
                 from_stage?: string | null;
             };
-            header?: never;
+            header?: {
+                "X-Session-Token"?: string | null;
+            };
             path: {
                 book_id: string;
             };
@@ -3483,7 +3837,9 @@ export interface operations {
     list_chapters_api_books__book_id__chapters_get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "X-Session-Token"?: string | null;
+            };
             path: {
                 book_id: string;
             };
@@ -3535,7 +3891,9 @@ export interface operations {
                 limit?: number;
                 offset?: number;
             };
-            header?: never;
+            header?: {
+                "X-Session-Token"?: string | null;
+            };
             path: {
                 book_id: string;
             };
@@ -3584,7 +3942,9 @@ export interface operations {
     render_page_api_books__book_id__pages__page__get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "X-Session-Token"?: string | null;
+            };
             path: {
                 book_id: string;
                 page: number;
@@ -3633,12 +3993,13 @@ export interface operations {
     };
     list_characters_api_projects__project_id__characters_get: {
         parameters: {
-            query?: {
+            query: {
                 tier?: components["schemas"]["ImportanceTier"] | null;
                 /** @description Alias-aware search */
                 q?: string | null;
                 book_id?: string | null;
-                limit_book_order?: number | null;
+                /** @description Required reading position (api/query/scope.py) */
+                limit_book_order: number;
                 limit_chapter?: number | null;
             };
             header?: never;
@@ -3689,8 +4050,9 @@ export interface operations {
     };
     get_character_api_characters__character_id__get: {
         parameters: {
-            query?: {
-                limit_book_order?: number | null;
+            query: {
+                /** @description Required reading position (api/query/scope.py) */
+                limit_book_order: number;
                 limit_chapter?: number | null;
             };
             header?: never;
@@ -3741,10 +4103,11 @@ export interface operations {
     };
     list_mentions_api_characters__character_id__mentions_get: {
         parameters: {
-            query?: {
+            query: {
                 limit?: number;
                 offset?: number;
-                limit_book_order?: number | null;
+                /** @description Required reading position (api/query/scope.py) */
+                limit_book_order: number;
                 limit_chapter?: number | null;
             };
             header?: never;
@@ -3795,8 +4158,9 @@ export interface operations {
     };
     list_appearances_api_characters__character_id__appearances_get: {
         parameters: {
-            query?: {
-                limit_book_order?: number | null;
+            query: {
+                /** @description Required reading position (api/query/scope.py) */
+                limit_book_order: number;
                 limit_chapter?: number | null;
             };
             header?: never;
@@ -3998,12 +4362,13 @@ export interface operations {
     };
     get_graph_api_projects__project_id__graph_get: {
         parameters: {
-            query?: {
+            query: {
                 /** @description A slice of the standing graph */
                 book_id?: string | null;
                 families?: components["schemas"]["RelationFamily"][] | null;
                 min_confidence?: number;
-                limit_book_order?: number | null;
+                /** @description Required reading position (api/query/scope.py) */
+                limit_book_order: number;
                 limit_chapter?: number | null;
             };
             header?: never;
@@ -4054,9 +4419,10 @@ export interface operations {
     };
     get_neighbourhood_api_characters__character_id__neighbourhood_get: {
         parameters: {
-            query?: {
+            query: {
                 depth?: number;
-                limit_book_order?: number | null;
+                /** @description Required reading position (api/query/scope.py) */
+                limit_book_order: number;
                 limit_chapter?: number | null;
             };
             header?: never;
@@ -4110,7 +4476,8 @@ export interface operations {
             query: {
                 a: string;
                 b: string;
-                limit_book_order?: number | null;
+                /** @description Required reading position (api/query/scope.py) */
+                limit_book_order: number;
                 limit_chapter?: number | null;
             };
             header?: never;
@@ -4159,10 +4526,11 @@ export interface operations {
     };
     get_evidence_api_relations__relation_id__evidence_get: {
         parameters: {
-            query?: {
+            query: {
                 limit?: number;
                 offset?: number;
-                limit_book_order?: number | null;
+                /** @description Required reading position (api/query/scope.py) */
+                limit_book_order: number;
                 limit_chapter?: number | null;
             };
             header?: never;
@@ -4217,7 +4585,8 @@ export interface operations {
                 from: string;
                 to: string;
                 max_hops?: number;
-                limit_book_order?: number | null;
+                /** @description Required reading position (api/query/scope.py) */
+                limit_book_order: number;
                 limit_chapter?: number | null;
             };
             header?: never;
@@ -4376,7 +4745,8 @@ export interface operations {
                 q: string;
                 book_id?: string | null;
                 limit?: number;
-                limit_book_order?: number | null;
+                /** @description Required reading position (api/query/scope.py) */
+                limit_book_order: number;
                 limit_chapter?: number | null;
             };
             header?: never;
@@ -4593,6 +4963,251 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MetricsOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    cost_breakdown_api_ops_cost_breakdown_get: {
+        parameters: {
+            query?: {
+                window?: string;
+                persist?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CostBreakdown"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    cost_snapshots_api_ops_cost_snapshots_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CostBreakdown"][];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    performance_api_ops_performance_get: {
+        parameters: {
+            query?: {
+                book_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PerformanceOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    pipeline_health_api_ops_pipeline_health_get: {
+        parameters: {
+            query?: {
+                book_id?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PipelineHealthOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    budget_status_api_ops_budget_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetStatusOut"];
                 };
             };
             /** @description Not Found */

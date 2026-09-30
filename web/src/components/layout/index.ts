@@ -1,4 +1,6 @@
 export { AppShell } from "./app-shell";
+export { useBreadcrumbLabel } from "./breadcrumb-label";
+export { Breadcrumbs } from "./breadcrumbs";
 export { HealthIndicator } from "./health-indicator";
 export { InferenceModeIndicator } from "./inference-mode-indicator";
 export { NavLinks } from "./nav-links";

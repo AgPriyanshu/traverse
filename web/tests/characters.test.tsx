@@ -189,7 +189,7 @@ describe("the series roster", () => {
     screen.getByRole("button", { name: /^name$/i }).click();
 
     await waitFor(() => {
-      const list = screen.getByRole("list");
+      const [list] = screen.getAllByRole("list").filter((candidate) => !candidate.closest("nav"));
       const names = within(list).getAllByRole("link").map((link) => link.textContent);
       const anneIndex = names.findIndex((name) => name?.includes("Anne"));
       const zetaIndex = names.findIndex((name) => name?.includes("Zeta"));
@@ -206,5 +206,50 @@ describe("the series roster", () => {
     renderRoute(`/projects/${PROJECT_ID}/characters`);
 
     expect(await screen.findByText(/no characters yet/i)).toBeInTheDocument();
+  });
+
+  it("shows one book's cast inside that book, with links that stay in the book", async () => {
+    mockApi({
+      [`/api/projects/${PROJECT_ID}/characters`]: [
+        character({ id: "char-marilla", canonical_name: "Marilla Cuthbert", importance_tier: "minor", appears_in_books: [1, 2] }),
+        character({ id: "char-diana", canonical_name: "Diana Barry", importance_tier: "minor", appears_in_books: [2] }),
+      ],
+      [`/api/projects/${PROJECT_ID}`]: project(),
+      [`/api/books/${BOOK_1}`]: project().books[0],
+    });
+
+    renderRoute(`/books/${BOOK_1}/characters`);
+
+    const marilla = await screen.findByRole("link", { name: /marilla cuthbert/i });
+    expect(marilla).toHaveAttribute("href", `/books/${BOOK_1}/characters/char-marilla`);
+    expect(screen.queryByText("Diana Barry")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /everyone in anne of green gables/i, level: 2 })).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: /new in book/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /^characters$/i })).toHaveAttribute("href", `/books/${BOOK_1}/characters`);
+  });
+
+  it("puts a back link and a trail on the sub page", async () => {
+    mockApi({
+      [`/api/projects/${PROJECT_ID}/characters`]: [character()],
+      [`/api/projects/${PROJECT_ID}`]: project(),
+      [`/api/books/${BOOK_1}`]: project().books[0],
+    });
+
+    renderRoute(`/books/${BOOK_1}/characters`);
+
+    const trail = await screen.findByRole("navigation", { name: /breadcrumb/i });
+    expect(await within(trail).findByRole("link", { name: /^Books$/ })).toHaveAttribute("href", "/books");
+    expect(await within(trail).findByRole("link", { name: /^Anne of Green Gables$/ })).toHaveAttribute("href", `/books/${BOOK_1}`);
+    expect(within(trail).getByText("Characters")).toHaveAttribute("aria-current", "page");
+    expect(within(trail).getByRole("link", { name: /back to anne of green gables/i })).toHaveAttribute("href", `/books/${BOOK_1}`);
+  });
+
+  it("shows no trail on a top-level page", async () => {
+    mockApi({ "/api/projects": [] });
+
+    renderRoute("/projects");
+
+    await screen.findByRole("heading", { name: /^projects$/i, level: 1 });
+    expect(screen.queryByRole("navigation", { name: /breadcrumb/i })).not.toBeInTheDocument();
   });
 });

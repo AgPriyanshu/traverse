@@ -56,7 +56,7 @@ export const BookLayout = () => {
         borderColor="border"
       >
         <NavLinks
-          items={bookNav(bookId, book.data?.project_id, book.data?.series_order)}
+          items={bookNav(bookId, book.data?.project_id)}
           direction="row"
           ariaLabel="This book"
         />

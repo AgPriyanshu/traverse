@@ -1,6 +1,7 @@
 import createClient from "openapi-fetch";
 import { ApiError, NetworkError } from "./errors";
 import type { paths } from "./schema";
+import { loadSessionToken, saveSessionToken, SESSION_TOKEN_HEADER } from "./session-token";
 
 /**
  * The page's own origin, so every request is same-origin: the API serves no
@@ -18,6 +19,21 @@ export const client = createClient<paths>({
   // Resolved per call rather than captured at module load, so a test (or a
   // future instrumentation wrapper) can replace globalThis.fetch.
   fetch: (request) => globalThis.fetch(request),
+});
+
+// The API mints a private session on `POST /projects` and returns its token in a
+// response header; every later request for that project 404s without it.
+client.use({
+  onRequest: ({ request: outgoing }) => {
+    const token = typeof window === "undefined" ? null : loadSessionToken();
+    if (token) { outgoing.headers.set(SESSION_TOKEN_HEADER, token); }
+    return outgoing;
+  },
+  onResponse: ({ response }) => {
+    const token = response.headers.get(SESSION_TOKEN_HEADER);
+    if (token && typeof window !== "undefined") { saveSessionToken(token); }
+    return response;
+  },
 });
 
 type FetchResult<T> = {

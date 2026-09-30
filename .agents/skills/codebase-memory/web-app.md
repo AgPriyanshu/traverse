@@ -620,11 +620,20 @@ Declared in full at S1 with `<NotYetBuilt/>` placeholders — adding a route lat
 is a refactor, stubbing it now is a one-line swap. Table lives in
 `src/routes/routes.tsx`; tested exhaustively in `tests/routes.test.tsx`.
 
-Routes moved to **project scope** in S5 — `/books/:id/...` now holds only
-book-local views (overview, chapters, pages, ask, review). Characters and the
-graph, previously book-scoped (S3/S4), moved to `/projects/:id/...` in the
-same pass, since a book can be one of several volumes reconciled into one
-project roster.
+Characters and the graph moved to project scope in S5 (a book can be one of
+several volumes reconciled into one roster), and are **also reachable from inside
+a book**: `/books/:id/characters`, `/characters/:cid` and `/graph` render the
+same screens under `routes/book/book-cast-layout.tsx`, narrowed to that book, so
+the book's header and tabs stay put. The screens read
+`routes/project/project-scope.ts` (`useProjectScope`: `projectId`, `basePath`,
+`bookId`, `bookOrder`) — with no provider it is the project in the URL — and build
+every character link from `basePath`, never a literal `/projects/...`.
+
+Every sub page (Add a book, New project, a book, a project, a character, evals)
+gets a back link and trail from `components/layout/breadcrumbs.tsx`, mounted once
+in `<AppShell>` and derived from the URL. A detail page names its own last crumb
+with `useBreadcrumbLabel(name)`. Top-level pages (`/books`, `/projects`, `/ops`)
+show none.
 
 | Route | Screen | Sprint |
 | --- | --- | --- |
@@ -636,6 +645,7 @@ project roster.
 | `/books/:id/pages/:n` | page viewer | Built |
 | `/books/:id/ask` | Q&A with citations, scoped to this book's reading position | Built (S6) |
 | `/books/:id/review` | review queue | Built (S7) |
+| `/books/:id/characters`, `/characters/:cid`, `/graph` | the project's roster, character page and graph narrowed to this book (`BookCastLayout`) | Built |
 | `/projects` | project list — name, kind, book/character/relation counts | Built (S5) |
 | `/projects/new` | create project (standalone \| series) | Built (S5) |
 | `/projects/:id` | books in series order, drag to reorder, add book | Built (S5) |

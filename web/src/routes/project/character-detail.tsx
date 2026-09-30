@@ -1,6 +1,7 @@
 import { Box, Button, Flex, HStack, Heading, Link, Span, Stack, Text, chakra } from "@chakra-ui/react";
 import { useMemo, useState } from "react";
 import { Link as RouterLink, useParams, useSearchParams } from "react-router";
+import { useBreadcrumbLabel } from "@/components/layout";
 import { ErrorState, LoadingSkeleton, PageRef } from "@/components/ui";
 import type { Book, Chapter } from "@/lib/api";
 import { useCharacter, useChapters, useProject } from "@/lib/api";
@@ -15,6 +16,7 @@ import { MentionInspectorDrawer } from "./mention-inspector-drawer";
 import { MentionsTimeline } from "./mentions-timeline";
 import { bookById, sortedBooks } from "./project-lookup";
 import { useReadingPositionContext } from "./reading-position-context";
+import { useProjectScope } from "./project-scope";
 import { usePagedMentions } from "./use-paged-mentions";
 
 const Select = chakra("select");
@@ -29,23 +31,24 @@ export const CharacterDetail = () => {
   const [selectedBookId, setSelectedBookId] = useState<string | null>(null);
 
   // Hooks.
-  const { projectId = "", characterId = "" } = useParams();
+  const { characterId = "" } = useParams();
+  const { projectId, basePath, bookId: scopeBookId } = useProjectScope();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Context.
-  const { position } = useReadingPositionContext();
+  const { limitBookOrder, limitChapter } = useReadingPositionContext();
 
   // Apis.
   const project = useProject(projectId);
   const character = useCharacter(characterId, {
-    limit_book_order: position?.bookOrder ?? undefined,
-    limit_chapter: position?.chapter ?? undefined,
+    limit_book_order: limitBookOrder,
+    limit_chapter: limitChapter ?? undefined,
   });
   const mentions = usePagedMentions(characterId, {
     pageSize: MENTION_PAGE_SIZE,
     expectedTotal: character.data?.mention_count,
-    limitBookOrder: position?.bookOrder ?? undefined,
-    limitChapter: position?.chapter ?? undefined,
+    limitBookOrder,
+    limitChapter: limitChapter ?? undefined,
   });
 
   // Variables.
@@ -56,8 +59,12 @@ export const CharacterDetail = () => {
     () => [...(character.data?.appearances ?? [])].sort((a, b) => (a.series_order ?? Infinity) - (b.series_order ?? Infinity)),
     [character.data?.appearances],
   );
+  const scopedBookId =
+    scopeBookId !== null && appearances.some((appearance) => appearance.book_id === scopeBookId)
+      ? scopeBookId
+      : undefined;
   const activeBookId =
-    selectedBookId ?? character.data?.first_book_id ?? appearances[0]?.book_id ?? undefined;
+    selectedBookId ?? scopedBookId ?? character.data?.first_book_id ?? appearances[0]?.book_id ?? undefined;
   const chapters = useChapters(activeBookId);
 
   // useMemos.
@@ -94,6 +101,9 @@ export const CharacterDetail = () => {
     );
   }, [bookMentions, selectedChapter, chapterList]);
 
+  // useEffects.
+  useBreadcrumbLabel(character.data?.canonical_name);
+
   // Handlers.
   const handleSelectChapter = (chapter: string | null) => {
     const next = new URLSearchParams(searchParams);
@@ -127,14 +137,6 @@ export const CharacterDetail = () => {
   return (
     <Stack gap="7">
       <Stack gap="3" borderBottomWidth="1px" borderColor="border" paddingBlockEnd="6">
-        <HStack gap="2" textStyle="small" color="fg.subtle">
-          <Link asChild>
-            <RouterLink to={`/projects/${projectId}/characters`}>Characters</RouterLink>
-          </Link>
-          <Span>/</Span>
-          <Span>{data.canonical_name}</Span>
-        </HStack>
-
         <Heading as="h1" textStyle="display">
           {data.canonical_name}
         </Heading>
@@ -497,7 +499,7 @@ export const CharacterDetail = () => {
             <Heading as="h2" textStyle="subheading">
               Relationships
             </Heading>
-            <CharacterRelationships characterId={characterId} projectId={projectId} books={books} />
+            <CharacterRelationships characterId={characterId} basePath={basePath} books={books} />
           </Stack>
         </Box>
       </Flex>

@@ -87,9 +87,12 @@ const jsonResponse = (body: unknown, status = 200) =>
 
 const seenUrls: string[] = [];
 
+// `limit_book_order` is required by every scoped endpoint, so it is always
+// sent — "caught up" is the last book with no chapter cap, never an omitted
+// value. Only a chapter cap narrows what the mock returns.
 const isScoped = (url: string): boolean => {
   const params = new URL(url, "http://localhost").searchParams;
-  return params.get("limit_book_order") !== null;
+  return params.get("limit_chapter") !== null;
 };
 
 const mockApi = () => {
@@ -128,13 +131,21 @@ describe("the persistent reading-position slider (S8.6)", () => {
     vi.restoreAllMocks();
   });
 
-  it("defaults to caught up — the whole graph, no limit params sent", async () => {
+  it("defaults to caught up — the whole graph, book order sent, no chapter cap", async () => {
     mockApi();
     renderRoute(`/projects/${PROJECT_ID}/graph?view=list`);
 
     const list = await screen.findByRole("list", { name: /relationships by character/i });
     expect(within(list).getAllByText(SPOILER_NAME).length).toBeGreaterThan(0);
     expect(screen.getByText(/caught up/i)).toBeInTheDocument();
+
+    const graphUrls = seenUrls.filter((url) => /\/graph\?/.test(url));
+    expect(graphUrls.length).toBeGreaterThan(0);
+    for (const url of graphUrls) {
+      const params = new URL(url, "http://localhost").searchParams;
+      expect(params.get("limit_book_order")).toBe("1");
+      expect(params.get("limit_chapter")).toBeNull();
+    }
   });
 
   it("a stored position hard-scopes the graph — the later character never reaches the DOM", async () => {
@@ -175,9 +186,9 @@ describe("the persistent reading-position slider (S8.6)", () => {
     const slider = screen.getByRole("slider", { name: /reading position/i });
     const user = userEvent.setup();
     slider.focus();
-    // The rightmost step is "caught up" (no params sent at all); one step
-    // left of that is the last real chapter — still everything, but now an
-    // explicit position rather than an omitted one. Five steps back from
+    // The rightmost step is "caught up" (book order only, no chapter cap);
+    // one step left of that is the last real chapter — still everything, but
+    // now an explicit chapter cap. Five steps back from
     // "caught up" lands on chapter 6 of 10. `user.keyboard` (not a raw
     // `dispatchEvent` loop) lets React commit the controlled `value` prop
     // back to the slider between presses — a fully-controlled component

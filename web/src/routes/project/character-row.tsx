@@ -9,7 +9,7 @@ import { bookById } from "./project-lookup";
 
 export type CharacterRowProps = {
   character: Character;
-  projectId: string;
+  basePath: string;
   books: readonly Book[];
 };
 
@@ -20,7 +20,7 @@ const TOP_ALIAS_COUNT = 3;
  * returning character is the same row gaining a filled slot, not a second
  * row (S5.10).
  */
-export const CharacterRow = ({ character, projectId, books }: CharacterRowProps) => {
+export const CharacterRow = ({ character, basePath, books }: CharacterRowProps) => {
   // Variables.
   const aliases = character.aliases ?? [];
   const topAliases = aliases.slice(0, TOP_ALIAS_COUNT);
@@ -48,7 +48,7 @@ export const CharacterRow = ({ character, projectId, books }: CharacterRowProps)
       <Box flex={{ md: "0 0 14rem" }} minWidth="0">
         <Link asChild fontWeight="600">
           <RouterLink
-            to={`/projects/${projectId}/characters/${character.id}`}
+            to={`${basePath}/characters/${character.id}`}
             style={{ display: "block" }}
           >
             <Text textStyle="subheading" as="span" color="fg" truncate>

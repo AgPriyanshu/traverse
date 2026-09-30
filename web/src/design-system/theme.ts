@@ -6,15 +6,19 @@ const dual = (name: keyof typeof palette) => {
   return { value: { base: palette[name].light, _dark: palette[name].dark } };
 };
 
-const literata = '"Literata", "Iowan Old Style", Georgia, "Times New Roman", serif';
-const plexSans = '"IBM Plex Sans", system-ui, "Segoe UI", Roboto, sans-serif';
-const plexMono = '"IBM Plex Mono", ui-monospace, "SF Mono", Consolas, monospace';
+const sourceSans = '"Source Sans 3", system-ui, "Segoe UI", Roboto, sans-serif';
+const sourceMono = '"Source Code Pro", ui-monospace, "SF Mono", Consolas, monospace';
 
 const config = defineConfig({
   globalCss: {
     ":root": {
       // Themes browser-owned surfaces rather than leaving them to the UA.
       colorScheme: "light dark",
+      // Reserves the scrollbar's width so a page that grows past the viewport
+      // (pipeline stages appearing) does not shift the layout sideways. Zag's
+      // scroll lock detects this and skips its own padding, so dialogs do not
+      // double-compensate.
+      scrollbarGutter: "stable",
       accentColor: "var(--chakra-colors-accent-solid)",
       caretColor: "var(--chakra-colors-accent-solid)",
       scrollbarColor:
@@ -51,7 +55,7 @@ const config = defineConfig({
     "h1, h2, h3, h4": {
       fontFamily: "heading",
       color: "fg",
-      fontWeight: "500",
+      fontWeight: "600",
       lineHeight: "1.25",
       textWrap: "balance",
     },
@@ -68,19 +72,18 @@ const config = defineConfig({
   theme: {
     tokens: {
       fonts: {
-        body: { value: plexSans },
-        heading: { value: literata },
-        serif: { value: literata },
-        mono: { value: plexMono },
+        body: { value: sourceSans },
+        heading: { value: sourceSans },
+        mono: { value: sourceMono },
       },
       fontSizes: {
         display: { value: "30px" },
         heading: { value: "20px" },
         subheading: { value: "17px" },
         quote: { value: "16.5px" },
-        body: { value: "14.5px" },
-        small: { value: "12.5px" },
-        data: { value: "12.5px" },
+        body: { value: "15px" },
+        small: { value: "13px" },
+        data: { value: "13px" },
         micro: { value: "12px" },
       },
       radii: {
@@ -166,47 +169,47 @@ const config = defineConfig({
     textStyles: {
       display: {
         value: {
-          fontFamily: literata,
+          fontFamily: sourceSans,
           fontSize: "30px",
-          fontWeight: "500",
+          fontWeight: "600",
           lineHeight: "1.2",
           letterSpacing: "-0.01em",
         },
       },
       heading: {
         value: {
-          fontFamily: literata,
+          fontFamily: sourceSans,
           fontSize: "20px",
-          fontWeight: "500",
+          fontWeight: "600",
           lineHeight: "1.3",
         },
       },
       subheading: {
         value: {
-          fontFamily: literata,
+          fontFamily: sourceSans,
           fontSize: "17px",
-          fontWeight: "500",
+          fontWeight: "600",
           lineHeight: "1.35",
         },
       },
       quote: {
         value: {
-          fontFamily: literata,
+          fontFamily: sourceSans,
           fontSize: "16.5px",
           fontStyle: "italic",
           lineHeight: "1.55",
         },
       },
       body: {
-        value: { fontFamily: plexSans, fontSize: "14.5px", lineHeight: "1.55" },
+        value: { fontFamily: sourceSans, fontSize: "15px", lineHeight: "1.55" },
       },
       small: {
-        value: { fontFamily: plexSans, fontSize: "12.5px", lineHeight: "1.5" },
+        value: { fontFamily: sourceSans, fontSize: "13px", lineHeight: "1.5" },
       },
       data: {
         value: {
-          fontFamily: plexMono,
-          fontSize: "12.5px",
+          fontFamily: sourceSans,
+          fontSize: "13px",
           lineHeight: "1.5",
           fontVariantNumeric: "tabular-nums oldstyle-nums",
           fontFeatureSettings: '"tnum" 1, "onum" 1',

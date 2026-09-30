@@ -1,6 +1,7 @@
 import { Button, HStack, Stack, Text } from "@chakra-ui/react";
 import { useMemo } from "react";
-import { useCharacters } from "@/lib/api";
+import { useCharacters, useProject } from "@/lib/api";
+import { limitsForProject } from "@/lib/reading-position";
 import { TIER_ORDER } from "@/routes/project/character-labels";
 
 export type SuggestedQuestionsProps = {
@@ -22,7 +23,11 @@ const GENERIC_QUESTIONS = [
  */
 export const SuggestedQuestions = ({ projectId, onAsk }: SuggestedQuestionsProps) => {
   // Apis.
-  const characters = useCharacters(projectId);
+  const project = useProject(projectId);
+  const { limitBookOrder } = limitsForProject(null, project.data?.books ?? []);
+  const characters = useCharacters(project.data ? projectId : undefined, {
+    limit_book_order: limitBookOrder,
+  });
 
   // useMemos.
   const questions = useMemo(() => {

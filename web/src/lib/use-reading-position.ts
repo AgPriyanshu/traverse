@@ -3,6 +3,7 @@ import type { Book } from "./api";
 import {
   buildPositionSteps,
   indexForPosition,
+  limitsForProject,
   loadReadingPosition,
   positionForIndex,
   positionLabel,
@@ -17,6 +18,8 @@ export type ReadingPositionState = {
   maxIndex: number;
   isLimited: boolean;
   label: string;
+  limitBookOrder: number;
+  limitChapter: number | null;
   setIndex: (index: number) => void;
 };
 
@@ -39,6 +42,7 @@ export const useReadingPosition = (projectId: string, books: readonly Book[]): R
   }
 
   const index = indexForPosition(position, steps);
+  const { limitBookOrder, limitChapter } = limitsForProject(position, books);
 
   const setIndex = (nextIndex: number) => {
     const next = positionForIndex(nextIndex, steps);
@@ -53,6 +57,8 @@ export const useReadingPosition = (projectId: string, books: readonly Book[]): R
     maxIndex: steps.length,
     isLimited: position !== null,
     label: positionLabel(position, steps),
+    limitBookOrder,
+    limitChapter,
     setIndex,
   };
 };

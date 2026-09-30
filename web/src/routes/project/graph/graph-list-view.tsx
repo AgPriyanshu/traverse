@@ -12,7 +12,7 @@ import { predicateLabel } from "./relation-style";
 export type GraphListViewProps = {
   nodes: readonly GraphNode[];
   edges: readonly GraphEdge[];
-  projectId: string;
+  basePath: string;
   /** The active book slice, for the "first appears here" badge — `null` shows none. */
   firstInBookFilter?: number | null;
   onSelectEdge: (edge: GraphEdge) => void;
@@ -22,7 +22,7 @@ export type GraphListViewProps = {
 export const GraphListView = ({
   nodes,
   edges,
-  projectId,
+  basePath,
   firstInBookFilter = null,
   onSelectEdge,
 }: GraphListViewProps) => {
@@ -79,7 +79,7 @@ export const GraphListView = ({
           <HStack gap="3" wrap="wrap" marginBlockEnd="2">
             <Heading as="h3" textStyle="subheading">
               <Link asChild>
-                <RouterLink to={`/projects/${projectId}/characters/${node.id}`}>
+                <RouterLink to={`${basePath}/characters/${node.id}`}>
                   {node.canonical_name}
                 </RouterLink>
               </Link>
@@ -123,7 +123,7 @@ export const GraphListView = ({
                     {outgoing ? `${predicateLabel(edge.predicate)} →` : `← ${predicateLabel(edge.predicate)}`}
                   </Text>
                   <Link asChild flex="1 1 8rem" minWidth="0">
-                    <RouterLink to={`/projects/${projectId}/characters/${other?.id ?? ""}`}>
+                    <RouterLink to={`${basePath}/characters/${other?.id ?? ""}`}>
                       {other?.canonical_name ?? "Unknown character"}
                     </RouterLink>
                   </Link>

@@ -305,7 +305,7 @@ type CharactersParams = QueryParams<
 
 export const useCharacters = (
   projectId: string | undefined,
-  params?: CharactersParams,
+  params: CharactersParams,
 ) => {
   return useQuery({
     queryKey: queryKeys.projectCharacters(projectId ?? "", params),
@@ -321,7 +321,7 @@ export const useCharacters = (
 
 export type CharacterDetailParams = QueryParams<"/api/characters/{character_id}", "get">;
 
-export const useCharacter = (characterId: string | undefined, params?: CharacterDetailParams) => {
+export const useCharacter = (characterId: string | undefined, params: CharacterDetailParams) => {
   return useQuery({
     queryKey: queryKeys.character(characterId ?? "", params),
     queryFn: () =>
@@ -346,7 +346,7 @@ export type MentionsParams = QueryParams<
  * as far as `useMentions` goes, but auditing a character with 1,000+ mentions
  * needs several pages fetched and accumulated client-side.
  */
-export const mentionsQueryOptions = (characterId: string, params?: MentionsParams) => ({
+export const mentionsQueryOptions = (characterId: string, params: MentionsParams) => ({
   queryKey: queryKeys.characterMentions(characterId, params),
   queryFn: () =>
     request(() =>
@@ -358,7 +358,7 @@ export const mentionsQueryOptions = (characterId: string, params?: MentionsParam
 
 export const useMentions = (
   characterId: string | undefined,
-  params?: MentionsParams,
+  params: MentionsParams,
 ) => {
   return useQuery({
     ...mentionsQueryOptions(characterId ?? "", params),
@@ -366,13 +366,15 @@ export const useMentions = (
   });
 };
 
-export const useAppearances = (characterId: string | undefined) => {
+type AppearancesParams = QueryParams<"/api/characters/{character_id}/appearances", "get">;
+
+export const useAppearances = (characterId: string | undefined, params: AppearancesParams) => {
   return useQuery({
-    queryKey: queryKeys.characterAppearances(characterId ?? ""),
+    queryKey: queryKeys.characterAppearances(characterId ?? "", params),
     queryFn: () =>
       request(() =>
         client.GET("/api/characters/{character_id}/appearances", {
-          params: { path: { character_id: characterId as string } },
+          params: { path: { character_id: characterId as string }, query: params },
         }),
       ),
     enabled: Boolean(characterId),
@@ -425,7 +427,7 @@ type GraphParams = QueryParams<"/api/projects/{project_id}/graph", "get">;
 
 export const useProjectGraph = (
   projectId: string | undefined,
-  params?: GraphParams,
+  params: GraphParams,
 ) => {
   return useQuery({
     queryKey: queryKeys.projectGraph(projectId ?? "", params),
@@ -439,18 +441,24 @@ export const useProjectGraph = (
   });
 };
 
+type NeighbourhoodScope = Pick<
+  QueryParams<"/api/characters/{character_id}/neighbourhood", "get">,
+  "limit_book_order" | "limit_chapter"
+>;
+
 export const useNeighbourhood = (
   characterId: string | undefined,
+  scope: NeighbourhoodScope,
   depth: 1 | 2 = 1,
 ) => {
   return useQuery({
-    queryKey: queryKeys.characterNeighbourhood(characterId ?? "", depth),
+    queryKey: queryKeys.characterNeighbourhood(characterId ?? "", depth, scope),
     queryFn: () =>
       request(() =>
         client.GET("/api/characters/{character_id}/neighbourhood", {
           params: {
             path: { character_id: characterId as string },
-            query: { depth },
+            query: { depth, ...scope },
           },
         }),
       ),
@@ -465,7 +473,7 @@ type EvidenceParams = QueryParams<
 
 export const useEvidence = (
   relationId: string | undefined,
-  params?: EvidenceParams,
+  params: EvidenceParams,
 ) => {
   return useQuery({
     queryKey: queryKeys.relationEvidence(relationId ?? "", params),
@@ -482,31 +490,36 @@ export const useEvidence = (
   });
 };
 
-export const useRelationArc = (a: string | undefined, b: string | undefined) => {
+type ArcScope = Pick<QueryParams<"/api/relations/arc", "get">, "limit_book_order" | "limit_chapter">;
+
+export const useRelationArc = (a: string | undefined, b: string | undefined, scope: ArcScope) => {
   return useQuery({
-    queryKey: queryKeys.relationArc(a ?? "", b ?? ""),
+    queryKey: queryKeys.relationArc(a ?? "", b ?? "", scope),
     queryFn: () =>
       request(() =>
         client.GET("/api/relations/arc", {
-          params: { query: { a: a as string, b: b as string } },
+          params: { query: { a: a as string, b: b as string, ...scope } },
         }),
       ),
     enabled: Boolean(a) && Boolean(b),
   });
 };
 
+type PathScope = Pick<QueryParams<"/api/graph/path", "get">, "limit_book_order" | "limit_chapter">;
+
 export const useGraphPath = (
   from: string | undefined,
   to: string | undefined,
+  scope: PathScope,
   maxHops = 4,
 ) => {
   return useQuery({
-    queryKey: queryKeys.graphPath(from ?? "", to ?? "", maxHops),
+    queryKey: queryKeys.graphPath(from ?? "", to ?? "", maxHops, scope),
     queryFn: () =>
       request(() =>
         client.GET("/api/graph/path", {
           params: {
-            query: { from: from as string, to: to as string, max_hops: maxHops },
+            query: { from: from as string, to: to as string, max_hops: maxHops, ...scope },
           },
         }),
       ),

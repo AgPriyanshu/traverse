@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "./client";
 import { ApiError, NetworkError } from "./errors";
+import { loadSessionToken, SESSION_TOKEN_HEADER } from "./session-token";
 
 export type UploadProgress = {
   loaded: number;
@@ -47,6 +48,8 @@ export const uploadMultipart = <T>(options: MultipartUploadOptions): Promise<T> 
     const xhr = createXhr();
     xhr.open("POST", url.toString());
     xhr.responseType = "text";
+    const sessionToken = loadSessionToken();
+    if (sessionToken) { xhr.setRequestHeader(SESSION_TOKEN_HEADER, sessionToken); }
 
     xhr.upload.onprogress = (event) => {
       if (!onProgress || !event.lengthComputable) { return; }

@@ -1,6 +1,8 @@
 import { Box, Flex } from "@chakra-ui/react";
 import { Outlet } from "react-router";
 import { AppToaster } from "@/components/ui";
+import { BreadcrumbLabelProvider } from "./breadcrumb-label-provider";
+import { Breadcrumbs } from "./breadcrumbs";
 import { SideNav } from "./side-nav";
 import { SkipLink } from "./skip-link";
 import { TopBar } from "./top-bar";
@@ -29,7 +31,10 @@ export const AppShell = () => {
           paddingInline={{ base: "4", md: "7" }}
           paddingBlock={{ base: "6", md: "9" }}
         >
-          <Outlet />
+          <BreadcrumbLabelProvider>
+            <Breadcrumbs />
+            <Outlet />
+          </BreadcrumbLabelProvider>
         </Box>
       </Flex>
     </Flex>

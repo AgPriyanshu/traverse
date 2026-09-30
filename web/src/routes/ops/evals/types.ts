@@ -1,15 +1,3 @@
-/**
- * Hand-mirrored from `api/contracts/api.py` ("Eval (Sprint 8)") — there is no
- * live route serving these yet (S8.8, do1, in progress), so `openapi-typescript`
- * has nothing to generate them from: FastAPI only emits a schema for a type a
- * route actually returns. `web/AGENTS.md`'s "never hand-write API types" rule
- * is about types for a *live* endpoint, where drift would silently produce a
- * runtime `undefined`; here there is no endpoint yet to drift from.
- *
- * Delete this file and switch to the generated `Schemas["EvalRunOut"]` etc.
- * the moment a real route lands — `plans/sprint-8/HANDOFF.md` has the note.
- */
-
 export type AblationAxis = "extraction" | "retrieval" | "model";
 
 export type AblationConfig = {

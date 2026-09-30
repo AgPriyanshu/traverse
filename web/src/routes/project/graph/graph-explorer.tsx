@@ -1,11 +1,12 @@
 import { Box, Button, HStack, Heading, Stack, Text } from "@chakra-ui/react";
 import { useCallback, useMemo } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { EmptyState, ErrorState, LoadingSkeleton } from "@/components/ui";
 import type { Book } from "@/lib/api";
 import { useOntology, useProject, useProjectGraph } from "@/lib/api";
 import { formatCount } from "@/lib/format";
 import { sortedBooks } from "../project-lookup";
+import { useProjectScope } from "../project-scope";
 import { useReadingPositionContext } from "../reading-position-context";
 import { buildNodeIndex, contextFor } from "./edge-context";
 import { EvidencePanel } from "./evidence-panel";
@@ -34,19 +35,19 @@ const defaultView = (): "graph" | "list" => {
  */
 export const GraphExplorer = () => {
   // Hooks.
-  const { projectId = "" } = useParams();
+  const { projectId, basePath, bookId, bookOrder } = useProjectScope();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
 
   // Context.
-  const { position } = useReadingPositionContext();
+  const { limitBookOrder, limitChapter } = useReadingPositionContext();
 
   // Apis.
   const project = useProject(projectId);
   const ontology = useOntology();
   const graph = useProjectGraph(projectId, {
-    limit_book_order: position?.bookOrder ?? undefined,
-    limit_chapter: position?.chapter ?? undefined,
+    limit_book_order: limitBookOrder,
+    limit_chapter: limitChapter ?? undefined,
   });
 
   // Variables.
@@ -55,7 +56,20 @@ export const GraphExplorer = () => {
   const selectedEdgeId = searchParams.get("edge");
 
   // useMemos.
-  const filters = useMemo(() => parseFilters(searchParams), [searchParams]);
+  const urlFilters = useMemo(() => parseFilters(searchParams), [searchParams]);
+  // A book's graph is pinned to that book, so its own filter is never shown or written to the URL.
+  const filters = useMemo(
+    () => (bookId === null ? urlFilters : { ...urlFilters, bookFilter: bookOrder }),
+    [urlFilters, bookId, bookOrder],
+  );
+  const barFilters = useMemo(
+    () => (bookId === null ? urlFilters : { ...urlFilters, bookFilter: null }),
+    [urlFilters, bookId],
+  );
+  const filterBarBooks = useMemo(
+    () => (bookId === null ? books : books.filter((book) => book.id === bookId)),
+    [books, bookId],
+  );
   const nodeIndex = useMemo(() => buildNodeIndex(graph.data), [graph.data]);
   const allNodes = useMemo(() => graph.data?.nodes ?? [], [graph.data]);
   const allEdges = useMemo(() => graph.data?.edges ?? [], [graph.data]);
@@ -90,7 +104,7 @@ export const GraphExplorer = () => {
   );
 
   const handleFilters = (next: GraphFilters) => {
-    setSearchParams(writeFilters(searchParams, next), { replace: true });
+    setSearchParams(writeFilters(searchParams, bookId === null ? next : { ...next, bookFilter: null }), { replace: true });
   };
 
   const handleSelectEdgeId = useCallback(
@@ -102,9 +116,9 @@ export const GraphExplorer = () => {
 
   const handleSelectNode = useCallback(
     (nodeId: string) => {
-      void navigate(`/projects/${projectId}/characters/${nodeId}`);
+      void navigate(`${basePath}/characters/${nodeId}`);
     },
-    [navigate, projectId],
+    [navigate, basePath],
   );
 
   const handleView = (next: "graph" | "list") => {
@@ -167,7 +181,7 @@ export const GraphExplorer = () => {
         </HStack>
       </HStack>
 
-      <GraphFilterBar filters={filters} books={books} onChange={handleFilters} />
+      <GraphFilterBar filters={barFilters} books={filterBarBooks} onChange={handleFilters} />
 
       <GraphLegend />
 
@@ -175,7 +189,7 @@ export const GraphExplorer = () => {
         <GraphListView
           nodes={filtered.nodes}
           edges={filtered.edges}
-          projectId={projectId}
+          basePath={basePath}
           firstInBookFilter={filters.bookFilter}
           onSelectEdge={(edge) => { handleSelectEdgeId(edge.id); }}
         />

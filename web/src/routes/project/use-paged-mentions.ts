@@ -9,7 +9,7 @@ export type UsePagedMentionsOptions = {
   /** `character.mention_count` — stop paging once we have at least this many, same idea as the chunk inspector's `chunk_count` stop condition. */
   expectedTotal?: number;
   /** The reading-position gate (S8.6) — a mention past this point is a citation, and an ungated one would leak exactly like an ungated graph node. */
-  limitBookOrder?: number;
+  limitBookOrder: number;
   limitChapter?: number;
 };
 
@@ -22,7 +22,7 @@ export type UsePagedMentionsOptions = {
  */
 export const usePagedMentions = (
   characterId: string | undefined,
-  { pageSize = DEFAULT_PAGE_SIZE, expectedTotal, limitBookOrder, limitChapter }: UsePagedMentionsOptions = {},
+  { pageSize = DEFAULT_PAGE_SIZE, expectedTotal, limitBookOrder, limitChapter }: UsePagedMentionsOptions,
 ) => {
   // States.
   const [pageCount, setPageCount] = useState(1);

@@ -52,3 +52,5 @@ eval/ablation_runs/
 # real deploy uses Let's Encrypt/ACME (plans/sprint-9/HANDOFF.md), never this
 # generated pair.
 docker/nginx/certs/
+
+local-books

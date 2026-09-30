@@ -61,6 +61,31 @@ export const routes: RouteObject[] = [
                 }),
               },
               {
+                lazy: async () => ({
+                  Component: (await import("./book/book-cast-layout")).BookCastLayout,
+                }),
+                children: [
+                  {
+                    path: "characters",
+                    lazy: async () => ({
+                      Component: (await import("./project/characters")).Characters,
+                    }),
+                  },
+                  {
+                    path: "characters/:characterId",
+                    lazy: async () => ({
+                      Component: (await import("./project/character-detail")).CharacterDetail,
+                    }),
+                  },
+                  {
+                    path: "graph",
+                    lazy: async () => ({
+                      Component: (await import("./project/graph/graph-explorer")).GraphExplorer,
+                    }),
+                  },
+                ],
+              },
+              {
                 path: "ask",
                 lazy: async () => ({
                   Component: (await import("./book/ask")).BookAsk,

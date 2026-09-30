@@ -4,6 +4,7 @@ import { ErrorState, LoadingSkeleton, PageRef } from "@/components/ui";
 import type { Book, Relation } from "@/lib/api";
 import { useRelationArc } from "@/lib/api";
 import { bookBySeriesOrder } from "../project-lookup";
+import { useReadingPositionContext } from "../reading-position-context";
 import { buildBoundaries, buildSegments, totalGlobalChapters } from "./arc-segments";
 import type { ArcSegment, BookBoundary } from "./arc-segments";
 import { FamilyBadge } from "./family-stroke";
@@ -192,8 +193,14 @@ export type RelationArcProps = {
 
 /** Fetches the pair's arc and renders it; nothing at all when the API has none, since an empty arc is not a fact. */
 export const RelationArc = ({ a, b, books }: RelationArcProps) => {
+  // Context.
+  const { limitBookOrder, limitChapter } = useReadingPositionContext();
+
   // Apis.
-  const arc = useRelationArc(a, b);
+  const arc = useRelationArc(a, b, {
+    limit_book_order: limitBookOrder,
+    limit_chapter: limitChapter ?? undefined,
+  });
 
   if (arc.isPending) {
     return <LoadingSkeleton variant="text" count={2} label="Loading relationship arc" />;
