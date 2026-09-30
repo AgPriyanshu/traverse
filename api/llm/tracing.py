@@ -1,12 +1,3 @@
-"""Langfuse tracing for every ``api.llm`` call.
-
-Every call is tagged with ``purpose``, ``book_id`` and ``stage`` — Sprint 9's
-cost breakdown (F7.1) reads these tags, and a call without them is invisible
-spend. Import has no side effect when Langfuse is not configured: the client
-is constructed lazily and only when ``settings.langfuse_enabled``, same as the
-Sprint 1 prototype.
-"""
-
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any

@@ -1,10 +1,3 @@
-"""Small read helpers shared by the review workflow, service and resolution
-modules. Kept separate from ``api/graph/repository.py`` and
-``api/relations/repository.py`` because these three modules would otherwise
-import each other in a cycle (workflow needs to query tasks; the task
-repositories need to compute priority for tasks they create).
-"""
-
 from uuid import UUID
 
 from sqlmodel import select

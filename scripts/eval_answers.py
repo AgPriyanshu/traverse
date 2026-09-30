@@ -1,33 +1,4 @@
 #!/usr/bin/env python3
-"""Drive the S6.14 gold question set through the live API and judge it.
-
-For every question in ``eval/gold/<book>/answers.yaml``: POST ``/api/query``,
-collect the SSE stream, and send the result to the frontier judge
-(``POST /ops/judge-answer``, ``api/ops/answer_judge.py``). Results are written
-to ``eval/gold/<book>/answer_judgements.json`` (resumable: a question already
-judged this run is skipped unless ``--rejudge``), and ``GET
-/ops/answer-quality`` scores them the same way ``eval/runners/relations.py``
-reads a pre-computed ops endpoint.
-
-Like every prior sprint's eval work against a dependency owned by another
-agent: a 501 from ``/api/query`` means be2's S6.1-S6.5 has not merged into
-this checkout yet. Each such question is recorded as skipped and the script
-exits 0 rather than failing a nightly schedule for a dependency it does not
-control -- this harness starts asserting for real the moment that work lands,
-no code change needed here.
-
-Aggregation completeness (F4.1's "exactly five, not a plausible four") needs
-the set of characters the system resolved the answer to, and the frozen SSE
-contract has no field for that yet (plans/sprint-6/SCR.md SCR-1). Until that
-lands, ``predicted_entities`` is approximated by matching the gold roster's
-own canonical names and aliases against the answer text -- noisier than
-reading resolved IDs, but the only signal available today.
-
-Usage:
-    python3 scripts/eval_answers.py --book-key pride-and-prejudice
-    python3 scripts/eval_answers.py --book-key pride-and-prejudice --rejudge
-    python3 scripts/eval_answers.py --book-key pride-and-prejudice --summary
-"""
 
 from __future__ import annotations
 

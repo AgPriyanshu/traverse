@@ -1,12 +1,3 @@
-"""``structured_call`` retry and tracing behaviour.
-
-No vLLM is running in this worktree (BRANCH.md §9 — only one GPU exists), so
-these stub the model at the same boundary every other package stubs
-``api.llm`` at (``api/AGENTS.md``): the chat model returned by ``get_llm``.
-The retry/classification logic under test is ours; the model's own behaviour
-is exercised in integration.
-"""
-
 from typing import Any
 
 import pytest

@@ -1,29 +1,3 @@
-"""Per-session upload isolation and real deletion (ETH-2, S9.8).
-
-PRD §10's promise is specific: uploads are private, never pooled, never used
-for training, and deletable. This module is what makes that literally true
-rather than a comment nobody enforces:
-
-- Every project created through ``POST /projects`` is linked 1:1 to the
-  ``UploadSession`` that created it (migration 0012). There is no code path in
-  this module that lands two different callers' uploads in the same project.
-- A project with **no** linked, live ``UploadSession`` is public — the seeded,
-  public-domain demo corpus (``scripts/seed_series.py`` inserts it directly,
-  never through this API) and anything the orchestrator seeds by hand. That is
-  what keeps ``scripts/ingest_series.py``'s existing token-free uploads into
-  the seeded corpus working unchanged.
-- A missing or wrong session token against a session-owned project is a 404,
-  identical to the project not existing at all — never a 403. A 403 would
-  confirm to an attacker that *something* is there under a different owner;
-  the whole point of isolation is that a private project is indistinguishable
-  from a nonexistent one to anyone but its owner.
-
-Deletion (:func:`delete_book_cascade`) is the other half: it is what
-``DELETE /books/{id}`` and the TTL sweep both call, and it is written to leave
-zero rows in every store the caller can verify without another agent's
-Neo4j write access — see the note on the graph cascade below.
-"""
-
 import hashlib
 import logging
 import secrets

@@ -1,12 +1,3 @@
-"""Top-level orchestration for ``pipeline.reconcile_characters`` (S5.1-S5.3).
-
-Cascades one book's already-persisted clusters against the rest of the
-project's roster, merges what the cascade and the blocking gate agree is the
-same person, queues review for anything blocked, and recomputes every touched
-character's derived fields from its full appearance set -- never accumulated,
-which is what makes S5.4's order-independence guarantee hold.
-"""
-
 import logging
 from uuid import UUID
 

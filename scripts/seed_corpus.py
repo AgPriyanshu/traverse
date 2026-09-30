@@ -1,49 +1,4 @@
 #!/usr/bin/env python3
-"""Fetch, license and paginate the Sprint 2 demo corpus (devops-1.md S2.16).
-
-Downloads the plain-text Project Gutenberg edition of each PRD §7 novel,
-strips the Gutenberg header/footer, and repaginates the body into a PDF using
-a hand-rolled, dependency-free writer (stdlib only — no pandoc, no calibre, no
-pypdf) so `make seed` never needs a network-installed tool.
-
-Pagination is a pure function of the stripped text and the layout constants
-below (fixed page size, fixed-pitch Courier, fixed chars-per-line and
-lines-per-page). That determinism is the point, not an implementation detail:
-a chunk's citation is a page number, `api/tests/fixtures/chapter_truth/*.json`
-(be1, S2.3) hand-labels chapter boundaries against these exact page numbers,
-and a corpus that repaginates differently on every run invalidates every
-labelled eval answer from Sprint 8 (see devops-1.md S2.16 and BRANCH.md's
-"DO NOT re-run download_models()" spirit — don't silently regenerate history
-out from under another agent's fixtures).
-
-Chapter headings are rendered in `HEADING_FONT_SIZE_PT` bold, not
-`FONT_SIZE_PT` regular (see `_HEADING_RE`, `build_pdf`). Docling's layout
-model classifies a heading from a real rendered-page image, not from any PDF
-structure tag, so a same-size, same-weight heading is indistinguishable from
-body text to it (verified against this exact corpus: every "CHAPTER N." line
-came back `text`, never `SECTION_HEADER`, before this fix — see
-plans/sprint-2/RETRO.md §4/§5 and plans/sprint-3/SCR.md SCR-1). Confirmed
-directly against the installed model that plain size alone crosses the
-threshold at 14pt (1.4x body) on this layout; 10-12pt does not, regardless of
-boldness or centering. `HEADING_FONT_SIZE_PT=16` plus bold keeps margin above
-that threshold. This changes rendered glyphs, not line-to-page assignment —
-`paginate()`'s output (which line lands on which page) is unchanged, so a
-page-based gold label survives regenerating the PDF; only `pdf_sha256`
-changes.
-
-Usage:
-    python3 scripts/seed_corpus.py            # fetch + build everything, idempotent
-    python3 scripts/seed_corpus.py --force    # re-download and re-build anyway
-    python3 scripts/seed_corpus.py --only pride-and-prejudice,frankenstein
-
-Output:
-    corpus/downloads/<key>.txt   the stripped Gutenberg source (gitignored)
-    corpus/downloads/<key>.pdf   the paginated novel (gitignored)
-    corpus/manifest.json         pinned source URL, licence, SHA-256s, page
-                                  count and the exact command that built it
-                                  (committed — this is ETH-1 evidence)
-    corpus/LICENSES.md           human-readable table of the same (committed)
-"""
 
 from __future__ import annotations
 

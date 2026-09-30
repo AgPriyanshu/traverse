@@ -1,11 +1,3 @@
-"""Property-style coverage for ``plan_batches``.
-
-``hypothesis`` is not a project dependency (``api/pyproject.toml`` is
-orchestrator-owned as of the Sprint 2 freeze — see BRANCH.md), so this drives
-the same kind of check by hand: many randomly-sized inputs, fixed seed, exact
-invariants checked every trial rather than sampled once.
-"""
-
 import random
 
 import pytest

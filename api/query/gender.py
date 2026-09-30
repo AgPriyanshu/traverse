@@ -1,19 +1,3 @@
-"""Best-effort gender inference from honorific aliases, for gendered aggregation.
-
-The ontology (``api/graph/ontology.yaml``) has no gender attribute — it is
-about relationships, not demographics — so a gendered aggregation hint
-("daughters", "brother") has nothing authoritative to filter against. This
-reuses the honorific table Sprint 3's alias cascade already built
-(:func:`api.extraction.normalization.gendered_title`, distinguishing "Mr.
-Darcy" from "Miss Darcy") as the only gender signal available, rather than
-inventing a second one.
-
-**Known limitation:** a character with no honorific-titled alias on record
-has no signal and is therefore excluded from a gendered aggregation query
-(see ``templates.AGGREGATION_HINT_GENDER``) — an under-inclusive answer that
-abstains rather than one that risks stating the wrong gender as fact.
-"""
-
 from ..db.models import Character
 from ..extraction.normalization import gendered_title
 

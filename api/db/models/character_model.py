@@ -11,14 +11,6 @@ from .base import TimestampMixin
 
 
 class Character(TimestampMixin, table=True):
-    """One person, project-wide. One Harry Potter, not seven.
-
-    Derived fields (first/last appearance, series-wide tier and mention count)
-    are RECOMPUTED from every appearance after each reconcile, never
-    accumulated — that is what makes out-of-order series ingestion
-    self-correct.
-    """
-
     __table_args__ = (
         UniqueConstraint(
             "project_id", "canonical_name", name="uq_character_project_name"
@@ -32,7 +24,6 @@ class Character(TimestampMixin, table=True):
     canonical_name: str
     aliases: list[str] = Field(default_factory=list, sa_column=Column(ARRAY(String)))
     importance_tier: ImportanceTier = Field(default=ImportanceTier.MENTIONED)
-
     first_book_id: UUID | None = Field(
         default=None, foreign_key="book.id", ondelete="SET NULL"
     )
@@ -53,12 +44,6 @@ class Character(TimestampMixin, table=True):
 
 
 class CharacterAppearance(TimestampMixin, table=True):
-    """A character's presence in one book.
-
-    This is the append target when a series grows: ingesting book five adds a
-    row here rather than a second character.
-    """
-
     __table_args__ = (
         UniqueConstraint(
             "character_id", "book_id", name="uq_appearance_character_book"
@@ -126,12 +111,6 @@ class BookCharacterCandidate(TimestampMixin, table=True):
 
 
 class RejectedCandidate(TimestampMixin, table=True):
-    """A candidate the classifier rejected, kept with its reason.
-
-    Never drop one silently: the eval harness measures rejection precision, and
-    review can overturn a wrong call.
-    """
-
     __table_args__ = (Index("ix_rejected_book", "book_id"),)
 
     id: UUID = Field(default_factory=uuid.uuid4, primary_key=True)

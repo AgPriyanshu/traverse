@@ -1,13 +1,3 @@
-"""S2.9 acceptance: both retrieval arms return sane results, RRF measured
-against each on the 15-question smoke set (``retrieval_smoke.json``).
-
-Real Postgres, real BGE-M3 embeddings (CPU) — no mocks, per ``api/AGENTS.md``.
-Whether RRF actually beats either lone arm is not asserted here: the brief
-allows for "no" as a valid answer, provided it is recorded rather than
-buried (see ``plans/sprint-2/RETRO.md``). What *is* asserted is the other
-half of the acceptance criterion — both arms work at all on this corpus.
-"""
-
 import json
 from pathlib import Path
 from uuid import UUID

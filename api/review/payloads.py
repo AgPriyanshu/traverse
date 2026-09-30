@@ -1,20 +1,3 @@
-"""Hydrate a stored ``ReviewTask`` row into the typed payload the API promises
-(S7.2, F5.2 — ``ReviewTaskPayload`` in ``api/contracts/api.py``).
-
-A task's stored ``payload`` column is deliberately lean — the identifying
-fields the queuing call site had on hand (names, ids, a reason string) — never
-the full rendering. This module resolves those identifiers against *current*
-character/relation state every time a task is read, rather than freezing a
-snapshot at queue time: a merge target's mention count or a relation's
-confidence can move between when a task is queued and when a reviewer opens
-it, and re-reading beats serving a stale number the payload promises is live
-("what the system would do unattended").
-
-Also computes each task's blast-radius priority (S7.3) from the same live
-data, since the inputs to "how much does this decision move" — tier, mention
-count, edge count — are exactly what hydration already has to look up.
-"""
-
 from collections.abc import Awaitable, Callable
 from uuid import UUID
 

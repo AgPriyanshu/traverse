@@ -1,11 +1,3 @@
-"""Unit tests for the pure parts of scripts/run_ablation.py (S8.8).
-
-No network, no DB: ``run_matrix``/``persist`` need a live API and Postgres
-and are exercised by hand against the integration stack (see
-plans/sprint-8/HANDOFF.md), same split as every other eval harness between
-"logic that's testable in CI" and "the live run".
-"""
-
 from __future__ import annotations
 
 import sys

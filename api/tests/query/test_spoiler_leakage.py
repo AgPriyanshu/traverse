@@ -1,21 +1,3 @@
-"""S8.1 spoiler-leakage measurement (PRD F4.5).
-
-The DoD requires this measured, not asserted. This seeds a synthetic two-book
-corpus with characters, relations and evidence at known reading positions,
-then runs one check per read surface the graph/query/retrieval layer exposes
-against a reader mid-book-one — everything strictly after that position is
-"the future" and must never appear. Each surface/scope pair below is one
-check, in the same spirit as the PRD's "30 questions anchored before an
-event": the harness checks the mechanism S8.1 built directly (graph,
-retrieval, generation-input), rather than driving 30 natural-language
-questions through the LLM router, which would make this test non-deterministic
-and network-dependent (``AGENTS.md``'s "tests must not reach the network").
-
-``leakage_rate = leaked_checks / total_checks`` is computed and asserted to
-be exactly zero, and printed so a `-s` run shows the real number alongside
-the assertion, per S8.1's DoD ("measured, not asserted").
-"""
-
 import uuid
 
 import pytest

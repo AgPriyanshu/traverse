@@ -1,15 +1,3 @@
-"""Real HTTP proof that do1's ``ops.upload_guard`` is actually wired into
-``POST /projects/{id}/books`` (S9.8/S9.5 merge-train reconciliation).
-
-The two modules were built in parallel against the same ``UploadSession``
-table without either agent seeing the other's finished code — see
-``plans/sprint-9/HANDOFF.md``'s "Sprint 9 merge-train fast-follow" note for
-the full reconciliation. This file exists to prove the wiring with real
-requests through the ASGI app, not by calling the guard functions in
-isolation (``api/tests/ops/test_upload_guard.py`` already covers those units
-directly and is do1's).
-"""
-
 from collections.abc import AsyncIterator
 from pathlib import Path
 

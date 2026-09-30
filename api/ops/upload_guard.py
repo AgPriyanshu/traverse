@@ -1,17 +1,3 @@
-"""Demo-upload quota, TTL and public-domain guard (S9.5, ETH-1/§12.3).
-
-``UploadSession`` (migration 0012) is the persistence layer; be1's S9.8 wires
-per-session isolation and deletion into the actual upload flow
-(``api/routes/books.py``, be1-owned -- do1 does not edit it). This module is
-the layer *on top*: quota (1 book, ≤150 pages, N/day per IP), the 24h TTL
-sweep, and a best-effort public-domain-only guard. be1 calls into these
-functions from the upload route; nothing here is wired into a route itself
-(see ``plans/sprint-9/HANDOFF.md`` for the exact integration points).
-
-Every limit is read from the environment, not ``api/config/settings.py``
-(frozen for the sprint) -- same convention as ``api/ops/budget_guard.py``.
-"""
-
 from __future__ import annotations
 
 import hashlib

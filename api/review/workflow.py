@@ -1,32 +1,3 @@
-"""LangGraph gates around the two decision-bearing points of pass 2 (S7.1, F5.1).
-
-Celery still owns the coarse pipeline and the long CPU/GPU stages (parsing,
-embedding, LLM extraction) — a LangGraph checkpoint on an 1,100-chunk payload
-would be real, needless serialisation cost, and none of those stages contain a
-decision. Only two points in the frozen chain can turn out to be wrong in a
-way a human, not a confidence threshold, should settle:
-
-- **roster** — pass 2 (``relations.extract``) reads the project roster
-  (``load_project_roster``). If alias resolution or cross-book reconciliation
-  left an open identity question for this book (a suspected character
-  collision, or a mid-band cross-book match), extracting against that roster
-  risks keying every edge on the wrong character id.
-- **conflict** — ``relations.aggregate`` may find two assertions that cannot
-  both be true (``aggregate._detect_conflicts``). Projecting either into Neo4j
-  before a human picks one is exactly the "coin flip" F5.1 exists to remove.
-
-Each gate is one node, one interrupt call, one thread — keyed as
-``f"{book_id}:{gate}"`` so the two gates never share a pause, and a paused
-thread is findable from a book id alone (no side table). The Postgres
-checkpointer (proved in Sprint 1, ``api/graph/checkpoint.py``) is what makes
-the pause survive a killed worker: see ``api/tests/graph/test_checkpointer.py``
-and this sprint's ``api/tests/review/test_restart_safety.py``.
-
-A gate that finds nothing OPEN reaches ``END`` inside its own ``ainvoke`` call
-and returns immediately — most books never pause here at all. That is the
-point: interrupts fire at genuine ambiguity, never as a matter of course.
-"""
-
 from typing import TypedDict
 from uuid import UUID
 

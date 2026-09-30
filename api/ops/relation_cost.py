@@ -1,15 +1,3 @@
-"""Pass-2 cost and prefix-cache reporting (S4.15).
-
-Pass 2 (``relations.extract``) is the most expensive stage in the system and
-PRD section 5.2's cost argument rests on vLLM's prefix cache serving the
-byte-identical roster prefix. This reports, per book, tokens, chunks processed
-versus skipped by the prefilter, wall clock, USD at both rates, and the cache
-hit rate with an alert flag when it drops below the threshold.
-
-Kept as a locally defined response model, like ``extraction_cost.py``, because
-``api/contracts/api.py`` is frozen (see ``plans/sprint-4/SCR.md``).
-"""
-
 from __future__ import annotations
 
 from uuid import UUID

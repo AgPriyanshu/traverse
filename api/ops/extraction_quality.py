@@ -1,20 +1,3 @@
-"""Extraction-quality metrics against the S3.13 gold sets (S3.14).
-
-Reads the already-frozen ``Character`` / ``CharacterAppearance`` /
-``CharacterMention`` / ``RejectedCandidate`` tables the same way
-``api/ops/pipeline_status.py`` already reads ``IngestionRun`` /
-``IngestionStage`` -- nothing here writes to them, and nothing here belongs to
-be1/be2's owned packages (``api/pipeline/**``, ``api/extraction/**``,
-``api/graph/**``) even though it reads their tables.
-
-The actual scoring logic lives in ``eval/metrics.py`` (repo-root ``eval/``, a
-new do1-owned path this sprint) so it stays testable without Postgres; this
-module is the DB-to-plain-data adapter plus the response shape for
-``GET /ops/extraction-quality``. Informational only this sprint
-(plans/sprint-3/devops-1.md S3.14) -- a regression gate lands in Sprint 8
-(F6.4).
-"""
-
 from __future__ import annotations
 
 import re

@@ -1,11 +1,3 @@
-"""Character record assembly (S3.5) — tiering and attributes over resolved clusters.
-
-Turns the alias cascade's ``Cluster`` objects into the plain dicts
-``api.extraction.repository.persist_characters`` writes. Kept separate from
-the cascade itself so tiering can be re-measured (``backend-1.md``'s
-mention-count vs. participation comparison) without touching clustering.
-"""
-
 from uuid import UUID
 
 from ..contracts.enums import ResolutionMethod

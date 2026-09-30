@@ -1,5 +1,3 @@
-"""Per-query latency instrumentation (S6.9): QueryTimer -> QueryLog.latency_ms."""
-
 import time
 
 from api.pipeline.timing import QueryTimer

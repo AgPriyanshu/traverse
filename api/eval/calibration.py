@@ -1,38 +1,3 @@
-"""Confidence calibration from Sprint 7's feedback store (S8.3, PRD F2.2, F6.2).
-
-``CorrectionFeedback`` (Sprint 7, ``api/db/models/review_model.py``) pairs a
-model's decision-time confidence with what a human ultimately decided — the
-raw material for a reliability diagram. This module turns that into:
-
-1. A binned reliability table and its Expected Calibration Error (ECE) —
-   the sample-weighted mean gap between each bin's average confidence and its
-   observed accuracy (Guo et al. 2017's standard definition).
-2. Two calibrators fit on the same labelled samples — Platt scaling (1D
-   logistic regression) and isotonic regression (pool-adjacent-violators) —
-   both implemented in pure Python: this project has no numpy/scipy/sklearn
-   dependency, and adding one needs an SCR against the orchestrator-owned
-   ``api/pyproject.toml`` for a few dozen calibration points, which is not
-   worth the freeze-cycle cost.
-3. ``ece_after`` for each calibrator, and the resulting ``CalibrationModel``
-   row (``api/db/models/ops_model.py``) — one per ``ReviewTaskType`` plus one
-   pooled ``"overall"`` row, since a merge decision's confidence and a
-   relation-confirmation's confidence are not the same signal and averaging
-   them together would hide exactly the kind of per-type miscalibration this
-   exists to surface.
-
-**Whether a decision means the model was "correct" is not obvious from the
-stored value alone** — ``human_value``/``model_value`` are free-form JSONB,
-shaped per ``ReviewTaskType`` by whichever fe1 UI produced the resolution
-(``api/review/resolution.py``'s own docstring: "vocabulary fixed by fe1's
-build, not be2's own choice"). ``label_correctness`` below is the one place
-that mapping is declared; a task type/decision pair not in it returns
-``None`` ("cannot say"), never a guessed `False`. ``resolve_conflict`` is
-deliberately absent — its decision names *which* of several candidate
-relations to keep, not whether one specific pre-stated model belief held up,
-so there is no honest binary label to read off it without more information
-than this store carries.
-"""
-
 import math
 from dataclasses import dataclass
 

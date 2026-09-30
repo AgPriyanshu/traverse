@@ -1,5 +1,3 @@
-"""Query-time name resolution (S6.7)."""
-
 import pytest_asyncio
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 

@@ -1,4 +1,5 @@
 # ruff: noqa: E501
+
 from ..graph import ontology
 
 # Everything above the ``CHUNK_TEMPLATE`` marker is the stable prefix. vLLM

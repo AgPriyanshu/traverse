@@ -1,36 +1,3 @@
-"""Ablation matrix definition and metric mapping (S8.8, F6.3).
-
-PRD Appendix A specifies a 5-row extraction table, a 6-row retrieval table and
-a 3-row model table -- the full cross product of all three is 30+ full-novel
-runs and the sprint plan (``plans/sprint-8/README.md``) explicitly forbids
-running it. Every cell below instead varies exactly **one** axis while holding
-the other two at their recommended value, plus the recommended row itself --
-that row is not a fourth thing, it is the row that is simultaneously each
-axis's own "recommended" entry, so it appears once per axis table and is
-measured once.
-
-``scripts/run_ablation.py`` is the only caller that hits the network; this
-module is pure so the matrix shape and metric mapping are unit-testable
-without Postgres, an API process, or a corpus (same split as
-``eval/relation_metrics.py`` / ``eval/answer_metrics.py``).
-
-S8.8.1 (fast-follow): be2's S8.2 landed ``api/eval/ablation.py::resolve()``,
-a real runtime switch for the **retrieval** and **model** axes (retrieval
-mode, and ``local``/``frontier``/``routed`` inference mode). The retrieval
-axis's non-recommended rows and the model axis's ``routed`` row are no longer
-statically blocked here -- ``scripts/run_ablation.py`` calls ``resolve()`` per
-cell and drives the real pipeline with the resolved override. The model
-axis's ``frontier`` row is also no longer blocked on "no route exists" (the
-route exists now); whether it actually runs depends on
-``settings.frontier_model`` being configured, which this module cannot check
-(it imports nothing from ``api``) -- ``scripts/run_ablation.py`` decides that
-at run time and reports ``BLOCKED_FRONTIER_MODEL`` when the key is absent,
-same "starts asserting for real the moment the key exists" pattern as
-``BLOCKED_FRONTIER_JUDGE``. The **extraction** axis is unchanged: no switch
-exists for it and none was built this fast-follow (out of scope, not any
-agent's story -- see ``plans/sprint-8/HANDOFF.md``).
-"""
-
 from __future__ import annotations
 
 import hashlib

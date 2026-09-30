@@ -26,8 +26,6 @@ class IngestionRun(TimestampMixin, table=True):
 
 
 class IngestionStage(TimestampMixin, table=True):
-    """One row per stage per run — what `GET /books/{id}/status` reads."""
-
     __table_args__ = (
         UniqueConstraint("run_id", "stage", name="uq_stage_run_stage"),
         Index("ix_stage_state", "state"),
@@ -88,12 +86,6 @@ class EvalRun(TimestampMixin, table=True):
 
 
 class EvalResult(TimestampMixin, table=True):
-    """One ablation-matrix cell's outcome, scoped to one book within a run.
-
-    ``EvalRun.metrics`` holds the run's own aggregate; a run sweeps several
-    axis values (PRD Appendix A), so each cell's own numbers live here.
-    """
-
     __table_args__ = (Index("ix_evalresult_run", "eval_run_id"),)
 
     id: UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -108,9 +100,6 @@ class EvalResult(TimestampMixin, table=True):
 
 
 class CalibrationModel(TimestampMixin, table=True):
-    """A fitted confidence→accuracy mapping, built from Sprint 7's
-    ``CorrectionFeedback`` store."""
-
     id: UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     task_type: str
     version: int = Field(default=1)
@@ -121,14 +110,6 @@ class CalibrationModel(TimestampMixin, table=True):
 
 
 class RoutingPolicy(TimestampMixin, table=True):
-    """Live per-purpose model routing (F7.3).
-
-    Each write is a new row rather than an update — flipping the policy is
-    the ops dashboard's headline action, and losing the ability to say what
-    was live five minutes ago would make the demo's own cost/accuracy delta
-    unauditable.
-    """
-
     __table_args__ = (Index("ix_routing_policy_version", "version"),)
 
     id: UUID = Field(default_factory=uuid.uuid4, primary_key=True)

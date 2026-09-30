@@ -1,24 +1,3 @@
-"""Templated Cypher library (S6.2, PRD F4.3).
-
-**No free-form Cypher reaches Neo4j from the query path.** Every statement
-below is a module-level string constant, written once, parameterised with
-named slots (``$subject_id``, never an f-string or ``.format()`` splice of
-router or LLM output into the query text). ``run_template`` is the only
-function in this package that calls ``neo_session().run`` with anything other
-than one of these constants, and it refuses any slot the template did not
-declare.
-
-``character_lookup`` and ``series_arc`` route through existing Postgres
-repository functions (``graph.repository.get_character`` /
-``graph.repository.relation_arc``) instead of a Cypher template here — they
-are project-scoped record reads, already declared and parameterised, and
-duplicating them as a second Cypher statement would just be two places for
-the same query to drift. ``path`` reuses ``graph.queries.shortest_path``,
-already capped at ``MAX_HOPS``. That still leaves one declared, parameterised
-statement per query class; see ``api/tests/query/test_no_freeform_cypher.py``
-for the structural proof this holds in code, not just in this docstring.
-"""
-
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any

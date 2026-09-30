@@ -1,11 +1,3 @@
-"""Relation-quality metrics against the S4.14 gold relations.
-
-The database-to-plain-data adapter for ``eval/relation_metrics.py``, behind
-``GET /ops/relation-quality``. Reads ``Relation``/``RelationEvidence`` and the
-roster tables; writes nothing. Response models live here rather than in the
-frozen ``api/contracts/api.py``, same as ``extraction_quality.py`` (SCR-2).
-"""
-
 from __future__ import annotations
 
 import json

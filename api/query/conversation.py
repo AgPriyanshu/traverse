@@ -1,14 +1,3 @@
-"""Conversation memory (S6.6, PRD F4.6).
-
-Persists ``Conversation``/``ConversationTurn`` rows and carries character and
-chapter scope forward so "and her sister?" resolves against the previous
-turn's subject rather than nothing. Context is capped by tokens, not turn
-count: a long thread about one pair of characters should not lose them just
-because it ran long, and a short thread with a chapter-scoped subject switch
-should not drag in an unrelated character from ten turns back once it no
-longer fits.
-"""
-
 from dataclasses import dataclass, field
 from uuid import UUID
 

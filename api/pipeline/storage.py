@@ -1,18 +1,3 @@
-"""Streaming object storage against MinIO's S3-compatible API.
-
-``api/ops/storage.py`` (do1, S2.15) is the eventual home for this — a shared
-``put_stream``/``presigned_get``/``exists``/``delete_prefix`` surface that both
-backend agents import. It has not landed in this worktree yet, and every S2
-story here needs it (upload, fetch-to-parse, page render caching), so this
-module is a stopgap with the same four names plus the internal ``get_object``
-the ingestion stages need that a browser-facing presigned URL cannot serve.
-Swapping the import for ``api.ops.storage`` once it exists should not require
-touching a call site — see ``plans/sprint-2/HANDOFF.md``.
-
-No new dependency was added for this: MinIO's API is plain S3 SigV4 over
-HTTP, and ``httpx`` is already pulled in transitively by ``fastapi[standard]``.
-"""
-
 import hashlib
 import hmac
 from collections.abc import AsyncIterator

@@ -1,21 +1,3 @@
-"""Query routing (S6.1).
-
-One structured call returns the query class *and* the entity phrases in one
-shot — a second entity-extraction pass would double latency on the critical
-path (``plans/sprint-6/backend-2.md``). The phrases are literal text lifted
-from the question ("Lizzy", "her sister"), never resolved IDs: resolution
-happens afterwards, against ``api.extraction.resolution.resolve_names``
-(be1, S6.7), which is the only place a name is allowed to turn into a
-character id.
-
-``LLMPurpose`` has no dedicated routing entry yet (SCR-2,
-``plans/sprint-6/SCR.md``) — ``ADJUDICATE`` is reused as the interim purpose
-since both are "pick one of a declared set of discrete outcomes" calls; this
-is a stopgap, not a design choice, and should be replaced with a dedicated
-purpose at the next contract freeze so routing's cost and latency stop being
-folded into adjudication's numbers on the ops dashboard.
-"""
-
 from pydantic import BaseModel, Field
 
 from ..contracts.enums import LLMPurpose, QueryRoute

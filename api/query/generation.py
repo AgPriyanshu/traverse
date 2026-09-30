@@ -1,14 +1,3 @@
-"""Answer rendering (S6.1-S6.4) and narrative generation/streaming (S6.5).
-
-The five graph-derived classes never free-generate: their answer text is
-assembled directly from a retrieved character record or ``RelationOut``, so
-grounding is true by construction (``grounding.py``'s module docstring) and
-every sentence carries a citation built from real evidence
-(``citations.py``). Only ``narrative`` calls the model to compose prose, and
-that prose is checked by ``grounding.ground_narrative_answer`` before it
-reaches the caller.
-"""
-
 from collections.abc import AsyncIterator
 from uuid import UUID
 

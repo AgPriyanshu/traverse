@@ -1,22 +1,3 @@
-"""Best-effort Langfuse trace purge for a deleted book (ETH-2, S9.8).
-
-``api/llm/tracing.py`` tags every LLM call's trace with ``book_id`` in its
-metadata. Deleting a book from Postgres, Neo4j and MinIO but leaving its
-traces behind in a shared Langfuse instance would still let anyone with
-dashboard access read a "deleted" upload's prompts and extracted text, so the
-delete path purges them too.
-
-A separate, lazily-constructed client rather than importing ``api/llm``'s: that
-package is not owned by either backend agent (BRANCH.md's roster lists neither
-``be1`` nor ``be2`` against ``api/llm/**``), and duplicating four lines of
-client construction is cheaper than taking a dependency on another team's
-private module-level state.
-
-Failure here is logged, never raised — Langfuse is an external, shared service
-(BRANCH.md §9) and a flaky third-party call must not block deleting a user's
-own data in the stores Traverse controls directly.
-"""
-
 import logging
 
 from langfuse import Langfuse

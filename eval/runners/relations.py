@@ -1,16 +1,4 @@
 #!/usr/bin/env python3
-"""Render relation-quality and pass-2 cost as one markdown report (S4.14, S4.15).
-
-Calls the running API's ``GET /ops/relation-quality`` and
-``GET /ops/relation-cost`` (do1-owned) rather than the database, so a PR job
-and a laptop run the same way. Unlike the Sprint 3 extraction report this one
-is partly a gate: an evidence-free edge is a structural invariant violation and
-exits non-zero, everything else stays informational until Sprint 8 (F6.4).
-
-Usage:
-    python3 -m eval.runners.relations --book-key pride-and-prejudice \\
-        --api-base-url http://localhost:8000 --out relation-quality-comment.md
-"""
 
 from __future__ import annotations
 

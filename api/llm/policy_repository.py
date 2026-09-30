@@ -1,11 +1,3 @@
-"""Postgres access for the live routing policy (S9.6, F7.3).
-
-``RoutingPolicy`` (migration 0012, frozen) is append-only: every write is a
-new row rather than an update, so the audit trail keeps the demo's own
-cost/accuracy delta explainable after a policy flip. The live policy is
-always the max-version row.
-"""
-
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 

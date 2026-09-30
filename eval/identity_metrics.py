@@ -1,21 +1,3 @@
-"""Cross-book identity reconciliation metrics (S5.14).
-
-Pure functions over plain data -- no database, no API -- so they are
-unit-testable and reusable from both ``api/ops/reconciliation_quality.py``
-and ad-hoc notebooks, the same split as ``eval/metrics.py`` and
-``eval/relation_metrics.py``.
-
-Scoring works at the level of one *appearance*: a character in one book. A
-gold identity groups a set of appearances (one per book it lists in
-``appears_in``) under one canonical name; a prediction groups the same
-appearance keys under whatever ``character_id`` the system assigned. The only
-decision either side makes is a partition over appearances, so every metric
-below is defined on unordered PAIRS of appearances -- a false merge (two
-different gold people sharing one predicted row) and a duplicate (one gold
-person spread across two-or-more predicted rows) are both properties of a
-*pair*, never of a single appearance in isolation.
-"""
-
 from __future__ import annotations
 
 import hashlib

@@ -1,26 +1,3 @@
-"""The reader's position: required context on every graph/retrieval/generation call.
-
-S8.1, PRD F4.5. Before this, ``limit_book_order``/``limit_chapter`` were a pair
-of independently optional keyword arguments defaulting to ``None`` ("no
-limit"), threaded inconsistently: some read paths (``get_character``,
-``list_mentions``, the whole-project ``/graph`` endpoint) applied them, others
-(``relations_out``, ``relation_arc``, ``shortest_path``, the neighbourhood
-graph, evidence hydration, the aggregation answer's own character-name list)
-never had the parameter plumbed at all, so a reader mid-book asking "how are X
-and Y related" or "what happened to X's arc" got the whole series back,
-unfiltered, by construction — not because a caller forgot to pass ``None``,
-but because there was nowhere to pass anything.
-
-``ReadingScope`` replaces the pair everywhere in the graph/query/retrieval
-layer with one required, defaultless parameter. There is deliberately no
-``ReadingScope | None = None`` anywhere in this codebase's function
-signatures: a missing scope is a ``TypeError`` at the call site, not a silent
-"no limit". ``ReadingScope.unlimited()`` makes "no limit" a named, explicit
-choice instead of an omission — the one route that legitimately wants it (the
-human review queue, ``api/review/**``, which shows a reviewer full context
-regardless of any reader's position) says so in the code.
-"""
-
 from dataclasses import dataclass
 
 

@@ -1,9 +1,3 @@
-"""Every database access ``pipeline.reconcile_characters`` makes (S5.1-S5.3).
-
-Tasks and the matching cascade call these functions; they never build a query
-inline (``api/AGENTS.md``).
-"""
-
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime

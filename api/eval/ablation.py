@@ -1,29 +1,3 @@
-"""Ablation configuration switching (S8.2, PRD F6.3).
-
-One eval run sweeps several ``AblationConfig`` cells (PRD Appendix A: one
-axis value held fixed against the recommended configuration of every other
-axis, never the full cross product). This module is the one place a cell's
-config turns into real runtime behaviour for the axes be2 owns — retrieval
-and model. ``resolve`` is the entry point do1's S8.8 ablation runner calls
-once per cell: it returns the concrete ``RetrievalMode``/``InferenceMode``
-values to pass into ``api.query.retrieval.retrieve_for_narrative`` and
-``api.query.generation.stream_narrative_draft`` (or ``api.llm.get_llm``/
-``structured_call`` directly), not a shape the runner has to reverse-engineer
-from ``AblationConfig``'s field names.
-
-Recording the *input* ``AblationConfig`` — not this module's resolved output —
-in ``EvalResult.config``/``EvalRun.config`` is what keeps a published number
-reproducible from its own row: resolving is a pure function of the config, so
-either one recovers the other.
-
-The ``extraction`` axis (``extraction_mode``, ``alias_mode``,
-``with_human_review``) has no switch here: it lives in ``api/pipeline/**``/
-``api/extraction/**`` (be1) and the review gate (``api/review/**``), none of
-which be2 owns or may edit (BRANCH.md). ``resolve`` raises
-``AblationAxisNotOwned`` for it rather than silently returning "nothing to
-switch" — a runner must not mistake that for "this axis has no effect".
-"""
-
 from dataclasses import dataclass
 
 from ..contracts.api import AblationConfig

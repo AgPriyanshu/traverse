@@ -1,11 +1,3 @@
-"""BGE cross-encoder reranker over the RRF-fused top 50, behind a flag.
-
-PRD §5.1 calls the reranker "the largest single quality lever per unit
-cost" — that claim is measured on the smoke set
-(``api/tests/fixtures/retrieval_smoke.json``), not inherited; see
-``plans/sprint-2/RETRO.md``.
-"""
-
 from functools import lru_cache
 from uuid import UUID
 

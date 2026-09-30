@@ -62,7 +62,12 @@ The rules that matter most for not breaking other agents:
   because the code changed — most lines should carry none.
 - Comment only genuinely non-obvious logic: a subtle invariant, a workaround for
   an external gotcha, a non-obvious algorithm. Never restate what the code says.
-- No module-level file-purpose banners before imports.
+- **Only add necessary comments.** If deleting the comment loses nothing a reader
+  could not get from the code and names, do not write it.
+- **No comment or docstring at the top of a file** — no file-purpose banners, no
+  module docstrings, no ownership or sprint/story notes before or between the
+  imports. Only tool directives (`# ruff: noqa`, `// @ts-nocheck`, shebangs) may
+  sit there.
 - No comments on class definitions.
 
 Domain-specific exception: this codebase encodes decisions that are **wrong in

@@ -1,23 +1,4 @@
 #!/usr/bin/env python3
-"""Create the S5.13 series projects and queue their books: `make seed-series`.
-
-Builds on `scripts/seed_corpus.py`'s ``SERIES_CORPUS`` (Anne of Green Gables,
-Sherlock Holmes) the same way `scripts/ingest_book.py` builds on the
-standalone five: paginate first (idempotent, checksum-verified), then create
-each project (``kind=SERIES``, straight to Postgres like `ingest_book.py` --
-``POST /projects`` is still S5.9) and upload its books through the real API
-in ``series_order``, one at a time.
-
-Sequential, not concurrent: this is the corpus-seeding path, not the
-concurrency stress test (`scripts/ingest_series.py`, S5.15) -- it waits for
-each book to reach a terminal status before uploading the next, which is
-always safe regardless of whether the per-project reconcile lock (see
-plans/sprint-5/SCR.md SCR-1) has landed yet.
-
-Usage:
-    python3 scripts/seed_series.py
-    python3 scripts/seed_series.py --only anne-of-green-gables
-"""
 
 from __future__ import annotations
 

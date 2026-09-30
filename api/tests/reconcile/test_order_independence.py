@@ -1,10 +1,3 @@
-"""S5.4 — reverse-order ingestion must produce a checksum-identical roster.
-
-Scoped to what ``pipeline.reconcile_characters`` owns: character identity,
-appearances, aliases, tiers and mention counts. Relation/edge order
-independence is be2's ``relations.aggregate`` (S5.7), not this stage's.
-"""
-
 import hashlib
 import json
 import uuid

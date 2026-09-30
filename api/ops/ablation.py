@@ -1,17 +1,3 @@
-"""Persist and read ablation runs (S8.8, F6.3).
-
-``scripts/run_ablation.py`` computes each cell's metrics against the live
-``/ops/*-quality`` endpoints and calls :func:`record_eval_run` once per run to
-write the frozen ``EvalRun``/``EvalResult`` tables (migration ``0011``). This
-module is the only thing that reads them back, behind
-``GET /ops/eval-runs/latest`` -- the read side fe1's S8.7 table consumes.
-
-Kept thin on purpose: the matrix shape and metric mapping live in
-``eval/ablation.py`` (pure, no Postgres), matching every other eval harness's
-split between "the ``eval/`` scoring logic" and "the do1-owned DB adapter"
-(see ``api/ops/extraction_quality.py``).
-"""
-
 from __future__ import annotations
 
 from typing import Any

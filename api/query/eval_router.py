@@ -1,19 +1,3 @@
-"""Router accuracy evaluation (S6.1) — makes real LLM calls, run manually.
-
-Not part of the pytest suite and not run under ``MODELS_OFFLINE=1``: this
-calls the real router (``api.query.router.classify_question``) against
-whichever model ``settings`` points at, one call per labelled question. Tests
-stub the LLM boundary per ``api/AGENTS.md``; this script is what actually
-measures it, against the shared vLLM instance.
-
-    uv run python -m api.query.eval_router \
-        api/tests/fixtures/query/routing_questions.jsonl
-
-Prints per-class precision/recall and the full confusion matrix, and exits
-non-zero if any question errors out (a schema failure, a timeout) rather than
-merely misrouting — those are worth seeing separately from a wrong class.
-"""
-
 import argparse
 import asyncio
 import json

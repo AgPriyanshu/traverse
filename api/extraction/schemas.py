@@ -1,10 +1,3 @@
-"""Pydantic schemas for every structured LLM call the extraction package makes.
-
-Sent to ``structured_call`` as the ``schema`` argument; never used to validate
-anything that reaches another package's boundary (that is ``contracts/``'s
-job).
-"""
-
 from pydantic import BaseModel, Field
 
 from ..contracts.enums import CandidateKind

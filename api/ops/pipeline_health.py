@@ -1,14 +1,3 @@
-"""Pipeline health: run history, failure rates, dead-letter, retries, traces
-(S9.3, F7.4) -- "what broke and where" on one screen, no terminal required.
-
-Builds on ``api/ops/pipeline_status.py`` (``list_runs``, ``list_dead_letters``,
-S2.17/S2.18), which already reads ``IngestionRun``/``IngestionStage`` and
-already carries each run's ``trace_url``. This module adds the two things
-that reading were missing: a failure rate per stage (across every run, not
-just the latest) and a retry-outcome breakdown (did a retried stage
-eventually succeed, or is it still stuck).
-"""
-
 from __future__ import annotations
 
 from uuid import UUID

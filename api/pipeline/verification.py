@@ -1,17 +1,3 @@
-"""Shared machinery behind F5.4: a human's correction is never overwritten,
-and a rerun that disagrees with one raises a task instead of silently
-dropping the disagreement on the floor (S7.5, S7.6).
-
-Every repository module that guards a ``human_verified`` write imports from
-here rather than re-implementing its own dedup rule -- one rule, one test,
-checked once (``AGENTS.md``'s "enforce at the repository layer" instruction).
-Also holds the correction-feedback writer (S7.7): Sprint 8's calibrator reads
-``CorrectionFeedback`` and has nothing to fit without the model's confidence
-*at the moment the disagreement was raised*, which is why every disagreement
-payload below carries a ``model_confidence`` key even when the surrounding
-contract type has no dedicated field for it.
-"""
-
 import logging
 from typing import Any
 from uuid import UUID

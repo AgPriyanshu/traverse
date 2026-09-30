@@ -1,16 +1,4 @@
 #!/usr/bin/env python3
-"""Render answer-quality as one markdown report (S6.14).
-
-Calls the running API's ``GET /ops/answer-quality`` (do1-owned) rather than
-the database, same pattern as ``eval/runners/relations.py``. Purely
-informational this sprint -- ``scripts/eval_answers.py`` must be run first to
-produce a judged run; a regression gate is Sprint 8 territory (F6.4), same as
-extraction and relation quality.
-
-Usage:
-    python3 -m eval.runners.answers --book-key pride-and-prejudice \\
-        --api-base-url http://localhost:8000 --out answer-quality-comment.md
-"""
 
 from __future__ import annotations
 

@@ -1,20 +1,3 @@
-"""Rolling cost telemetry: by stage, by purpose, and per query (S9.1, F7.1).
-
-``api/ops/metrics.py`` turns a token count into a dollar figure and
-``api/ops/pipeline_status.py::get_metrics`` reads ``IngestionStage`` for one
-book's latest run. This module is the broader aggregate PRD F7.1 also asks
-for: cost across every book and query in a rolling window, broken out by
-stage (so pass 2's dominance is visible, not lumped) and by purpose (so a
-frontier ``judge`` call is not hidden inside a stage total), plus the two
-headline ratios -- cost per book ingested and cost per query answered.
-
-``CostSnapshot`` (migration 0014) persists one window's rollup so the
-dashboard has history to plot without re-aggregating raw rows on every
-request; ``compute_cost_breakdown`` always computes live from
-``IngestionStage``/``QueryLog`` and ``save_cost_snapshot`` is a separate,
-explicit write -- a read never has the side effect of writing history.
-"""
-
 from __future__ import annotations
 
 from collections import defaultdict

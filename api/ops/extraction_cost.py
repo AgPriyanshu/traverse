@@ -1,21 +1,3 @@
-"""Extraction cost and throughput breakdown (S3.15).
-
-Extends S2.17's per-stage cost accounting (``api/ops/metrics.py``,
-``api/ops/pipeline_status.py``) with the LLM-heavy-stage detail
-plans/sprint-3/devops-1.md S3.15 asks for: wall clock normalised per 100
-pages (so books of different lengths compare), USD at both the
-local-amortised rate actually paid and a hosted-API comparison rate, and
-vLLM's own prefix-cache/KV-cache gauges.
-
-Kept as a separate response model rather than added to the frozen
-``MetricsOut`` (``api/contracts/api.py``) -- that file is orchestrator-owned
-as of the S3 freeze; see ``plans/sprint-3/SCR.md`` SCR-2 for the follow-up to
-fold these fields into ``MetricsOut``/``StageCost`` once the freeze can take
-them. ``GET /ops/metrics``'s own ``prefix_cache_hit_rate`` (already a frozen
-field) is populated live in the meantime -- see
-``api/ops/pipeline_status.py``.
-"""
-
 from __future__ import annotations
 
 from uuid import UUID

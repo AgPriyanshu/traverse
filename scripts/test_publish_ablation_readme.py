@@ -1,9 +1,3 @@
-"""Unit tests for the S8.10 README generator's pure logic.
-
-No network, no DB: `main`'s file I/O is exercised directly against tmp_path
-files rather than the real README.md.
-"""
-
 from __future__ import annotations
 
 import json

@@ -1,11 +1,3 @@
-"""S7.1: the frozen chain must defer, not fail, when a stage's gate is open.
-
-``relations.extract``/``relations.aggregate`` both check the ``roster`` gate
-(``api/review/workflow.py``) before doing any work; ``graph.upsert`` checks
-both gates. This pins that a blocked book returns quietly (no exception, no
-side effect) rather than dead-lettering on a pending human decision.
-"""
-
 import uuid
 
 import pytest

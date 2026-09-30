@@ -1,11 +1,3 @@
-"""The retry contract shared by every Celery task in the project.
-
-A task classifies its failures into exactly one of these before Celery sees
-them. ``autoretry_for=(TransientError,)`` then does the right thing without
-any call site repeating the policy.
-"""
-
-
 class PipelineError(Exception):
     """Base class for every failure raised inside an ingestion stage."""
 

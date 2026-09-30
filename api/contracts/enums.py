@@ -21,11 +21,6 @@ class BookStatus(StrEnum):
 
 
 class StageName(StrEnum):
-    """The frozen ingestion stages. These strings are also the Celery task names.
-
-    Changing one renames a Celery task and orphans anything already queued.
-    """
-
     PARSE_AND_CHUNK = "pipeline.parse_and_chunk"
     SEGMENT_CHAPTERS = "pipeline.segment_chapters"
     EMBED_CHUNKS = "pipeline.embed_chunks"

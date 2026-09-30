@@ -1,5 +1,3 @@
-"""Page render service (S2.6): cached image, dimensions, and text-span boxes."""
-
 import uuid
 from collections.abc import AsyncIterator
 from pathlib import Path

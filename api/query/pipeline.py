@@ -1,11 +1,3 @@
-"""The query pipeline (S6.1-S6.6): route, resolve, retrieve, ground, stream.
-
-``answer_question`` is the one entry point ``api/routes/query.py`` calls. It
-is an async generator of ``QueryEvent`` — the SSE route wraps it, nothing
-else does; this keeps the pipeline itself transport-agnostic and directly
-testable without a running HTTP server.
-"""
-
 import logging
 from collections.abc import AsyncIterator
 from uuid import UUID

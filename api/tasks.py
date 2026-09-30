@@ -1,14 +1,3 @@
-"""The Celery application and the frozen ingestion chain.
-
-ORCHESTRATOR-OWNED. Agents register their own tasks in their own modules under
-the names in :class:`StageName` and never edit this file.
-
-The chain is built from *string* signatures on purpose: it lets backend
-engineer 1 and backend engineer 2 own different stages of one pipeline without
-either importing the other's code, which is the single decoupling that makes
-the parallel sprint work possible.
-"""
-
 from uuid import UUID
 
 from celery import Celery, chain

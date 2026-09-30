@@ -1,16 +1,3 @@
-"""p50/p95/p99 latency and TTFT against the S6.15 NFR-perf budget.
-
-Reads ``QueryLog`` (``api/db/models/ops_model.py``) for one project and
-scores it with ``eval/latency_metrics.py``. Empty until be2's S6.1-S6.5 query
-pipeline starts writing rows -- ``sample_count=0`` is reported as-is, not
-faked into a pass, same convention as ``answer_quality.py``.
-
-Judge the resulting gate on the integration host only (BRANCH.md §9): vLLM is
-a single-GPU host singleton every worktree shares, so a timing measured
-inside a worktree reflects whatever else is on the GPU at the time, not this
-change.
-"""
-
 from __future__ import annotations
 
 from uuid import UUID

@@ -1,21 +1,3 @@
-"""Review-queue throughput metrics and alerting (S7.11).
-
-Reads ``ReviewTask``/``CorrectionFeedback`` (and, read-only, LangGraph's own
-``checkpoints``/``checkpoint_writes`` tables) behind ``GET /ops/review-metrics``
-and ``GET /ops/review-alerts``. Writes nothing. Response models live here
-rather than in the frozen ``api/contracts/api.py``, same as
-``relation_quality.py`` (SCR-2).
-
-``ReviewResolution.decision`` (``api/contracts/api.py``) is a freeform string,
-not an enum -- S7.4 (be2) has not landed a resolve handler as of this writing,
-so there is no fixed vocabulary of decision strings to bucket on yet. The
-accepted/corrected split below is derived from ``CorrectionFeedback`` instead
-(``model_value == human_value`` is an accept, anything else is a correction),
-which is a stable comparison regardless of what strings ``decision`` ends up
-using. Revisit once be2's resolve handlers land if ``decision`` grows its own
-enum.
-"""
-
 from __future__ import annotations
 
 from datetime import UTC, datetime

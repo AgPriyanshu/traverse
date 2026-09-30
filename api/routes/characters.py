@@ -1,5 +1,3 @@
-"""Characters, aliases and appearances. Owned by backend engineer 2."""
-
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status

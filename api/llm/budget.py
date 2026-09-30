@@ -1,10 +1,3 @@
-"""Assemble items into batches that fit the model's context window.
-
-Counts with the model's own tokenizer rather than a characters/4 estimate;
-prose with dialogue and em-dashes tokenizes differently from the estimate and
-the error compounds across a batch into a context overflow (PRD §5.2).
-"""
-
 from collections.abc import Callable, Sequence
 from functools import lru_cache
 from typing import TypeVar, cast

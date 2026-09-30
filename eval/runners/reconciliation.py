@@ -1,21 +1,4 @@
 #!/usr/bin/env python3
-"""Render reconciliation-quality as one markdown report (S5.14).
-
-Calls the running API's ``GET /ops/reconciliation-quality`` (do1-owned)
-rather than the database, same split as ``eval/runners/relations.py``. The
-false-merge rate is reported on its own row, never folded into an F1
-(devops-1.md S5.14: a duplicate is visible and recoverable, a merge is
-silent and destructive, and averaging them hides exactly the failure that
-matters) and is a hard gate: a rate above target fails the run. Passing
-``--compare-project-id`` additionally runs the order-independence check
-(``GET /ops/reconciliation-order-check``), a hard pass/fail on its own.
-
-Usage:
-    python3 -m eval.runners.reconciliation --project-slug anne-of-green-gables \\
-        --api-base-url http://localhost:8000
-    python3 -m eval.runners.reconciliation --project-id <forward-id> \\
-        --compare-project-id <reverse-id>
-"""
 
 from __future__ import annotations
 

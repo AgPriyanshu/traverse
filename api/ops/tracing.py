@@ -1,15 +1,3 @@
-"""Per-run and per-stage Langfuse tracing. Owned by devops engineer 1.
-
-Every ingestion run is one Langfuse trace; every stage is a span nested under
-it (S2.17). This module owns the client and the two integration points —
-wiring them into `stage()` is be1's (``api/workers/stages.py``, forbidden to
-do1); see ``plans/sprint-2/HANDOFF.md`` for the exact two call sites.
-
-Per-LLM-call tracing (tagged ``purpose``/``book_id``) is a separate concern,
-owned by be2's rewrite of ``api/llm.py`` (S2.7) — this module only opens the
-run-level trace and the stage-level spans those calls nest under.
-"""
-
 from __future__ import annotations
 
 from collections.abc import Iterator

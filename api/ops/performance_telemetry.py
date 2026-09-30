@@ -1,12 +1,3 @@
-"""Performance telemetry: latency by stage, TTFT, GPU/KV, queue depth (S9.2, F7.2).
-
-Presentation over data every stage has already written since Sprint 2 --
-``IngestionStage.duration_ms`` (be1, ``api/workers/stages.py``),
-``QueryLog.latency_ms`` (be2, S6), vLLM's own Prometheus endpoint
-(``api/ops/vllm_metrics.py``, S3.15) and Celery's own broker
-(``api.tasks.celery_app``). Nothing here adds a new collector.
-"""
-
 from __future__ import annotations
 
 from uuid import UUID

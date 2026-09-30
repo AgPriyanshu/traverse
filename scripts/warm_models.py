@@ -1,10 +1,3 @@
-"""Fill the shared model cache once, so nothing downloads at test time.
-
-Run through `make warm-models`, which mounts this into the api image with the
-offline flags turned off. An flock on the cache directory makes concurrent runs
-from two worktrees wait rather than corrupt each other (BRANCH.md §9).
-"""
-
 import fcntl
 import os
 import sys

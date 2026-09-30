@@ -1,23 +1,3 @@
-"""Cross-book identity reconciliation metrics (S5.14).
-
-The database-to-plain-data adapter for ``eval/identity_metrics.py``, behind
-``GET /ops/reconciliation-quality``. Reads ``Character``/``CharacterAppearance``
-and the project's books; writes nothing. Response model lives here rather
-than in the frozen ``api/contracts/api.py``, same reasoning as
-``relation_quality.py`` (SCR-2, ``plans/sprint-4/SCR.md``).
-
-Matching is per-book, not project-wide: a gold character's surface forms in
-book *K* are matched (``eval.metrics.match_rosters``) only against the real
-``CharacterAppearance`` rows for that same book. This is deliberate --
-matching a predicted ``Character``'s *combined* aliases across every book
-against gold up front would force a single, greedy one-to-one mapping and
-hide the exact failure this eval exists to catch: two different predicted
-``Character`` rows across two books can each independently match the same
-gold person (a duplicate), and one predicted row can independently match two
-different gold people in two different books (a false merge). Matching book
-by book keeps both visible.
-"""
-
 from __future__ import annotations
 
 import json

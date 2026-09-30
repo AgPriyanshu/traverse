@@ -1,9 +1,3 @@
-"""S8.2: RetrievalMode switches which arms hybrid_search runs, in isolation
-from real Postgres/BGE-M3 — the arm selection is pure branching logic, so it
-is tested by monkeypatching the arms rather than seeding real chunks
-(``test_hybrid.py`` already covers the real arms end to end).
-"""
-
 import uuid
 
 import pytest

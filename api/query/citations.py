@@ -1,21 +1,3 @@
-"""Citation construction shared by the graph-derived and narrative render paths.
-
-Two call sites need slightly different strictness, so this module exposes
-both rather than picking one:
-
-- Graph-derived classes (character/relationship lookup, path, aggregation,
-  series arc) cite ``RelationEvidence``/``CharacterMention`` quotes that were
-  already checked to appear in their chunk at extraction time (the relation
-  validator's substring check, ``api/AGENTS.md`` domain invariants). If
-  ``locate_quote`` cannot re-find the span — most likely a storage hiccup in
-  this environment, not a fabricated quote — falling back to the evidence
-  row's own recorded page range is still a real, previously-verified
-  citation, just without an exact highlight box.
-- ``narrative``'s citations quote a freshly generated sentence against a
-  chunk, which is unverified until this check runs — there ``locate_quote``
-  failing must drop the citation outright (``api/query/grounding.py``).
-"""
-
 from uuid import UUID
 
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession

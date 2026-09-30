@@ -1,22 +1,3 @@
-"""Apply a human decision to an open ``ReviewTask`` (S7.2, S7.4).
-
-Two invariants the whole module exists to protect:
-
-- **Idempotent resolve.** A double-click, a retried request, or two reviewers
-  opening the same task must resolve it exactly once. The guard is a single
-  conditional ``UPDATE ... WHERE status = 'open'``: Postgres serialises
-  concurrent updates to one row, so whichever caller's ``UPDATE`` commits
-  first wins the ``rowcount``, and the loser sees ``rowcount == 0`` and
-  returns the already-resolved row without re-applying anything. This is
-  checked directly under concurrent load in
-  ``api/tests/review/test_restart_safety.py``.
-- **Every resolution is recorded.** ``CorrectionFeedback`` carries what the
-  model believed at queue time (the task's own stored payload) and what the
-  human decided, with nothing computed after the fact — Sprint 8's
-  calibration has no other source for "what did the model think, before it
-  knew better."
-"""
-
 import logging
 from datetime import UTC, datetime
 from uuid import UUID

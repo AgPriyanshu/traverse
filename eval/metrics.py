@@ -1,11 +1,3 @@
-"""Pure scoring functions for extraction quality (S3.14).
-
-Nothing here touches the database, the API, or a book id -- every function
-takes plain data in and returns plain data out, so it is unit-testable
-without Postgres and reusable from both the CI runner
-(``eval/runners/extraction.py``) and ad-hoc notebooks.
-"""
-
 from __future__ import annotations
 
 from collections import Counter, defaultdict

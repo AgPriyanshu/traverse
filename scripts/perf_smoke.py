@@ -1,25 +1,4 @@
 #!/usr/bin/env python3
-"""S6.15 performance smoke test — the merge-train latency gate.
-
-20 questions against the same fixture project ``scripts/test_integration_ingestion.py``
-ingests (``ci-integration-fixture``), scored against PRD NFR-perf: p95 total
-latency <= 6s, p95 time-to-first-token <= 1.5s (``eval/latency_metrics.py``).
-
-Enforced (exit 1 on breach) only when ``INTEGRATION_HOST=1`` is set in the
-environment — per BRANCH.md §9, a worktree shares the GPU with be1/be2's own
-load, so a timing taken there is not a valid gate input and must not fail a
-build. Everywhere else (every agent worktree's own ``make test-integration``)
-this reports the same numbers without failing.
-
-Waiver, for an unrelated hotfix landing on the integration host itself: set
-``PERF_SMOKE_WAIVE=<reason>`` — the reason is echoed to the log so it is
-visible in the CI output and the PR that merged past it.
-
-Same not-my-dependency convention as ``scripts/test_integration_ingestion.py``
-and ``scripts/eval_answers.py``: a 501 from ``/api/query`` means be2's
-S6.1-S6.5 query pipeline has not merged into this checkout yet, so this exits
-0 rather than failing the build for a story it does not own.
-"""
 
 from __future__ import annotations
 

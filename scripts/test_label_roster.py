@@ -1,9 +1,3 @@
-"""Unit tests for the pure parts of scripts/label_roster.py (S3.13).
-
-The review loop takes an injectable `input_fn`/`print_fn` specifically so it
-can be scripted here without a real terminal -- see its docstring.
-"""
-
 import json
 import sys
 from pathlib import Path

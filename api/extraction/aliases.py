@@ -1,19 +1,3 @@
-"""Alias clustering cascade (S3.3) and its collision guard (S3.4).
-
-Cheapest stage first; each stage only sees what the previous could not
-resolve (``backend-1.md`` S3.3):
-
-1. exact / normalised
-2. honorific and name-order stripping
-3. nickname / diminutive tables
-4. contextual embedding similarity (be2's S3.8 service)
-5. LLM adjudication on the residue only, batched
-
-Every merge is guarded by ``collision.check`` — a string match a later stage
-would happily merge is blocked outright when contextual evidence contradicts
-it, and the cluster is flagged ``collision_suspected`` instead.
-"""
-
 import asyncio
 import itertools
 import logging

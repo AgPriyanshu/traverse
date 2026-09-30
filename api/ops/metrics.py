@@ -1,14 +1,3 @@
-"""Cost accounting for LLM calls. Owned by devops engineer 1.
-
-Per-stage timing, row counts, and DB persistence into ``ingestion_stage``
-already exist in ``api/workers/stages.py`` (be1's ``stage()`` context
-manager, S1). This module is scoped to the one piece that stayed unbuilt:
-turning a token count into a dollar figure, so ``StageRecord.cost_usd`` (and
-``QueryLog.cost_usd``, S6) are never a silent 0. `api/llm/budget.py` (S2.7,
-be1/be2) calls ``estimate_cost_usd`` after each model call and sets the
-result on the stage/query record it already owns.
-"""
-
 from dataclasses import dataclass
 
 

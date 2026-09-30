@@ -1,5 +1,3 @@
-"""Quote-span locator (S6.8): page + bounding boxes for citation highlighting."""
-
 import uuid
 from collections.abc import AsyncIterator
 from pathlib import Path

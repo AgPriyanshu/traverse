@@ -1,22 +1,4 @@
 #!/usr/bin/env python3
-"""Auto-generate README.md's ablation results section (S8.10, PRD §9.4).
-
-Reads the last ablation run's JSON artifact (`scripts/run_ablation.py`,
-`eval/ablation_runs/latest.json`) and replaces the text between two HTML
-comment markers in `README.md` with a freshly rendered table -- headline
-metrics, the corpus/gold-set version, the run date and git SHA, and every
-cell's real status (measured / partial / blocked), never a hand-typed number
-that goes stale. Idempotent: re-running with the same input reproduces byte-
-identical output, and everything outside the markers is left untouched.
-
-`make eval-ablation-readme` runs this after `make eval-ablation`; the nightly
-CI job (`.github/workflows/regression-gate.yml`) runs both and commits the
-result on `ai-master`.
-
-Usage:
-    python3 scripts/publish_ablation_readme.py
-    python3 scripts/publish_ablation_readme.py --run eval/ablation_runs/2026-09-28.json
-"""
 
 from __future__ import annotations
 

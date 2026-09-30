@@ -1,23 +1,3 @@
-"""Cross-book reconciliation cascade (S5.1) and its blocking gate (S5.2).
-
-Cheapest stage first, the same shape as the within-book alias cascade
-(``api/extraction/aliases.py``), but against the project roster instead of a
-book's own candidates:
-
-1. exact / normalised canonical match
-2. honorific and name-order stripping
-3. alias-set overlap, nickname folding included
-4. contextual embedding similarity over appearance contexts
-5. LLM adjudication on the residue, with series context in the prompt
-
-Every stage's positive result still passes ``blocking.py``'s gate before a
-merge is recorded -- the governing asymmetry (a false merge is silent and
-destructive, a duplicate is not) means no stage, however cheap, is exempt
-from it. A blocked match and a "no candidate found" match are both
-``target is None``; they are told apart by ``blocked_by``, since only the
-former owes a review task.
-"""
-
 import logging
 from dataclasses import dataclass
 from uuid import UUID

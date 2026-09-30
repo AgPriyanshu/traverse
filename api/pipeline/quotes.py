@@ -1,16 +1,3 @@
-"""Quote-span location for citation highlighting (S6.8).
-
-Given a chunk and a quote pulled from it by the generation stage, find the
-page and bounding boxes to highlight — reusing the page-render span
-machinery from S2.6 (:mod:`api.pipeline.render`) rather than a second PDF
-text-extraction path.
-
-A quote that cannot be located is **not** a citation (query-path.md): the
-caller must drop it rather than point at the wrong span, which is worse than
-no citation at all. This module only ever returns a real, located span or
-``None`` — it never guesses.
-"""
-
 import difflib
 import re
 from pathlib import Path

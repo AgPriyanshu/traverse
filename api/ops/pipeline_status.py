@@ -1,9 +1,3 @@
-"""Run history, dead-letter and cost queries. Owned by devops engineer 1.
-
-Read-only reporting over the tables `api/workers/stages.py` (be1, S1) already
-writes — nothing here mutates `ingestion_run` / `ingestion_stage`.
-"""
-
 from collections import defaultdict
 from uuid import UUID
 

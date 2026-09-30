@@ -1,20 +1,3 @@
-"""Query-time character name resolution (S6.7).
-
-Turns a phrase from a question — a name, a nickname, a partial name, or a
-pronoun-plus-relative ("her sister") — into ranked candidate characters,
-project-wide (a series project's roster spans books). This runs on every
-query before retrieval, so it reuses the Sprint 3 alias-cascade primitives
-(:mod:`api.extraction.normalization`) rather than a fresh string-matching
-implementation, and it never calls a model: the <50ms budget and the
-grep-for-"cannot be an LLM call" instruction in the sprint plan both rule it
-out.
-
-Ambiguity is surfaced, not resolved: "Darcy" against a roster holding both
-Fitzwilliam Darcy and Georgiana Darcy returns both, tied. The router (be2,
-S6.1) turns a genuine tie into a clarifying question — it can only do that if
-this function does not guess on its behalf.
-"""
-
 import difflib
 from collections.abc import Sequence
 from dataclasses import dataclass

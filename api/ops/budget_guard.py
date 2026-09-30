@@ -1,20 +1,3 @@
-"""Monthly budget cap with graceful degradation (S9.4, §9.1).
-
-PRD §9.1 asks for "a budget cap that degrades gracefully rather than running
-up a bill." This module is the read side -- a pure rollup against
-``MONTHLY_BUDGET_USD`` -- and ``scripts/budget_monitor.py`` is the act side:
-it polls ``GET /ops/budget-status`` and pauses ``celery-worker`` (a compose
-operation, squarely do1's own territory) when the cap is breached, so ingestion
-stops before the bill does rather than an app-code change gating every LLM
-call.
-
-``MONTHLY_BUDGET_USD`` is read directly from the environment, not from
-``api/config/settings.py`` -- that file is orchestrator-owned and frozen for
-the sprint (BRANCH.md), the same reason ``scripts/run_ablation.py``'s
-``ABLATION_GOLD_SET_LIMIT`` is a bare env var rather than a settings field
-(see infra-topology.md).
-"""
-
 from __future__ import annotations
 
 import os

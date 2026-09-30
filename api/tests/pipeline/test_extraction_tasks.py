@@ -1,8 +1,3 @@
-"""End-to-end wiring of ``pipeline.extract_characters`` and ``pipeline.resolve_aliases``
-(S3.1-S3.5) against a real Postgres — everything except the LLM boundary itself,
-which is stubbed at ``api.llm`` per ``api/AGENTS.md``.
-"""
-
 from uuid import uuid4
 
 import pytest

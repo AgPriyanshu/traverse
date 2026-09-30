@@ -1,11 +1,3 @@
-"""Unit tests for the pure reporting parts of scripts/ingest_series.py (S5.15).
-
-Network/DB-touching functions (`ingest_one_book`, `ensure_project`, `_upload`)
-are exercised live by `make ingest-series`; this covers only
-`roster_growth_lines`/`render_report`, which take plain `BookReport`/
-`SeriesReport` data and format it.
-"""
-
 import sys
 from pathlib import Path
 

@@ -1,11 +1,3 @@
-"""Title/author extraction for an uploaded PDF, ahead of the parse stage.
-
-Uses ``pypdfium2`` directly rather than Docling's own conversion — reading the
-``/Info`` dictionary is milliseconds against a 400-page file, versus the full
-convert Docling would need to do the same. No new dependency: ``pypdfium2`` is
-already pulled in transitively as Docling's PDF backend.
-"""
-
 import logging
 import re
 from pathlib import Path

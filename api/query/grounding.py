@@ -1,27 +1,3 @@
-"""Grounding check and abstention (S6.4, PRD F4.4).
-
-An ungrounded claim is **dropped**, never softened into a hedge — "Not
-established in this novel" is the correct answer to "What happens to
-Elizabeth's brother?" when she has none, not a vaguer version of an invented
-one (``query-path.md``).
-
-Two grounding paths, by query class:
-
-- The five graph-derived classes (character/relationship lookup, path,
-  aggregation, series arc) never free-generate text: every sentence is built
-  directly from a retrieved ``RelationOut``/character record, so grounding is
-  true by construction and abstention is "the graph returned nothing" (see
-  ``api/query/generation.py``).
-- ``narrative`` is the one class that composes prose from retrieved chunks,
-  so it is the one class with real hallucination risk. Grounding there is a
-  deliberately cheap, deterministic lexical-overlap check against the
-  chunks the model was actually given — not a second LLM call (that would
-  double generation latency for the one class already paying the streaming
-  cost) and not semantic entailment (out of scope for this sprint; a
-  paraphrase that drops entailment-breaking negation would pass this check,
-  which is a known limitation, not an oversight).
-"""
-
 import re
 from dataclasses import dataclass
 

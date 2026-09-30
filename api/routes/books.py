@@ -1,5 +1,3 @@
-"""Projects, books and ingestion. Owned by backend engineer 1."""
-
 import hashlib
 import tempfile
 from pathlib import Path

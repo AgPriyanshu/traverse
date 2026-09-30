@@ -1,13 +1,3 @@
-"""MinIO/S3 object storage. Owned by devops engineer 1 — be1 imports this for
-book uploads and page renders (S2.6); `delete_prefix` is ETH-2's deletion
-primitive.
-
-``boto3`` is not in ``api/pyproject.toml`` (orchestrator-owned; see SCR in
-plans/sprint-2/SCR.md) so it is installed straight into the runtime venv in
-``api/Dockerfile``, the same stopgap already used there for the test stage's
-``pytest``. Delete that layer once the dependency lands at a freeze.
-"""
-
 import asyncio
 import os
 from collections.abc import Iterable

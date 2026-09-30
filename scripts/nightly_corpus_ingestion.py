@@ -1,36 +1,4 @@
 #!/usr/bin/env python3
-"""Nightly full-corpus ingestion: wall clock and cost trend (devops-1.md S2.18).
-
-Ingests every book in the real S2.16 corpus (`corpus/manifest.json`, five PRD
-§7 novels — up to Anna Karenina at 685 of our own pages) through the live API
-and posts wall clock plus `/api/ops/metrics` cost to the run summary. This is
-the number PRD NFR-perf (≤25 min / 350pp) is judged on, and devops-1.md is
-explicit that it needs a trend line starting Sprint 2, not a single
-measurement in Sprint 9.
-
-S3.14/S3.15 extend this same nightly run: for every book with a gold roster
-(`eval/gold/**` — Pride and Prejudice, Wuthering Heights, S3.13) it also posts
-`GET /ops/extraction-quality` (roster P/R/F1, B3, tier accuracy, rejection
-precision) and `GET /ops/extraction-cost` (tokens, dual-rate USD, wall clock
-per 100 pages, prefix-cache hit rate) to the same run summary — "full novels"
-is this job's whole reason to exist alongside the PR-triggered reduced-set
-job (`.github/workflows/extraction-quality.yml`), which stays under 10
-minutes precisely by not doing this.
-
-Known limitation, recorded rather than hidden: `.github/workflows/
-nightly-corpus.yml` runs this on a GitHub-hosted runner with
-`INFERENCE_MODE=api` — there is no GPU there. The wall clock this posts is
-therefore an API-inference number, not the local-vLLM number NFR-perf is
-ultimately judged on, and `prefix_cache_hit_rate` will read `None` here (no
-local vLLM to scrape) even once S3.15's wiring is otherwise exercised. Point
-`runs-on` at a GPU-labelled self-hosted runner once one exists (Sprint 9
-territory) and this script needs no change.
-
-Like `scripts/test_integration_ingestion.py`, a 501 from the upload endpoint
-means be1's S2.1 has not merged into this checkout yet; every book is
-reported as skipped and the job still exits 0 rather than failing a nightly
-schedule for a dependency this file does not control.
-"""
 
 from __future__ import annotations
 

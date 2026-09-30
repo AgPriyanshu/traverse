@@ -1,13 +1,3 @@
-"""Review task priority: blast radius, not arrival order (S7.3, F5.3).
-
-A ``merge_characters`` decision on a protagonist repoints every mention and
-relation that character carries; a ``confirm_relation`` on a minor pair
-repoints at most one edge. Priority is a function of the importance tier of
-the characters a decision touches and how many mentions/edges it can move —
-never insertion order, and never ``task_type`` alone (a `merge_across_books`
-on a protagonist must still outrank a `resolve_conflict` between two minors).
-"""
-
 from collections.abc import Iterable
 
 from ..contracts.enums import ImportanceTier, ReviewTaskType

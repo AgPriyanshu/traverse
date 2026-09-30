@@ -1,13 +1,3 @@
-"""Worker entry point. Run with ``celery -A api.workers.app worker``.
-
-The Celery application itself is defined in ``api.tasks`` alongside the frozen
-stage names and the ingestion chain, and is re-exported here rather than
-redefined: one application object, one broker connection, one task registry.
-This module adds everything that is only true of a *worker* — which task
-modules to import, and per-process model warm-up — so that importing
-``api.tasks`` from the API process does not drag Docling and BGE-M3 in with it.
-"""
-
 import logging
 
 from celery.signals import worker_process_init

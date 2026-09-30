@@ -1,11 +1,3 @@
-"""Purpose to model policy.
-
-Routing is by purpose, never by call site (``../AGENTS.md``): a call site
-asks for ``character_extract`` and never names a model. That makes Sprint 9's
-routing dashboard (F7.3) a config change against this module rather than a
-refactor of every call site.
-"""
-
 import logging
 from dataclasses import dataclass
 

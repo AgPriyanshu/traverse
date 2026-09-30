@@ -1,9 +1,3 @@
-"""Real dependency probes behind ``/health``. Owned by devops engineer 1.
-
-``api/routes/ops.py`` is not a do1 file, so the probes live here and the route
-owner wires them in with a one-line call — see plans/sprint-1/HANDOFF.md.
-"""
-
 import asyncio
 import os
 

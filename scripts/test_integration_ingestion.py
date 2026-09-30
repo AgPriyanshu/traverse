@@ -1,28 +1,4 @@
 #!/usr/bin/env python3
-"""The merge-train gate: ingest a small fixture novel through the real API
-and assert every stage completed with real output (devops-1.md S2.18).
-
-Deliberately not a real novel — "CI must not take 25 minutes" — this
-synthesizes a ~20-page fixture with unambiguous chapter headings using the
-same stdlib PDF writer as `scripts/seed_corpus.py`, uploads it to a running
-stack, and polls `/status` to a terminal state.
-
-Two things this script owns and nothing else does:
-  * `POST /api/projects/{id}/books` is be1's S2.1 — not built yet on every
-    branch at every point in the sprint. Rather than fail `make
-    test-integration` for a dependency this file has no control over, a 501
-    response is treated as "not merged yet" and skipped with exit 0, so the
-    gate stays usable pre-merge and starts asserting for real the moment
-    S2.1 lands — no code change needed here when that happens.
-  * Project creation goes straight to Postgres (`POST /projects` is S5.9,
-    Sprint 5) via `docker compose exec db psql`, the same pattern
-    `scripts/bootstrap_databases.sh` already uses — not the API, because
-    there is no API for it yet.
-
-Usage:
-    python3 scripts/test_integration_ingestion.py
-    API_BASE_URL=http://localhost:8000 python3 scripts/test_integration_ingestion.py
-"""
 
 from __future__ import annotations
 

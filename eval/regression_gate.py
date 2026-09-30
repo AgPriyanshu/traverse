@@ -1,27 +1,3 @@
-"""The Sprint 8 CI regression gate (S8.9, F6.4).
-
-PRD rule: a PR that drops answer accuracy more than 2 points fails. This
-extends it to relation F1 and citation precision, which are equally
-load-bearing (devops-1.md) -- a PR that silently regresses citation
-correctness while holding accuracy steady is exactly the kind of thing a
-single-metric gate misses.
-
-Pure comparison logic only, so the failing-gate behaviour is unit-testable
-without a live stack (`eval/tests/test_regression_gate.py` feeds it a
-deliberately degraded metric set and asserts it fails) -- the same split as
-every other eval harness between "the ``eval/`` scoring logic" and the
-do1-owned script/CI wiring that fetches real numbers
-(`scripts/collect_gate_metrics.py`, `scripts/check_regression_gate.py`).
-
-Threshold note: 2.0 points (``DEFAULT_THRESHOLD_POINTS``) is the PRD's stated
-number, not one measured against this project's own run-to-run noise --
-`plans/sprint-8/HANDOFF.md` documents that variance measurement is blocked
-this sprint (re-running needs the GPU pipeline and, for accuracy/citation
-precision, a frontier judge key neither of which is available in this
-environment) and flags recalibrating the threshold once it can be measured
-as a retro action item.
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field

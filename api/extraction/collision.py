@@ -1,13 +1,3 @@
-"""Name-collision guard (S3.4) — the two-Catherines case.
-
-Two characters can share a name. String evidence says "merge"; contextual
-evidence can say "split". This module is consulted by every stage of the
-alias cascade (``aliases.py``) immediately before it commits a merge — a
-false merge here is silent and effectively unrecoverable (PRD's own words),
-so the guard runs even at the cheap deterministic stages where a collision is
-unlikely, not only at the LLM stage where it is expected.
-"""
-
 import re
 from dataclasses import dataclass
 

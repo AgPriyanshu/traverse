@@ -1,10 +1,3 @@
-"""Every database access the ingestion pipeline makes.
-
-Tasks, routes and nodes call these functions; they never build a query inline.
-Centralising it is what makes the ``human_verified`` rule enforceable in one
-place instead of at forty call sites.
-"""
-
 import logging
 import re
 from dataclasses import dataclass

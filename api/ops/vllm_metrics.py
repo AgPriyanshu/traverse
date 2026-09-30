@@ -1,17 +1,3 @@
-"""Scrape vLLM's own Prometheus endpoint for prefix-cache and KV-cache stats.
-
-Owned by devops engineer 1. PRD §5.2's pass-2 cost argument depends entirely
-on the prefix cache actually hitting (character-graph.md, llm-runtime.md);
-Sprint 4 needs to see this number live rather than discover a regression in
-the retro (devops-1.md S3.15), so this is a first-class dashboard field this
-sprint, not a Sprint 9 nice-to-have.
-
-Deliberately a hand-rolled line parser, not a Prometheus client library:
-``api/pyproject.toml`` is orchestrator-owned (frozen at the freeze), and a
-handful of ``metric_name{...} value`` lines do not justify a new dependency
-and the SCR that would take to add it.
-"""
-
 from __future__ import annotations
 
 import re

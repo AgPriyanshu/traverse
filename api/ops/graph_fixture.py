@@ -1,13 +1,3 @@
-"""A synthetic connected graph in Postgres, for the CI rebuild drill (S4.15).
-
-The integration fixture novel is filler text with no characters, so it yields
-an empty graph and an identical projection of nothing proves nothing. This
-seeds a small but structured one -- a family, a couple of arcs, dialogue-only
-hearsay, several books' worth of page refs -- straight into the relational
-tables, so ``graph.upsert`` has something real to project and the drill has
-something real to compare.
-"""
-
 from __future__ import annotations
 
 import hashlib

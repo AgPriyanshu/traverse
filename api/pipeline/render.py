@@ -1,16 +1,3 @@
-"""Lazy PDF page rendering: a cached PNG plus text-span bounding boxes (S2.6).
-
-Renders straight from the source PDF via ``pypdfium2`` rather than through
-Docling — Docling's own per-page image option means re-converting the whole
-book to serve one page, and a 1,000-page novel rendered eagerly is 400 MB of
-PNG nobody asked for. A page is opened, rendered, and closed; nothing here
-touches the chunker or its models.
-
-Both ``pypdfium2`` and ``Pillow`` are already resolved, locked transitive
-dependencies of ``docling`` (see ``uv.lock``) — no new dependency was added,
-matching the precedent in ``storage.py``.
-"""
-
 import io
 import json
 import tempfile

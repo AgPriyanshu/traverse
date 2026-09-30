@@ -1,11 +1,3 @@
-"""Unit tests for the S8.9 gate's CLI wiring (S8.9, F6.4).
-
-No network: `collect.collect` is exercised with a monkeypatched `_get`/
-`resolve_book_id`, same style as `scripts/test_run_ablation.py`. The actual
-process exit code (the piece CI depends on) is covered by driving
-`check_regression_gate.main` directly against real temp files.
-"""
-
 from __future__ import annotations
 
 import json

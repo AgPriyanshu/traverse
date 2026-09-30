@@ -1,23 +1,3 @@
-"""S5.14 acceptance: link P/R, false-merge rate and duplicate rate verified
-against hand-computed toy examples, the same discipline as test_b3.py's
-worked example.
-
-Toy setup, four gold characters across three books (book_order 1/2/3):
-
-    Anne   appears in 1, 2, 3   (returns every book)
-    Diana  appears in 1, 2, 3   (returns every book)
-    Marilla appears in 1, 2     (returns book 2, absent book 3)
-    Fred   appears in 3 only    (new in book 3)
-
-Gold pairs sharing a cluster (same person, i.e. a "should link"):
-    (Anne:1, Anne:2), (Anne:1, Anne:3), (Anne:2, Anne:3)
-    (Diana:1, Diana:2), (Diana:1, Diana:3), (Diana:2, Diana:3)
-    (Marilla:1, Marilla:2)
-  = 7 gold-linked pairs. Every other pair among these 8 appearances is a
-    "should NOT link" pair (different people, or Fred who only has one
-    appearance and forms no gold pair at all).
-"""
-
 from __future__ import annotations
 
 from eval.identity_metrics import (

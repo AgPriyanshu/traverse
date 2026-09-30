@@ -1,32 +1,3 @@
-"""S3.9 — Sprint 4 de-risk spike: relation extraction prototype.
-
-THROWAWAY SCRIPT, NOT SHIPPED CODE. Exploratory scratch (this whole directory
-is `ruff`-excluded, `pyproject.toml`'s `extend-exclude`). Findings are written
-up in ``plans/sprint-3/HANDOFF.md``; this file exists so the numbers there are
-reproducible, not just asserted.
-
-What it does, for one chunk of *Pride and Prejudice* (chapter 1, real text
-from Project Gutenberg #1342, fetched at run time — nothing here is
-committed as corpus data):
-
-1. Renders a roster into the pass-2 stable prefix, using the real
-   ``ontology.prompt_fragment()`` plus a mix of real P&P character names and
-   synthetic padding characters (to reach a stated roster size, since the
-   real P&P cast is ~28 named characters and Sprint 4's worst case is a
-   60-character roster).
-2. Runs real pass-2-style extraction over the chunk via
-   ``api.llm.structured.structured_call`` — real vLLM, real tokenizer, real
-   Langfuse trace if configured. No mocks.
-3. Repeats the call across several roster sizes and reads vLLM's own
-   ``/metrics`` (``vllm:prefix_cache_{queries,hits}_total``) before and after
-   to get a real prefix-cache hit rate, not an assumption.
-4. Validates every extracted subject/object against the roster.
-
-Run from the worktree root:
-
-    cd api && MODELS_OFFLINE=1 uv run python notebooks/relation_extraction_spike.py
-"""
-
 import asyncio
 import random
 import time

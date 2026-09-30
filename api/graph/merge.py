@@ -1,10 +1,3 @@
-"""Manual character merge and split, transactional and mention-accurate.
-
-Sprint 7's review queue calls these directly with no UI review step of its
-own, so both must already be correct: a half-merged character with orphaned
-mentions is worse than no merge at all.
-"""
-
 from typing import Any
 from uuid import UUID
 

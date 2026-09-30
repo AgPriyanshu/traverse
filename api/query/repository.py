@@ -1,9 +1,3 @@
-"""Postgres access for the query path: conversations, turns, the query log.
-
-Views and the pipeline call this module; they do not build statements inline
-(``api/AGENTS.md``).
-"""
-
 from uuid import UUID
 
 from sqlalchemy import or_, true

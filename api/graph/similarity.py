@@ -1,21 +1,3 @@
-"""Mention-context similarity clustering — stage 4 of be1's alias cascade.
-
-Stages 1-3 (exact/normalised, honorific, nickname — all table-driven) resolve
-the easy cases cheaply; what reaches here is the residue they could not fold
-together: the same surface form used by more than one person in a book
-("Miss Bennet" for both Jane and Elizabeth, context-dependent), or two
-spellings the earlier stages missed. Clustering here is unsupervised — it
-does not know how many characters there really are, only how similar two
-contexts read — so getting the threshold wrong in either direction is
-silent: too low over-merges (the "catastrophic and silent" failure mode PRD
-§11 names), too high leaves obvious duplicates unresolved and pushes needless
-volume onto stage 5's LLM adjudication.
-
-The threshold is measured, not assumed. See
-``plans/sprint-3/HANDOFF.md`` (S3.8) for the full precision/recall curve; the
-short version is in ``similarity_threshold()``'s docstring.
-"""
-
 import asyncio
 from dataclasses import dataclass
 from uuid import UUID

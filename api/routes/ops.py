@@ -1,5 +1,3 @@
-"""Health, cost and pipeline telemetry. Owned by devops engineer 1."""
-
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query

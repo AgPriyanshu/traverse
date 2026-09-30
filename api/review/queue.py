@@ -1,13 +1,3 @@
-"""Queue helpers for the two task types this sprint has no trigger site for
-in be2's owned paths (S7.2, F5.2).
-
-``classify_candidate`` (an ambiguous pass-1 candidate — person, place or
-organisation) belongs to ``api/extraction/**``, and ``confirm_chapter_split``
-(an uncertain chapter boundary) to ``api/pipeline/**`` — both be1-owned. This
-module exists so be1's trigger sites can queue a correctly-shaped task without
-duplicating the payload contract; see ``plans/sprint-7/HANDOFF.md``.
-"""
-
 from uuid import UUID
 
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession

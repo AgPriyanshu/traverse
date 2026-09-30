@@ -1,9 +1,3 @@
-"""Every database access the extraction package makes.
-
-Tasks and pipeline code call these functions; they never build a query
-inline (``api/AGENTS.md``).
-"""
-
 import logging
 from uuid import UUID
 

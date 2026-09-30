@@ -1,22 +1,3 @@
-"""Answer-quality metrics against the S6.14 gold question set.
-
-The file-to-plain-data adapter for ``eval/answer_metrics.py``, behind
-``GET /ops/answer-quality``. Unlike ``relation_quality.py``/
-``extraction_quality.py``, this reads no live table -- there is nothing to
-read until a question has actually been asked. It reads two files instead:
-the gold question set (``eval/gold/<book>/answers.yaml``) and the judgements
-file ``scripts/eval_answers.py`` writes after driving ``POST /query`` and the
-frontier judge (``api/ops/answer_judge.py``) for every gold question, the
-same "human/judge writes a file, an ops endpoint scores it" shape as
-``relation_quality.py``'s ``citation_judgements.json``.
-
-Until be2's S6.1-S6.5 query pipeline merges, ``POST /query`` 501s and
-``scripts/eval_answers.py`` writes an empty judgements file -- this endpoint
-then reports ``gold_available=True`` with ``answered=0``, not an error, the
-same "lights up once the dependency lands" pattern as every prior sprint's
-eval work (``plans/sprint-2/HANDOFF.md``, S2.18).
-"""
-
 from __future__ import annotations
 
 import json

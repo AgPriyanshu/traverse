@@ -1,17 +1,3 @@
-"""Latency-budget metrics against PRD NFR-perf (S6.15).
-
-Pure functions over plain data, so they are testable without Postgres or a
-running API -- same shape as ``eval/relation_metrics.py``.
-``api/ops/query_latency.py`` adapts real ``QueryLog`` rows into
-``LatencySample`` values; everything here speaks plain numbers.
-
-Budgets (PRD NFR-perf, devops-1.md S6.15): p95 end-to-end <= 6s, time to
-first token <= 1.5s. Both are judged on the **integration host only**
-(BRANCH.md §9) -- vLLM is a single-GPU host singleton shared by every
-worktree, so a timing measured from a worktree is not a valid gate input and
-must never be compared against these budgets.
-"""
-
 from __future__ import annotations
 
 from collections import defaultdict

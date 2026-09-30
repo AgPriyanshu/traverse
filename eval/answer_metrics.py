@@ -1,24 +1,3 @@
-"""Answer-quality metrics against the S6.14 gold question set.
-
-Pure functions over plain data, so they are testable without Postgres, Neo4j
-or a running API -- same shape as ``eval/relation_metrics.py``.
-``api/ops/answer_quality.py`` adapts a run's judged answers (written by
-``scripts/eval_answers.py``, one judgement per gold question) into the types
-below; everything here speaks plain gold/answered/judged data.
-
-Four numbers, matching devops-1.md S6.14:
-
-* **answer accuracy** -- share of judged, non-abstention questions the judge
-  marked correct.
-* **citation precision** -- share of judged citations the judge marked as
-  actually supporting the claim on the cited page.
-* **abstention rate** -- of the ``expect_abstain`` questions, the share the
-  system correctly declined to answer. A confident wrong answer on one of
-  these is worse than a hedge, and is scored as a miss, not partial credit.
-* **aggregation completeness** -- exact-set match against ``expected_entities``
-  (F4.1: "exactly five daughters", never a plausible subset).
-"""
-
 from __future__ import annotations
 
 from collections import defaultdict

@@ -10,8 +10,6 @@ from .base import TimestampMixin
 
 
 class Conversation(TimestampMixin, table=True):
-    """A thread of turns against one project — carried character/chapter scope."""
-
     __table_args__ = (Index("ix_conversation_project", "project_id"),)
 
     id: UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -24,8 +22,6 @@ class Conversation(TimestampMixin, table=True):
 
 
 class ConversationTurn(TimestampMixin, table=True):
-    """One question/answer pair within a conversation, in order."""
-
     __table_args__ = (Index("ix_conversation_turn_conversation", "conversation_id"),)
 
     id: UUID = Field(default_factory=uuid.uuid4, primary_key=True)

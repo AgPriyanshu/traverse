@@ -1,10 +1,3 @@
-"""Hybrid retrieval: dense (pgvector) + lexical (``ts_rank_cd``), fused by RRF.
-
-Reciprocal rank fusion, not score normalisation — a cosine similarity and a
-``ts_rank_cd`` score are not commensurable, and normalising two incommensurable
-scores onto a shared scale is where hybrid search usually goes wrong (PRD F4.1).
-"""
-
 from enum import StrEnum
 from uuid import UUID
 

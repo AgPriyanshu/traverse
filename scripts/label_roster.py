@@ -1,30 +1,4 @@
 #!/usr/bin/env python3
-"""Terminal review tool for gold character rosters (S3.13).
-
-Labelling a roster by hand from scratch is a week's work no sprint has.
-Instead this walks a list of *candidates* — either the system's own pass-1
-output (once `api/extraction/**` lands and can be dumped to JSON, or read
-live from `GET /projects/{id}/characters` + `/characters/{id}/mentions`) or
-a seed drafted from a public-domain reference (a Gutenberg character index, a
-published concordance) — and asks a human to confirm, correct, split or
-reject each one, writing the result as a schema-valid, checksum-pinned
-`eval/gold/<book>/roster.yaml`.
-
-Reviewing 60 pre-populated characters takes an hour; labelling 60 characters
-blind takes a day. The review loop (`review_candidates`) takes plain dicts in
-and returns plain dicts out with no I/O of its own, so it is unit-testable by
-injecting a scripted `input_fn` — and reusable, unchanged, for Sprint 8's
-question-set review (a different candidate shape, the same
-confirm/edit/split/reject loop).
-
-Usage:
-    python3 scripts/label_roster.py validate --book pride-and-prejudice
-    python3 scripts/label_roster.py repin --book pride-and-prejudice
-    python3 scripts/label_roster.py review --book pride-and-prejudice \\
-        --candidates path/to/pass1_output.json
-    python3 scripts/label_roster.py review --book pride-and-prejudice \\
-        --api-base-url http://localhost:8000 --project-id <uuid>
-"""
 
 from __future__ import annotations
 

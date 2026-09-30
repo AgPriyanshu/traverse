@@ -1,12 +1,3 @@
-"""Structured JSON output with one schema-validation retry.
-
-Qwen3-8B via vLLM's guided decoding still emits schema-invalid JSON under
-load. The retry appends the validation error to the prompt rather than
-silently resending the same request, and both attempts are recorded against
-the same Langfuse trace — a silent retry would corrupt Sprint 9's cost
-accounting (F7.1).
-"""
-
 import logging
 from typing import Any, TypeVar
 

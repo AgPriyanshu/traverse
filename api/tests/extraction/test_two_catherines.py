@@ -1,11 +1,3 @@
-"""The sprint's headline regression test (backend-1.md S3.4).
-
-``test_wuthering_heights_two_catherines`` is named exactly as the plan
-requires and must stay in the permanent regression suite. ``test_no_false_splits``
-is its counterweight: the same cascade must not fragment a character (Elizabeth
-Bennet) whose aliases merely look superficially different.
-"""
-
 import uuid
 
 import pytest

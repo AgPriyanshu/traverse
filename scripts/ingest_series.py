@@ -1,36 +1,4 @@
 #!/usr/bin/env python3
-"""Queue a whole series through the pipeline in order: `make ingest-series
-PROJECT=<series key>` (S5.15).
-
-Unlike `scripts/seed_series.py` (S5.13's corpus-seeding path, always
-sequential), this is the general orchestration engine: it can run a series
-either sequentially (the safe default) or with `--concurrent` (a deliberate
-race -- see below), and it reports wall clock, cost and roster growth per
-book, aggregated across the whole series.
-
-**Per-project reconcile locking.** Books within one project cannot reconcile
-in parallel -- two reconciliations racing against the same project roster can
-each independently decide a candidate is new and create a duplicate
-``Character`` row. The lock itself has to live inside the Celery task
-(`pipeline.reconcile_characters`, `api/pipeline/tasks.py`, be1-owned) where
-the transaction actually runs; a script outside that process cannot acquire
-it. See ``plans/sprint-5/SCR.md`` SCR-2. Until that lands:
-
-  * The default (no ``--concurrent``) mode is always race-free regardless of
-    whether the lock exists: it waits for one book to reach a terminal
-    status before uploading the next.
-  * ``--concurrent`` fires every upload immediately, with no such wait. It is
-    a **stress-test harness**, not a proof -- run it, then check
-    ``make eval-reconciliation``'s ``duplicate_rate``/``false_merge_rate``
-    for signs of a race. Today, with the lock not yet landed, duplicates are
-    the *expected* result, not a surprise.
-
-Usage:
-    python3 scripts/ingest_series.py anne-of-green-gables
-    python3 scripts/ingest_series.py sherlock-holmes --concurrent
-    python3 scripts/ingest_series.py anne-of-green-gables --reverse \\
-        --project-slug anne-of-green-gables-reverse --limit-books 3
-"""
 
 from __future__ import annotations
 

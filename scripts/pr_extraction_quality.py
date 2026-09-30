@@ -1,26 +1,4 @@
 #!/usr/bin/env python3
-"""PR-triggered extraction-quality check: one novel, reduced set (S3.14).
-
-Ingests a single gold-labelled book (Wuthering Heights — smaller than Pride
-and Prejudice in this corpus, chosen to keep the PR loop under 10 minutes per
-plans/sprint-3/devops-1.md) through the CI compose subset, then renders
-`eval/runners/extraction.py`'s PR-comment markdown for whatever the
-extraction stages have produced by a bounded deadline.
-
-Deliberately does not wait for the full nine-stage chain to reach "ready" —
-`ingestion_chain()` chains stages this sprint has not all built yet
-(plans/sprint-2/RETRO.md §4), so a strict wait would time out on every PR
-regardless of whether `api/extraction/**` itself is healthy. Instead this
-polls only long enough for the two extraction stages
-(`character_extract`, `resolve_aliases`) to reach a terminal state or for a
-bounded budget to run out, then scores whatever is in the database at that
-point — informational, not gating (Sprint 8 gate is F6.4), so "partial
-data" is a fine thing to report on, not a reason to fail the job.
-
-Exits 0 in every case except an unrecoverable HTTP/connection error talking
-to the API itself — a quality regression is a number in the PR comment, not
-a red check, this sprint.
-"""
 
 from __future__ import annotations
 

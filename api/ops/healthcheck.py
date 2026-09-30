@@ -1,10 +1,3 @@
-"""Container healthcheck entrypoints: ``python -m api.ops.healthcheck api|worker``.
-
-Both checks assert behaviour rather than liveness. A process that is up but
-cannot reach Postgres, or a worker with none of the frozen stages registered,
-is a failure the orchestrator should restart around — not a green container.
-"""
-
 import asyncio
 import os
 import sys

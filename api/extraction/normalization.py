@@ -1,10 +1,3 @@
-"""Name normalisation shared by the alias cascade (S3.3) and collision guard (S3.4).
-
-Cascade stages 1-3 (exact, honorific, nickname) are pure string operations —
-no model call, no I/O — which is what makes them cheap enough to run before
-anything expensive.
-"""
-
 import re
 import unicodedata
 from functools import lru_cache

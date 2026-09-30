@@ -1,18 +1,3 @@
-"""S7.4 acceptance: interrupt, kill, restart, resume, complete -- under
-concurrent load. Sprint 1 already proved the single-thread version
-(``api/tests/graph/test_checkpointer.py``, a real SIGKILLed subprocess); this
-sprint's addition is what only shows up under contention: a double-click on
-one task must resolve it exactly once, and many books paused at once must
-each resume independently after a restart with no cross-thread bleed.
-
-"Restart" is simulated at the checkpointer level, as the brief allows: every
-call below opens its own fresh ``AsyncPostgresSaver`` (via ``checkpointer()``)
-and its own fresh ``AsyncSession``, so nothing carries over between calls
-except what actually committed to Postgres -- the same substitution
-``checkpoint_probe.py`` makes for "a different process" when it re-invokes a
-second ``build_graph(saver)`` after a real kill.
-"""
-
 import asyncio
 import uuid
 

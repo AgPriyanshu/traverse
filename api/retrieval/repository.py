@@ -1,9 +1,3 @@
-"""Dense and lexical arms of hybrid retrieval, and the query embedding.
-
-Kept separate from ``hybrid.py`` per the repository convention (``api/AGENTS.md``):
-views and fusion logic call this, they do not build queries inline.
-"""
-
 from functools import lru_cache
 from uuid import UUID
 

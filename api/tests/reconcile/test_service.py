@@ -1,16 +1,3 @@
-"""Integration tests for ``pipeline.reconcile_characters`` (S5.1-S5.2).
-
-Runs against the real Postgres (``api/AGENTS.md``), bypassing the alias
-cascade and attribute-extraction LLM calls -- those are Sprint 3's own tested
-surface (``api/tests/extraction/``). ``conftest.py::ingest_book_roster`` drives
-``persist_characters``/``set_resolved_character_ids`` exactly the way
-``pipeline.tasks._resolve_aliases`` does, so ``reconcile_book`` sees the same
-shape it sees in production.
-
-S5.4's order-independence checksum test lives in
-``test_order_independence.py``.
-"""
-
 import uuid
 
 import pytest

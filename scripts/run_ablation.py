@@ -1,41 +1,4 @@
 #!/usr/bin/env python3
-"""Run the Sprint 8 ablation matrix and publish one run's results (S8.8, F6.3).
-
-This is a **partial** matrix by design (`plans/sprint-8/README.md`): one axis
-varied against the recommended value of the other two, never the full
-extraction x retrieval x model cross product (30+ full-novel runs). Cells
-that need a configuration this codebase cannot yet produce -- no ablation
-config-switch exists (F6.3/S8.2, be2) and no non-judge frontier/routed
-answering path exists in `api/llm/routing.py` -- are recorded as
-``status: "blocked"`` with the specific reason, never silently skipped or
-left to read as a zero.
-
-Reproducibility: every run records its git SHA, each book's pinned
-``pdf_sha256`` (from `corpus/manifest.json`, the same pin `eval/loaders.py`
-enforces) and the local model id, so a published number can be regenerated a
-month later or shown to be stale.
-
-Caching: a cell's result is cached on ``eval.ablation.cache_key`` (config +
-book + corpus checksum + git SHA) under ``eval/ablation_runs/cache/`` --
-identical inputs are never rescored.
-
-Resumability: a run's per-cell progress is written to
-``eval/ablation_runs/<run-id>/state.json`` after every cell. Re-invoking with
-the same ``--run-id`` skips whatever that file already marks done, so a run
-that dies on cell N does not restart at cell 1.
-
-Persistence: writes one ``EvalRun`` + N ``EvalResult`` rows (migration 0011)
-via a direct DB session -- run this inside the api container/image, where
-``PYTHONPATH=/app`` and ``POSTGRES_DB_STRING`` point at the real database
-(`make eval-ablation`, mirroring `api.ops.graph_rebuild`'s pattern). Pass
-``--no-persist`` to skip the DB write and only produce the JSON artifact,
-which needs no container.
-
-Usage:
-    python3 scripts/run_ablation.py --run-id 2026-09-28
-    python3 scripts/run_ablation.py --run-id 2026-09-28 --force   # ignore cache
-    python3 scripts/run_ablation.py --run-id 2026-09-28 --no-persist
-"""
 
 from __future__ import annotations
 

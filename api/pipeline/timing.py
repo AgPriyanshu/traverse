@@ -1,12 +1,3 @@
-"""Per-stage query latency instrumentation (S6.9).
-
-be2's query pipeline (`api/query/`) wraps each stage of a single question —
-route, resolve, graph, retrieve, rerank, generate, ground — in
-:meth:`QueryTimer.stage`, then persists :meth:`QueryTimer.as_dict` straight
-into `QueryLog.latency_ms` (`api/db/models/ops_model.py`). This module owns
-only the measurement; be2 owns writing the row.
-"""
-
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager

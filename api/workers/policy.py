@@ -1,5 +1,3 @@
-"""Worker-side policy shared by every stage task."""
-
 from .errors import TransientError
 
 # F1.2: exponential backoff, bounded, and only for failures a later attempt

@@ -1,12 +1,4 @@
 #!/usr/bin/env python3
-"""S9.4 local-only smoke test for the prod-profile overlay (`make up-prod`).
-
-Proves the deploy *tooling* works — TLS terminates, HTTP redirects to HTTPS,
-per-IP rate limiting actually trips — against the overlay running on this
-machine's loopback interface. This never reaches a public network and is not
-a substitute for a real deploy's own smoke test once a human has pointed a
-real domain and a real certificate at a real host (plans/sprint-9/HANDOFF.md).
-"""
 
 from __future__ import annotations
 

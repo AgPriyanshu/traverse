@@ -1,12 +1,3 @@
-"""Failure injection for the ingestion chain (S2.5).
-
-Each test breaks one real, documented failure mode — a corrupt PDF, a dropped
-connection, a worker killed mid-batch, a missing upstream artifact — and
-checks the property that actually matters: work already committed survives,
-the error is classified correctly for Celery's retry policy, and the book
-stays recoverable rather than silently corrupted or duplicated.
-"""
-
 import uuid
 from collections.abc import AsyncIterator
 from pathlib import Path

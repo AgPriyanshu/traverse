@@ -1,10 +1,3 @@
-"""The read/write surface ``api/routes/review.py`` calls into.
-
-Kept separate from the route module so the LangGraph/checkpointer wiring, the
-hydration and the resolution logic are all testable without a running FastAPI
-app.
-"""
-
 import logging
 from uuid import UUID
 

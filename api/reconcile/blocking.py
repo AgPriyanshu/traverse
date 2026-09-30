@@ -1,15 +1,3 @@
-"""Cross-book blocking evidence (S5.2).
-
-Within one book, co-presence in a scene proves two names are different people
-(``api/extraction/collision.py``). That signal does not exist across books, so
-reconciliation uses different evidence: an established death, a kinship
-relation the new book's text contradicts, a generational namesake at series
-distance, and an implausible tier jump. Any single hit blocks a merge -- this
-is deliberately not a confidence tiebreak, for the same reason the within-book
-guard isn't: a false merge across volumes is silent and corrupts every edge on
-both characters, while an unmerged duplicate is visible and recoverable.
-"""
-
 import re
 from uuid import UUID
 

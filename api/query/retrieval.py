@@ -1,11 +1,3 @@
-"""Graph-constrained retrieval for the narrative query class (S6.3, PRD F4.2).
-
-Order matters (``query-path.md``): resolve names to characters, search within
-the chunks those characters were actually mentioned in, and fall back to an
-unconstrained project-wide search only when the constrained set is empty.
-Whole-project vector search is the last resort, never the first move.
-"""
-
 from dataclasses import dataclass
 from uuid import UUID
 

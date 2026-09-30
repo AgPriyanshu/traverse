@@ -1,20 +1,4 @@
 #!/usr/bin/env python3
-"""S9.4 budget cap enforcement — the act side of ``api/ops/budget_guard.py``.
-
-PRD §9.1: "a budget cap that degrades gracefully rather than running up a
-bill." The ops route (``GET /ops/budget-status``) only reports the number;
-this script is what acts on it — pausing ``celery-worker`` so ingestion (the
-dominant cost, pass 2 especially) stops before the bill does, while the API
-itself stays up to keep serving already-ingested books and answering queries
-against them. Nothing here touches ``api/llm/**`` — degrading by stopping the
-one compose service that drives new LLM spend is squarely do1's own
-territory (BRANCH.md: ``docker*``, `scripts/**`) and needs no cross-agent
-coordination.
-
-Usage:
-    python3 scripts/budget_monitor.py --once      # one check, exit 1 if breached
-    python3 scripts/budget_monitor.py --interval 300   # poll forever
-"""
 
 from __future__ import annotations
 

@@ -1,22 +1,4 @@
 #!/usr/bin/env python3
-"""Render extraction-quality metrics as a PR-comment markdown table (S3.14).
-
-Calls the running API's ``GET /ops/extraction-quality?book_id=``
-(do1-owned, ``api/ops/extraction_quality.py``) rather than querying Postgres
-directly, so this runs the same way in a PR CI job (against the compose
-``ci`` stack) and on a laptop (against a dev stack) with no code path
-divergence, and never needs its own DB credentials.
-
-Informational only this sprint (plans/sprint-3/devops-1.md S3.14) — nothing
-here exits non-zero on a quality regression. The Sprint 8 gate (F6.4) reuses
-`render_markdown`'s numbers, not this script's exit code.
-
-Usage:
-    python3 -m eval.runners.extraction --book-id <uuid> \\
-        --api-base-url http://localhost:8000 \\
-        --baseline .ci-cache/extraction-quality-ai-master.json \\
-        --save-json .ci-cache/extraction-quality-pr.json
-"""
 
 from __future__ import annotations
 

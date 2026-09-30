@@ -1,13 +1,3 @@
-"""Load gold rosters and pin them to the live corpus manifest checksum.
-
-A gold roster's page-level labels are only valid against the exact PDF they
-were labelled from (S2.16's deterministic pagination, SCR-1's heading-font
-fix). Re-running ``scripts/seed_corpus.py`` with different layout constants
-regenerates a different ``pdf_sha256``, and every ``first_page`` label
-silently stops meaning anything -- so a checksum mismatch fails the eval run
-loudly rather than scoring against a corpus the labels no longer describe.
-"""
-
 from __future__ import annotations
 
 import json

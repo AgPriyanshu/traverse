@@ -1,25 +1,3 @@
-"""Book-removal cascade — the relations/graph side of PRD §12.1b.
-
-Book removal cascades by **evidence**, never by character or by relation: a
-book's own ``RelationEvidence`` rows go, any edge left with no evidence
-anywhere is dropped, and any edge that still has evidence elsewhere is kept
-with its confidence and evidence count recomputed from what remains. This
-mirrors the same "recompute the whole project from raw evidence" pattern
-``relations.tasks._aggregate_relations`` already uses for an ordinary pass-2
-run, which is what makes a removal converge to a consistent graph through the
-same recompute rather than a bespoke "subtract one book" code path.
-
-Character-side cleanup — deleting this book's ``CharacterMention``/
-``CharacterAppearance`` rows, sweeping a ``Character`` left with zero
-appearances, and recomputing its derived fields (``first_book_id``,
-``first_chapter``, series-wide tier, mention count) — is be1's S5.3 concern
-(``api/extraction/repository.py``), not this module's. The two sides are
-order-independent: deleting a ``Character`` row cascades away (``ON DELETE
-CASCADE``) every ``Relation`` naming it, so whichever runs first, the other
-converges on the same final state. See ``plans/sprint-5/HANDOFF.md`` for the
-integration contract with ``DELETE /books/{id}``.
-"""
-
 from uuid import UUID
 
 from sqlalchemy import delete

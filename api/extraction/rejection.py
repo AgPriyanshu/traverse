@@ -1,12 +1,3 @@
-"""Non-character rejection (S3.2, F2.4).
-
-Places, houses, estates, organisations, ships, and deities invoked in an oath
-are not characters. Every rejection is classified with a structured call over
-the candidate's own contexts and stored with its reason — a candidate that
-disappears silently cannot be measured by the eval harness or overturned by
-Sprint 7's review queue.
-"""
-
 import asyncio
 import logging
 from uuid import UUID

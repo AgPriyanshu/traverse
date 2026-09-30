@@ -1,16 +1,3 @@
-"""Relation-quality metrics against the S4.14 gold relations.
-
-Pure functions over plain data, so they are testable without Postgres or Neo4j.
-``api/ops/relation_quality.py`` adapts the real ``Relation`` rows into
-``PredictedEdge`` values, mapping each database character onto a gold roster
-character first; everything here speaks gold canonical names.
-
-Matching is done after inverse normalisation: ``child_of(a, b)`` and
-``parent_of(b, a)`` are one fact, and a symmetric predicate ignores order. A
-reversed asymmetric edge is not the same fact, and is reported separately as a
-direction error rather than folded into an F1.
-"""
-
 from __future__ import annotations
 
 from collections import defaultdict

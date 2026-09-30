@@ -1,5 +1,3 @@
-"""Prompt templates for the extraction package's structured LLM calls."""
-
 MENTION_SWEEP_PROMPT = """You are reading a novel to build a character roster.
 
 For each numbered passage below, list every distinct referring expression

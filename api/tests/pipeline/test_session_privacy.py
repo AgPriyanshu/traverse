@@ -1,21 +1,3 @@
-"""Upload privacy: per-session isolation and real deletion (ETH-2, S9.8).
-
-Cross-session data leakage gets the same rigor Sprint 8 gave spoiler leakage
-(``api/tests/query/test_spoiler_leakage.py``): a real isolation harness, not an
-assertion that isolation "should" work. ``TestDeleteBookCascade`` is the audit
-test the story explicitly asked to be written first — it checks actual rows,
-not that the delete call merely returned 204.
-
-The Neo4j-writing half of deletion (``api.graph.cascade.remove_book`` /
-``api.graph.projection.reset_project``) is monkeypatched out here rather than
-run for real: BRANCH.md's environment table gives be2 exclusive write access
-to the single shared Neo4j instance during a sprint and says "be1 ... never
-touch it". The test instead asserts the graph cascade is *invoked* with the
-right ids, which is the part be1's code is responsible for getting right —
-live-Neo4j zero-row verification is an integration-time check
-(``plans/sprint-9/HANDOFF.md``).
-"""
-
 import uuid
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta

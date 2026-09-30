@@ -1,15 +1,3 @@
-"""The Neo4j rebuild-from-Postgres drill (S4.15).
-
-PRD section 5.5 claims a corrupted graph is a re-upsert, never data loss. This
-proves it for one book: snapshot the projection, ``graph.reset`` the book,
-re-run ``graph.upsert`` from Postgres, and require the node count, edge count
-and a content checksum to match the pre-wipe state.
-
-Run it with ``make graph-rebuild BOOK=<key>``, or import ``run_drill`` from a
-test. ``graph.upsert`` is invoked through its frozen Celery name, the same way
-the ingestion chain does, so this needs no import of be2's package.
-"""
-
 from __future__ import annotations
 
 import argparse

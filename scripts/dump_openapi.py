@@ -1,9 +1,3 @@
-"""Write the app's OpenAPI document to a file.
-
-Importing the app is equivalent to booting it for schema purposes and keeps the
-CI drift check inside its time budget.
-"""
-
 import json
 import sys
 from pathlib import Path

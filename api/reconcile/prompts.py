@@ -1,5 +1,3 @@
-"""Prompt templates for reconciliation's structured LLM calls (S5.1 stage 5)."""
-
 RECONCILE_ADJUDICATION_PROMPT = """You are reconciling a character roster across
 a book series. Decide whether a name from a NEW book is the SAME character as
 one the project already knows, or a DIFFERENT person.

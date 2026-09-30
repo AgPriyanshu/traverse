@@ -1,17 +1,3 @@
-"""LLM-judge for the S6.14 answer-quality harness.
-
-Grades one question at a time with a **frontier** model (``LLMPurpose.JUDGE``
-always routes off-host, ``api/llm/routing.py`` -- an 8B grading its own answer
-is not a measurement). Never scores by string match: the gold set's
-``expected_answer`` is a reference for the judge to read, not a target to
-diff against.
-
-The prompt is versioned (``JUDGE_PROMPT_VERSION``) and committed here rather
-than assembled ad hoc at each call site. A changed prompt invalidates
-historical comparisons -- bump the version whenever the wording changes so a
-trend line does not silently compare two different judges.
-"""
-
 from __future__ import annotations
 
 from pydantic import BaseModel, Field

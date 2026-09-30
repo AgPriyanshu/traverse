@@ -1,17 +1,4 @@
 #!/usr/bin/env python3
-"""Fetch the S8.9 gate's four tracked metrics for one book (F6.4).
-
-Deliberately lighter than `scripts/run_ablation.py`: the regression gate runs
-on every PR (devops-1.md: "keep the loop under 10 minutes"), so this makes
-three live-API calls against a single already-ingested book rather than
-walking the ablation matrix. The nightly/`ai-master` job can instead point
-`check_regression_gate.py` at `eval/ablation_runs/latest.json`'s recommended
-cells for the full-set comparison.
-
-Usage:
-    python3 scripts/collect_gate_metrics.py --book-key pride-and-prejudice \\
-        --out gate-metrics-current.json
-"""
 
 from __future__ import annotations
 

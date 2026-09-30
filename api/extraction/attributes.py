@@ -1,10 +1,3 @@
-"""Character attribute extraction (S3.5, F2.3).
-
-Every attribute must carry a page citation or it is not stored — the same
-rule ``graph.upsert`` enforces for relation evidence one level up
-(``api/AGENTS.md``).
-"""
-
 import logging
 from uuid import UUID
 

@@ -1,33 +1,3 @@
-"""CI gate for A-1.3 (Sprint 1 retro): assert the *real* ``celery-worker``
-container — started from the actual compose file's actual command — has
-registered the stages its task modules define, over the actual broker.
-
-This is deliberately not a unit test against ``api/workers/app.py`` in
-isolation. Sprint 1's demo found a bug no such test could ever catch: compose
-pointed Celery at ``-A api.tasks`` (defines the app, imports nothing) instead
-of the real entry point ``api.workers.app`` (imports every task module). The
-worker booted, answered ``inspect ping``, and had registered *zero* of the
-frozen stage names — a green container silently accepting no real work. A
-test that imports ``api/workers/app.py`` in the test process is correct in
-isolation and is wrong only in combination with the compose command that
-starts the container; it can't see a wiring bug that lives entirely in
-``docker-compose.yml``.
-
-This script instead computes what *should* be registered, in-process, from
-the same checkout (``worker_app.missing_stage_tasks()``), then asks the real
-broker who is actually listening — ``celery inspect registered`` is an RPC to
-whatever live worker process picked up the compose command, not a call into
-this process. If a worker or a wiring change ever silently drops back to zero,
-or to a stale subset, this fails loudly instead of a permissive per-container
-healthcheck (CELERY_REQUIRE_STAGES=0 in CI, on purpose, so a worker can boot
-mid-sprint before every stage exists) quietly waving it through.
-
-Run against a live compose stack, from the repo root, with the api venv:
-
-    RABBITMQ_URL=pyamqp://guest:guest@localhost:5672/%2Fint \\
-        api/.venv/bin/python scripts/assert_worker_registered.py
-"""
-
 import os
 import sys
 

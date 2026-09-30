@@ -1,14 +1,3 @@
-"""Structural proof for S6.2: no free-form Cypher reaches Neo4j from the query path.
-
-Parses every module under ``api/query/`` and ``api/routes/query.py`` and
-fails if any call that looks like it runs Cypher (``.run(...)``,
-``.execute_query(...)``) passes anything other than a bare module-level name
-as its first argument — an f-string, a ``.format()`` call, or a string
-concatenation would all be caught. This is what makes "the LLM never emits
-Cypher, only a template id and slots" (``query-path.md``) a property of the
-code rather than a claim about it.
-"""
-
 import ast
 from pathlib import Path
 

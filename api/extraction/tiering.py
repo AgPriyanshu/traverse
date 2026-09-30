@@ -1,12 +1,3 @@
-"""Importance tiering (S3.5, PRD §12.5) — two methods behind a flag, measured.
-
-``TIERING_METHOD`` is read straight from the environment rather than
-``api.config.settings`` because that file is orchestrator-owned as of the
-Sprint 2 freeze (``BRANCH.md``) and this flag did not exist at the Sprint 3
-freeze — SCR filed in ``plans/sprint-3/SCR.md`` to promote it to a real
-settings key; non-blocking here since a plain env read behaves identically.
-"""
-
 import os
 
 from ..contracts.enums import ImportanceTier

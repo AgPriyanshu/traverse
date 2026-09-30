@@ -1,16 +1,4 @@
 #!/usr/bin/env python3
-"""Ingest one corpus book through the running stack: `make ingest BOOK=<key>`.
-
-Creates the demo project if it does not exist (``POST /projects`` is S5.9, so
-this goes to Postgres like the other scripts), uploads
-``corpus/downloads/<key>.pdf`` through the API and polls ``/status`` until the
-book is terminal. A book already ``ready`` in the project is reused, so the
-sprint demo script can be re-run without stacking duplicates.
-
-Usage:
-    python3 scripts/ingest_book.py pride_and_prejudice
-    python3 scripts/ingest_book.py wuthering-heights --project-slug demo --force
-"""
 
 from __future__ import annotations
 

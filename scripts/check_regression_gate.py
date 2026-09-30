@@ -1,25 +1,4 @@
 #!/usr/bin/env python3
-"""CLI wiring for the S8.9 CI regression gate (F6.4).
-
-Compares a ``current`` flat-metrics JSON (`scripts/collect_gate_metrics.py`,
-or `eval/ablation_runs/latest.json` for the full nightly set) against a
-stored ``baseline`` one, using `eval.regression_gate.evaluate_gate`. Exits
-non-zero to fail the CI job -- this is the piece
-`.github/workflows/regression-gate.yml` invokes; the demo script's "open a PR
-degrading retrieval -> CI fails with the metric delta" is this exit code plus
-the printed report.
-
-An override needs an actual justification, not just a flag: pass
-``--override-reason`` with real text (e.g. from a PR body/label in CI), never
-an empty string, which `evaluate_gate` treats as no override at all.
-
-Usage:
-    python3 scripts/check_regression_gate.py \\
-        --current gate-metrics-current.json --baseline gate-metrics-baseline.json
-    python3 scripts/check_regression_gate.py \\
-        --current gate-metrics-current.json --baseline gate-metrics-baseline.json \\
-        --override-reason "Known trade-off for S8.3 calibration; see PR #123."
-"""
 
 from __future__ import annotations
 

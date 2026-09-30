@@ -1,20 +1,4 @@
 #!/usr/bin/env python3
-"""Terminal tool: human-judge a sample of edge citations (S4.14).
-
-Citation page accuracy is the number the product rests on (F3.2, >= 95%), and
-it needs a human. This draws a seeded random sample of evidence items from the
-live graph, shows each claim with its quote and page, and takes y/n. Fifty
-judgements is about fifteen minutes.
-
-Judgements are written to ``eval/gold/<book>/citation_judgements.json`` keyed
-by relation, page and a hash of the quote, so a re-run resumes rather than
-re-asking and a changed quote is re-judged. ``GET /ops/relation-quality`` reads
-the file.
-
-Usage:
-    python3 scripts/judge_citations.py --book-key pride-and-prejudice --n 50
-    python3 scripts/judge_citations.py --book-key pride-and-prejudice --summary
-"""
 
 from __future__ import annotations
 

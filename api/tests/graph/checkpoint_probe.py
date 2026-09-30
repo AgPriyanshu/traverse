@@ -1,11 +1,3 @@
-"""Runnable probe for the S1.6 checkpointer restart acceptance.
-
-Run as ``python -m api.tests.graph.checkpoint_probe <command>``. It must be a
-separate process, not a task inside the test: the acceptance is that a *killed*
-process leaves a resumable checkpoint, and an in-process cancellation proves
-nothing about that.
-"""
-
 import argparse
 import asyncio
 import json
