@@ -202,9 +202,33 @@ export const useDeleteBook = () => {
           params: { path: { book_id: bookId } },
         }),
       ),
-    onSuccess: () => {
+    onSuccess: (_data, bookId) => {
+      // Deleting a book's last one also deletes its project, and removes its
+      // characters and relations from every roster and graph.
+      queryClient.removeQueries({ queryKey: queryKeys.book(bookId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.books() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.projects() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.characters() });
+    },
+  });
+};
+
+export const useDeleteProject = () => {
+  // Apis.
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (projectId: string) =>
+      request(() =>
+        client.DELETE("/api/projects/{project_id}", {
+          params: { path: { project_id: projectId } },
+        }),
+      ),
+    onSuccess: (_data, projectId) => {
+      queryClient.removeQueries({ queryKey: queryKeys.project(projectId) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.projects() });
       void queryClient.invalidateQueries({ queryKey: queryKeys.books() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.characters() });
     },
   });
 };

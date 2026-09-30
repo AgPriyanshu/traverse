@@ -1,11 +1,18 @@
 import { Box, Button, HStack, Heading, Link, Stack, Text } from "@chakra-ui/react";
 import { useMemo, useState } from "react";
 import type { DragEvent } from "react";
-import { Link as RouterLink, useParams } from "react-router";
+import { Link as RouterLink, useNavigate, useParams } from "react-router";
 import { PageHeader } from "@/components/layout";
-import { ErrorState, LoadingSkeleton, StatusDot, toneForBookStatus } from "@/components/ui";
+import {
+  ConfirmDeleteButton,
+  ErrorState,
+  LoadingSkeleton,
+  StatusDot,
+  toaster,
+  toneForBookStatus,
+} from "@/components/ui";
 import type { Book } from "@/lib/api";
-import { useProject, useReorderBooks } from "@/lib/api";
+import { useDeleteProject, useProject, useReorderBooks } from "@/lib/api";
 import { formatCount, formatRelativeTime } from "@/lib/format";
 import { AddBookForm } from "./add-book-form";
 import { nextSeriesOrder, sortedBooks } from "./project-lookup";
@@ -112,10 +119,12 @@ export const ProjectOverview = () => {
 
   // Hooks.
   const { projectId = "" } = useParams();
+  const navigate = useNavigate();
 
   // Apis.
   const project = useProject(projectId);
   const reorder = useReorderBooks(projectId);
+  const deleteProject = useDeleteProject();
 
   // useMemos.
   const books = useMemo(() => sortedBooks(project.data?.books ?? EMPTY_BOOKS), [project.data]);
@@ -161,6 +170,34 @@ export const ProjectOverview = () => {
       <PageHeader
         title={data.name}
         eyebrow={data.kind === "series" ? "Series" : "Standalone novel"}
+        actions={
+          <ConfirmDeleteButton
+            label="Delete project"
+            subject={`“${data.name}”`}
+            consequences={`${
+              books.length === 0
+                ? "This project has no books."
+                : `All ${formatCount(books.length, "book")} in it are removed, along with their PDFs, chapters, characters and relationships.`
+            }`}
+            isPending={deleteProject.isPending}
+            onConfirm={() =>
+              deleteProject.mutateAsync(projectId).then(
+                () => {
+                  toaster.create({ type: "success", title: "Project deleted" });
+                  void navigate("/projects");
+                },
+                (error: unknown) => {
+                  toaster.create({
+                    type: "error",
+                    title: "Could not delete the project",
+                    description: error instanceof Error ? error.message : undefined,
+                  });
+                  throw error;
+                },
+              )
+            }
+          />
+        }
         meta={
           <HStack gap="4" wrap="wrap">
             <Text textStyle="data" color="fg.subtle">

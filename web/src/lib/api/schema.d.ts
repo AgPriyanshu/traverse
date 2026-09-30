@@ -59,7 +59,14 @@ export interface paths {
         get: operations["get_project_api_projects__project_id__get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete Project
+         * @description Delete a project and all of its books from every store they touched.
+         *
+         *     Visibility matches every other project route: a project another session
+         *     owns 404s exactly like one that does not exist.
+         */
+        delete: operations["delete_project_api_projects__project_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -3228,9 +3235,6 @@ export interface components {
         };
         /**
          * StageName
-         * @description The frozen ingestion stages. These strings are also the Celery task names.
-         *
-         *     Changing one renames a Celery task and orphans anything already queued.
          * @enum {string}
          */
         StageName: "pipeline.parse_and_chunk" | "pipeline.segment_chapters" | "pipeline.embed_chunks" | "pipeline.extract_characters" | "pipeline.resolve_aliases" | "pipeline.reconcile_characters" | "relations.extract" | "relations.aggregate" | "graph.upsert";
@@ -3437,6 +3441,55 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ProjectDetailOut"];
                 };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
+    delete_project_api_projects__project_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Session-Token"?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Not Found */
             404: {

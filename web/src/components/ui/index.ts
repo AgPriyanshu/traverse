@@ -1,4 +1,6 @@
 export { AsyncBoundary, ErrorBoundary } from "./async-boundary";
+export { ConfirmDeleteButton } from "./confirm-delete-button";
+export type { ConfirmDeleteButtonProps } from "./confirm-delete-button";
 export { EmptyState } from "./empty-state";
 export { ErrorState } from "./error-state";
 export { InterruptCard } from "./interrupt-card";
