@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock
 
+import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
@@ -478,4 +479,70 @@ class TestSweepExpiredSessions:
         result = await session_privacy.sweep_expired_upload_sessions(session)
 
         assert result == {"sessions_swept": 0, "books_deleted": 0}
+        assert await session.get(Project, uuid.UUID(project_id)) is not None
+
+
+class TestDeleteProjectRoute:
+    @pytest.fixture(autouse=True)
+    def _no_neo4j(self, monkeypatch) -> None:
+        monkeypatch.setattr(
+            session_privacy.graph_cascade,
+            "remove_book",
+            AsyncMock(return_value={"relations_written": 0}),
+        )
+        monkeypatch.setattr(
+            session_privacy.graph_projection, "reset_project", AsyncMock(return_value=0)
+        )
+
+    async def test_owner_deletes_a_project_with_its_books(
+        self, client: AsyncClient, session: SQLModelAsyncSession
+    ) -> None:
+        token, project_id = await _create_session_project(client, "Doomed")
+        upload = await _upload(client, project_id, token)
+        assert upload.status_code == 202
+        book_id = upload.json()["id"]
+        storage_key = f"books/{book_id}/source.pdf"
+        assert await store.exists(storage_key) is True
+
+        response = await client.delete(
+            f"/api/projects/{project_id}",
+            headers={session_privacy.SESSION_TOKEN_HEADER: token},
+        )
+
+        assert response.status_code == 204
+        session.expire_all()
+        assert await session.get(Project, uuid.UUID(project_id)) is None
+        assert await session.get(Book, uuid.UUID(book_id)) is None
+        assert await store.exists(storage_key) is False
+
+    async def test_an_empty_project_can_be_deleted(
+        self, client: AsyncClient, session: SQLModelAsyncSession
+    ) -> None:
+        token, project_id = await _create_session_project(client, "Empty")
+
+        response = await client.delete(
+            f"/api/projects/{project_id}",
+            headers={session_privacy.SESSION_TOKEN_HEADER: token},
+        )
+
+        assert response.status_code == 204
+        session.expire_all()
+        assert await session.get(Project, uuid.UUID(project_id)) is None
+
+    async def test_another_session_cannot_delete_it_and_cannot_tell_it_exists(
+        self, client: AsyncClient, session: SQLModelAsyncSession
+    ) -> None:
+        _owner_token, project_id = await _create_session_project(client, "Private")
+        stranger_token, _other = await _create_session_project(client, "Other")
+
+        with_token = await client.delete(
+            f"/api/projects/{project_id}",
+            headers={session_privacy.SESSION_TOKEN_HEADER: stranger_token},
+        )
+        without_token = await client.delete(f"/api/projects/{project_id}")
+        missing = await client.delete(f"/api/projects/{uuid.uuid4()}")
+
+        assert with_token.status_code == without_token.status_code == 404
+        assert missing.status_code == 404
+        session.expire_all()
         assert await session.get(Project, uuid.UUID(project_id)) is not None

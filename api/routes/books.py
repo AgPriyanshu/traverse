@@ -244,6 +244,21 @@ async def get_project(
     return project
 
 
+@router.delete("/projects/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_project(
+    project_id: UUID,
+    x_session_token: str | None = Depends(_session_token),
+    session: SQLModelAsyncSession = Depends(get_session),
+) -> None:
+    """Delete a project and all of its books from every store they touched.
+
+    Visibility matches every other project route: a project another session
+    owns 404s exactly like one that does not exist.
+    """
+    await session_privacy.get_visible_project(session, project_id, x_session_token)
+    await session_privacy.delete_project_cascade(session, project_id)
+
+
 @router.patch("/projects/{project_id}/order", response_model=ProjectDetailOut)
 async def reorder_books(project_id: UUID, body: BookOrderUpdate) -> ProjectDetailOut:
     not_implemented(OWNER, "S5.9")

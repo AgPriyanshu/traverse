@@ -278,31 +278,7 @@ async def delete_book_cascade(session: SQLModelAsyncSession, book_id: UUID) -> d
     project_deleted = False
 
     if remaining == 0:
-        owner = await owning_session(session, project_id)
-
-        if owner is not None:
-            owner.deleted_at = datetime.now(UTC)
-            session.add(owner)
-            await session.commit()
-
-        project_row = await session.get(Project, project_id)
-
-        if project_row is not None:
-            await session.execute(
-                sa_delete(Project).where(Project.id == project_id)  # type: ignore[arg-type]
-            )
-            await session.commit()
-
-        try:
-            with anyio.fail_after(_GRAPH_CASCADE_TIMEOUT_SECONDS):
-                await graph_projection.reset_project(project_id)
-        except Exception:
-            logger.warning(
-                "neo4j reset_project failed or timed out for project %s",
-                project_id,
-                exc_info=True,
-            )
-
+        await _remove_project_shell(session, project_id)
         project_deleted = True
 
     return {
@@ -312,6 +288,59 @@ async def delete_book_cascade(session: SQLModelAsyncSession, book_id: UUID) -> d
         "traces_purged": traces_purged,
         **graph_result,
     }
+
+
+async def _remove_project_shell(
+    session: SQLModelAsyncSession, project_id: UUID
+) -> None:
+    """Delete a project that holds no books, its owning session, and its graph."""
+    owner = await owning_session(session, project_id)
+
+    if owner is not None:
+        owner.deleted_at = datetime.now(UTC)
+        session.add(owner)
+        await session.commit()
+
+    project_row = await session.get(Project, project_id)
+
+    if project_row is not None:
+        await session.execute(
+            sa_delete(Project).where(Project.id == project_id)  # type: ignore[arg-type]
+        )
+        await session.commit()
+
+    try:
+        with anyio.fail_after(_GRAPH_CASCADE_TIMEOUT_SECONDS):
+            await graph_projection.reset_project(project_id)
+    except Exception:
+        logger.warning(
+            "neo4j reset_project failed or timed out for project %s",
+            project_id,
+            exc_info=True,
+        )
+
+
+async def delete_project_cascade(
+    session: SQLModelAsyncSession, project_id: UUID
+) -> dict:
+    """Delete a project and every book in it, from every store they touched.
+
+    Each book goes through :func:`delete_book_cascade`, so the graph, object
+    storage and trace cleanup is identical to deleting the books one by one;
+    the last of them removes the project itself. A project that never had a
+    book is removed directly. Idempotent, like the book cascade.
+    """
+    if await session.get(Project, project_id) is None:
+        return {"project_id": str(project_id), "already_deleted": True}
+
+    books = await pipeline_repository.list_books(session, project_id)
+
+    for book in books:
+        await delete_book_cascade(session, book.id)
+
+    await _remove_project_shell(session, project_id)
+
+    return {"project_id": str(project_id), "books_deleted": len(books)}
 
 
 async def sweep_expired_upload_sessions(session: SQLModelAsyncSession) -> dict:

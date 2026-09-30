@@ -9,12 +9,14 @@ from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import IntegrityError
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
 from ..contracts.enums import StageName, StageState
 from ..db.engine import db_session
-from ..db.models import IngestionRun, IngestionStage
+from ..db.models import Book, IngestionRun, IngestionStage
 from ..db.models.base import utcnow
+from .errors import PermanentError
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +84,19 @@ async def finish_run(
 
 async def _begin(book_id: UUID, stage_name: StageName) -> StageRecord:
     async with db_session() as session:
-        run = await open_run(session, book_id)
+        try:
+            run = await open_run(session, book_id)
+        except IntegrityError:
+            await session.rollback()
+
+            # A task queued or running when its book was deleted: nothing to
+            # record against and nothing a retry could change.
+            if await session.get(Book, book_id) is None:
+                raise PermanentError(
+                    f"book {book_id} no longer exists; its ingestion was abandoned"
+                ) from None
+
+            raise
         # Read before the commit: committing expires the instance, and reading
         # an expired attribute afterwards is a lazy load from sync context.
         run_id = run.id

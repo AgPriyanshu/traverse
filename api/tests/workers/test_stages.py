@@ -1,3 +1,5 @@
+import uuid
+
 import pytest
 from sqlalchemy import select
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
@@ -86,6 +88,13 @@ class TestFailurePath:
         row = await stage_row(session, book, StageName.EMBED_CHUNKS)
 
         assert row.state is StageState.FAILED
+
+
+class TestDeletedBook:
+    async def test_a_stage_for_a_deleted_book_is_a_clear_permanent_error(self) -> None:
+        with pytest.raises(PermanentError, match="no longer exists"):
+            async with stage(uuid.uuid4(), StageName.PARSE_AND_CHUNK):
+                raise AssertionError("the body must never run for a deleted book")
 
 
 class TestRetryTransitions:
