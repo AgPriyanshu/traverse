@@ -1,5 +1,4 @@
-"""Stage status recording — what ``GET /books/{id}/status`` reads."""
-
+import logging
 import time
 import traceback
 from collections.abc import AsyncIterator
@@ -16,6 +15,8 @@ from ..contracts.enums import StageName, StageState
 from ..db.engine import db_session
 from ..db.models import IngestionRun, IngestionStage
 from ..db.models.base import utcnow
+
+logger = logging.getLogger(__name__)
 
 # Truncated so one pathological traceback cannot bloat a status response.
 MAX_TRACEBACK_CHARS = 8000
@@ -151,6 +152,25 @@ async def _settle(
         await session.commit()
 
 
+async def _sync_book_status(book_id: UUID) -> None:
+    # ``GET /books/{id}/status`` derives the status on read, but the book row
+    # every other screen and list reads was only ever moved to ``processing``,
+    # so a finished book stayed "Processing" forever.
+    # Imported here, not at module level: ``pipeline`` imports ``api.llm``, which
+    # imports ``workers.errors`` and so this package — a top-level import makes
+    # the import order decide whether ``api.llm`` initialises at all.
+    from ..pipeline import repository
+
+    try:
+        async with db_session() as session:
+            statuses = await repository.get_stage_statuses(session, book_id)
+            await repository.set_book_status(
+                session, book_id, repository.derive_book_status(statuses)
+            )
+    except Exception:
+        logger.warning("could not sync status of book %s", book_id, exc_info=True)
+
+
 @asynccontextmanager
 async def stage(book_id: UUID, stage_name: StageName) -> AsyncIterator[StageRecord]:
     """Record one stage attempt, whatever happens inside it.
@@ -176,12 +196,15 @@ async def stage(book_id: UUID, stage_name: StageName) -> AsyncIterator[StageReco
         ...     s.rows_written = await embed(book_id)
     """
     record = await _begin(book_id, stage_name)
+    await _sync_book_status(book_id)
     started = time.monotonic()
 
     try:
         yield record
     except BaseException as exc:
         await _settle(record, StageState.FAILED, started, exc)
+        await _sync_book_status(book_id)
         raise
 
     await _settle(record, StageState.SUCCEEDED, started, None)
+    await _sync_book_status(book_id)

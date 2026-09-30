@@ -166,8 +166,16 @@ _DENSE_NAMES = [
 ]
 
 
+# Sized against ``_OUTPUT_RESERVE`` (which is floored at the client's
+# ``llm_max_output_tokens``): at this density 12 and 6 chunks' replies both
+# overflow it and 3 chunks' fits, so recovery has to recurse two levels. If
+# the reserve moves, re-measure with the real tokenizer rather than trusting
+# these numbers.
+_MENTIONS_PER_CHUNK = 16
+
+
 def _dense_reply(n: int) -> MentionSweepOutput:
-    """Ten substantial mentions per chunk — the shape a real dialogue-dense,
+    """Sixteen substantial mentions per chunk — the shape a real dialogue-dense,
     multi-party scene actually produces, not a token-count stand-in."""
     return MentionSweepOutput(
         chunks=[
@@ -186,7 +194,7 @@ def _dense_reply(n: int) -> MentionSweepOutput:
                             "matter at hand."
                         ),
                     )
-                    for name in _DENSE_NAMES
+                    for name in (_DENSE_NAMES * 2)[:_MENTIONS_PER_CHUNK]
                 ],
             )
             for i in range(1, n + 1)
@@ -247,9 +255,11 @@ class TestSplitRetryOnLengthLimit:
         assert call_sizes.count(3) == 4
         assert len(call_sizes) == 7
 
-        # Every one of the 12 chunks' 10 mentions survives the split; none
+        # Every one of the 12 chunks' mentions survives the split; none
         # silently dropped by the recovery path.
-        assert len(results) == 120
+        # Repeated surface forms within a chunk collapse, so the survivors are
+        # the distinct names, not every mention emitted.
+        assert len(results) == 12 * len(_DENSE_NAMES)
         assert {result.chunk_id for result in results} == {
             chunk.id for chunk, _ in pairs
         }

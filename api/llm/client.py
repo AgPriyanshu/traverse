@@ -1,11 +1,3 @@
-"""Chat model construction and the shared concurrency limiter.
-
-``api/llm`` is the only place a model may be instantiated. Unlike the Sprint 1
-prototype it replaces, importing this module opens no connection and builds
-no client at import time — ``get_llm`` constructs one per call, which is cheap
-for an HTTP client wrapper.
-"""
-
 import asyncio
 
 from langchain_openai import ChatOpenAI
@@ -25,7 +17,7 @@ _semaphore_loop: asyncio.AbstractEventLoop | None = None
 # ``APIConnectionError`` (see ``api/llm/errors.py::classify_call_error``), so
 # a timeout already lands as a retryable ``TransientLLMError`` once this is
 # set -- no error-classification change needed, only the missing deadline.
-_LOCAL_REQUEST_TIMEOUT_S = 60.0
+_LOCAL_REQUEST_TIMEOUT_S = 300.0
 _FRONTIER_REQUEST_TIMEOUT_S = 120.0
 
 
@@ -83,6 +75,10 @@ def get_llm(purpose: LLMPurpose, *, mode: InferenceMode | None = None) -> ChatOp
         base_url=route.base_url,
         api_key=SecretStr("not-needed"),
         max_tokens=settings.llm_max_output_tokens,
+        # Sampling at the model's default temperature classified the same four
+        # headings as two chapters on one run and four on the next; a chapter
+        # boundary is a judgement that has to repeat.
+        temperature=0.0 if purpose is LLMPurpose.CHAPTER_CLASSIFY else None,
         timeout=_LOCAL_REQUEST_TIMEOUT_S,
         extra_body={
             "chat_template_kwargs": {"enable_thinking": settings.llm_enable_thinking}

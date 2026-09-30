@@ -64,6 +64,25 @@ def test_already_classified_error_passes_through() -> None:
     assert classify_call_error(original) is original
 
 
+def test_context_overflow_400_becomes_length_limit_error() -> None:
+    response = httpx.Response(400, request=_REQUEST)
+    exc = openai.BadRequestError(
+        "This model's maximum context length is 16384 tokens.",
+        response=response,
+        body=None,
+    )
+
+    classified = classify_call_error(exc)
+
+    assert isinstance(classified, LengthLimitError)
+
+
+def test_other_400_stays_permanent_not_length_limit() -> None:
+    classified = classify_call_error(_status_error(400))
+
+    assert type(classified) is PermanentLLMError
+
+
 def test_the_clients_own_length_exception_becomes_length_limit_error() -> None:
     completion = ChatCompletion.model_construct(
         id="x", choices=[], created=0, model="m", object="chat.completion"

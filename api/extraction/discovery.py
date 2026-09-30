@@ -1,10 +1,3 @@
-"""Pass-1 character discovery (S3.1).
-
-Recall is the objective here; precision is bought back by rejection (S3.2)
-and the alias cascade (S3.3). A character missed in this sweep does not exist
-for the rest of the pipeline, so over-generation is expected and fine.
-"""
-
 import asyncio
 import logging
 from collections import defaultdict
@@ -31,8 +24,14 @@ logger = logging.getLogger(__name__)
 _ASSUMED_CHUNKS_PER_BATCH = 12
 _ASSUMED_MENTIONS_PER_CHUNK = 5
 _OUTPUT_TOKENS_PER_MENTION = 60
-_OUTPUT_RESERVE = (
-    _ASSUMED_CHUNKS_PER_BATCH * _ASSUMED_MENTIONS_PER_CHUNK * _OUTPUT_TOKENS_PER_MENTION
+# vLLM rejects a request whose input plus ``max_tokens`` exceeds the context, and
+# the client always asks for ``llm_max_output_tokens``. Reserving less than that
+# lets a batch pass the planner and still fail with a 400 on a full context.
+_OUTPUT_RESERVE = max(
+    _ASSUMED_CHUNKS_PER_BATCH
+    * _ASSUMED_MENTIONS_PER_CHUNK
+    * _OUTPUT_TOKENS_PER_MENTION,
+    settings.llm_max_output_tokens,
 )
 
 

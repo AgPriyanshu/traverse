@@ -23,6 +23,8 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
 
 
 @asynccontextmanager
-async def db_session():
-    async with SQLModelAsyncSession(engine) as session:
+async def db_session(*, expire_on_commit: bool = True):
+    async with SQLModelAsyncSession(
+        engine, expire_on_commit=expire_on_commit
+    ) as session:
         yield session

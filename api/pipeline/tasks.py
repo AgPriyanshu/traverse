@@ -1,11 +1,3 @@
-"""The ``pipeline.*`` half of the ingestion chain.
-
-Registered under the frozen names from ``StageName``; the names are the
-contract and are already referenced by ``api.tasks.ingestion_chain``. Bodies
-land stage by stage across Sprints 2 and 3 — the registration, the retry policy
-and the status recording are what Sprint 1 owes.
-"""
-
 import asyncio
 import json
 import tempfile
@@ -387,7 +379,13 @@ async def _reconcile_characters(book_id: UUID, record: StageRecord) -> None:
 
         project_id = book.project_id
 
-    async with project_roster_lock(project_id), db_session() as session:
+    # ``reconcile_book`` holds ORM objects across repository calls that each
+    # commit; with the default expiry the next attribute read lazy-loads outside
+    # the greenlet and raises ``MissingGreenlet``.
+    async with (
+        project_roster_lock(project_id),
+        db_session(expire_on_commit=False) as session,
+    ):
         considered = await reconcile_service.reconcile_book(
             session, book_id=book_id, project_id=project_id
         )

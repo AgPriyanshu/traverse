@@ -4,7 +4,7 @@ import pytest
 
 from api.config.settings import Settings
 from api.contracts.enums import DetectionMethod, LLMPurpose
-from api.contracts.pipeline import ChunkPayload
+from api.contracts.pipeline import ChapterInfo, ChunkPayload
 from api.pipeline import chunking
 from api.pipeline.chunking import (
     DocumentChunker,
@@ -139,6 +139,88 @@ class TestHeadingClassificationCallsStructuredCall:
         results = await chunker._classify_heading_batch(["Prologue", "Interlude"])
 
         assert [r.is_chapter for r in results] == [False, False]
+
+
+    async def test_a_mismatched_batch_is_retried_in_halves(
+        self, chunker: DocumentChunker, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        async def fake_structured_call(prompt, schema, *, purpose, book_id, stage):
+            headings = [
+                line.split(". ", 1)[1]
+                for line in prompt.splitlines()
+                if line[:1].isdigit() and ". " in line
+            ]
+            if len(headings) > 2:
+                return ChapterBatchStructuredOutput(items=[])
+
+            return ChapterBatchStructuredOutput(
+                items=[
+                    ChapterInfoStructuredOutput(
+                        is_chapter=heading != "Contents", number=None, title=heading
+                    )
+                    for heading in headings
+                ]
+            )
+
+        monkeypatch.setattr(chunking, "structured_call", fake_structured_call)
+
+        results = await chunker._classify_heading_batch(
+            ["Prologue", "Contents", "Interlude", "Epilogue"]
+        )
+
+        assert [r.is_chapter for r in results] == [True, False, True, True]
+
+
+    async def test_a_heading_that_recurs_is_never_sent_to_the_model(
+        self, chunker: DocumentChunker, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        sent: list[list[str]] = []
+
+        async def fake_batch(texts, *, book_id=None):
+            sent.append(list(texts))
+
+            return [
+                ChapterInfo(is_chapter=True, number=None, title=t, text=t)
+                for t in texts
+            ]
+
+        monkeypatch.setattr(chunker, "_classify_heading_batch", fake_batch)
+        headings = ["SPLASH"] * 5 + ["Prologue", "Epilogue"]
+
+        results = await chunker._classify_headings(headings)
+
+        assert sent == [["Prologue", "Epilogue"]]
+        assert [r.is_chapter for r in results] == [False] * 5 + [True, True]
+
+
+class TestContinueNumbering:
+    def _chapter(self, text: str, number: int | None) -> ChapterInfo:
+        return ChapterInfo(is_chapter=True, number=number, title=text, text=text)
+
+    def test_unnumbered_chapters_continue_after_the_last_numbered_one(self) -> None:
+        infos = [
+            self._chapter("Prologue", None),
+            self._chapter("I The Lovers", 1),
+            self._chapter("Husband and Wife", None),
+            ChapterInfo(is_chapter=False, text="CLANG-DONG"),
+            self._chapter("The Sisters", None),
+        ]
+
+        numbers = [i.number for i in chunking._continue_numbering(infos)]
+
+        assert numbers == [None, 1, 2, None, 3]
+
+    def test_an_explicit_number_resets_the_sequence(self) -> None:
+        infos = [
+            self._chapter("Five", 5),
+            self._chapter("Interlude", None),
+            self._chapter("Nine", 9),
+            self._chapter("Interlude", None),
+        ]
+
+        numbers = [i.number for i in chunking._continue_numbering(infos)]
+
+        assert numbers == [5, 6, 9, 10]
 
 
 class TestDeviceResolution:

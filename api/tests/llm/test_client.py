@@ -24,3 +24,14 @@ def test_semaphore_survives_a_new_event_loop_per_call(monkeypatch):
     second = asyncio.run(acquire_once())
 
     assert first != second
+
+
+def test_chapter_classification_samples_at_temperature_zero():
+    from api.contracts.enums import InferenceMode, LLMPurpose
+    from api.llm.client import get_llm
+
+    classify = get_llm(LLMPurpose.CHAPTER_CLASSIFY, mode=InferenceMode.LOCAL)
+    extract = get_llm(LLMPurpose.CHARACTER_EXTRACT, mode=InferenceMode.LOCAL)
+
+    assert classify.temperature == 0.0
+    assert extract.temperature != 0.0

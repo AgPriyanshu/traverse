@@ -1,5 +1,6 @@
 import logging
 import re
+from collections import Counter
 from functools import lru_cache
 from pathlib import Path
 from typing import cast
@@ -392,7 +393,9 @@ class DocumentChunker:
             for index, info in zip(ambiguous, classified, strict=True):
                 results[index] = info
 
-        return list(zip(items, cast(list[ChapterInfo], results), strict=True))
+        continued = _continue_numbering(cast(list[ChapterInfo], results))
+
+        return list(zip(items, continued, strict=True))
 
     def _match_chapter_regex(self, text: str) -> ChapterInfo | None:
         """Return a regex-matched chapter, or ``None`` if ``text`` needs the LLM."""
@@ -439,17 +442,33 @@ class DocumentChunker:
         if not self.llm_classify:
             return [ChapterInfo(is_chapter=False, text=text) for text in texts]
 
-        results: list[ChapterInfo] = []
+        # A heading that recurs is a scene-break marker or running header, never
+        # a chapter title; left in, 24 copies of one marker crowded a novel's four
+        # real headings out of the model's attention and skewed its item count.
+        occurrences = Counter(texts)
+        candidates = [
+            text for text in texts if occurrences[text] < _RECURRING_HEADING_MIN
+        ]
+
+        classified: list[ChapterInfo] = []
         for batch in plan_batches(
-            texts,
+            candidates,
             prompt_tokens=len(_BATCH_HEADING_PROMPT) // 4,
             text_of=lambda text: text,
             max_context=self.settings.llm_max_context,
             output_reserve=self.settings.llm_output_reserve,
         ):
-            results.extend(
+            classified.extend(
                 await self._classify_heading_batch(batch.items, book_id=book_id)
             )
+
+        pending = iter(classified)
+        results = [
+            ChapterInfo(is_chapter=False, text=text)
+            if occurrences[text] >= _RECURRING_HEADING_MIN
+            else next(pending)
+            for text in texts
+        ]
 
         return results
 
@@ -479,12 +498,21 @@ class DocumentChunker:
 
         if len(result.items) != len(texts):
             logger.warning(
-                "classifier returned %d results for %d headings; discarding batch",
+                "classifier returned %d results for %d headings; retrying in halves",
                 len(result.items),
                 len(texts),
             )
 
-            return [ChapterInfo(is_chapter=False, text=text) for text in texts]
+            if len(texts) == 1:
+                return [ChapterInfo(is_chapter=False, text=text) for text in texts]
+
+            # A count mismatch can't be aligned to headings, and dropping the whole
+            # batch turned one miscount into a book with no chapters at all.
+            middle = len(texts) // 2
+            first = await self._classify_heading_batch(texts[:middle], book_id=book_id)
+            second = await self._classify_heading_batch(texts[middle:], book_id=book_id)
+
+            return [*first, *second]
 
         classified = [
             ChapterInfo(
@@ -501,6 +529,31 @@ class DocumentChunker:
 
         return classified
 
+
+_RECURRING_HEADING_MIN = 5
+
+
+def _continue_numbering(infos: list[ChapterInfo]) -> list[ChapterInfo]:
+    """Number an unnumbered chapter as the one after the last numbered chapter.
+
+    Chapters are keyed by number downstream, so every unnumbered chapter
+    collapsed into one key and shared a single page range. A title-only chapter
+    that follows a numbered one is the next in the sequence; one with no numbered
+    chapter before it (a prologue) stays unnumbered.
+    """
+    numbered: list[ChapterInfo] = []
+    last_number: int | None = None
+
+    for info in infos:
+        if info.is_chapter and info.number is None and last_number is not None:
+            info = info.model_copy(update={"number": last_number + 1})
+
+        if info.is_chapter and info.number is not None:
+            last_number = info.number
+
+        numbered.append(info)
+
+    return numbered
 
 _BATCH_HEADING_PROMPT = (
     "You are analyzing headings extracted from a novel to decide, for each "
@@ -519,7 +572,11 @@ _BATCH_HEADING_PROMPT = (
     "- `title`: ONLY the descriptive text that accompanies the "
     "number, or null if the heading is nothing more than the "
     "number itself. NEVER repeat the number (spelled out or as a "
-    "digit) as the title.\n\n"
+    "digit) as the title.\n"
+    "- A short title standing alone that opens a named part or story of "
+    "the book is a chapter even without a number (e.g. \"The Green Room\"). "
+    "A line of dialogue, an exclamation, a sound effect, or any other "
+    "sentence from the prose is NOT a chapter.\n\n"
     "Examples:\n"
     '"One" -> is_chapter=true, number=1, title=null\n'
     '"Chapter 3" -> is_chapter=true, number=3, title=null\n'

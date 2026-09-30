@@ -1,10 +1,3 @@
-"""Error classification for every ``api.llm`` call.
-
-Subclassing the worker retry contract (``api.workers.errors``) is what makes
-``autoretry_for=(TransientError,)`` catch an LLM failure without a Celery task
-having to know that its failure came from ``api.llm`` at all.
-"""
-
 from openai import APIConnectionError, APIStatusError, LengthFinishReasonError
 
 from ..workers.errors import PermanentError, TransientError
@@ -64,6 +57,12 @@ def classify_call_error(exc: Exception) -> TransientLLMError | PermanentLLMError
     if isinstance(exc, APIStatusError):
         if exc.status_code == 429 or exc.status_code >= 500:
             return TransientLLMError(str(exc))
+
+        # An input too large for the window is fixed by the same move as a cut-off
+        # reply, splitting the input, so it must reach callers that catch
+        # ``LengthLimitError`` rather than die as an unrecoverable 400.
+        if exc.status_code == 400 and "maximum context length" in str(exc):
+            return LengthLimitError(str(exc))
 
         return PermanentLLMError(str(exc))
 

@@ -2,7 +2,7 @@ import pytest
 from sqlalchemy import select
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
-from api.contracts.enums import StageName, StageState
+from api.contracts.enums import BookStatus, StageName, StageState
 from api.db.models import Book, IngestionRun, IngestionStage
 from api.pipeline import repository
 from api.workers.errors import PermanentError, TransientError
@@ -169,6 +169,41 @@ class TestRetryTransitions:
         )
 
         assert len(runs) == 2
+
+
+class TestBookStatusSync:
+    async def test_a_running_stage_moves_the_book_to_processing(
+        self, session: SQLModelAsyncSession, book: Book
+    ) -> None:
+        async with stage(book.id, StageName.PARSE_AND_CHUNK):
+            during = await session.get(Book, book.id)
+            await session.refresh(during)
+
+            assert during.status is BookStatus.PROCESSING
+
+    async def test_a_failed_stage_moves_the_book_to_failed(
+        self, session: SQLModelAsyncSession, book: Book
+    ) -> None:
+        with pytest.raises(PermanentError):
+            async with stage(book.id, StageName.PARSE_AND_CHUNK):
+                raise PermanentError("cannot convert novel.pdf")
+
+        after = await session.get(Book, book.id)
+        await session.refresh(after)
+
+        assert after.status is BookStatus.FAILED
+
+    async def test_every_stage_succeeding_moves_the_book_to_ready(
+        self, session: SQLModelAsyncSession, book: Book
+    ) -> None:
+        for name in StageName:
+            async with stage(book.id, name):
+                pass
+
+        after = await session.get(Book, book.id)
+        await session.refresh(after)
+
+        assert after.status is BookStatus.READY
 
 
 class TestStatusReadback:
