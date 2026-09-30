@@ -516,7 +516,10 @@ Uploads are private by construction (`api/pipeline/session_privacy.py`).
   public-domain heuristic (copyright markers). They return 429 / 413 / 422.
 - **Deletion is real:** `DELETE /api/books/{id}` removes Postgres rows, MinIO
   objects, Langfuse traces and the Neo4j projection, and removes an emptied
-  project and its session. A 24-hour TTL sweep does the same for expired sessions
+  project and its session. `DELETE /api/projects/{id}` does the same for every
+  book in a project, then the project. Both have confirm-dialog buttons in the
+  web app, and a task still queued for a deleted book fails with a clear,
+  non-retried error. A 24-hour TTL sweep does the same for expired sessions
   (`make upload-sweep`).
 
 ## 13. The web app
