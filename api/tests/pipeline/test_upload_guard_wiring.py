@@ -5,6 +5,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
+from api.config.settings import settings
 from api.db.engine import get_session
 from api.db.models import Project
 from api.main import app
@@ -15,7 +16,11 @@ FIXTURE = Path(__file__).parent.parent / "fixtures" / "three_page_novel.pdf"
 
 
 @pytest_asyncio.fixture
-async def client(session: SQLModelAsyncSession) -> AsyncIterator[AsyncClient]:
+async def client(
+    session: SQLModelAsyncSession, monkeypatch
+) -> AsyncIterator[AsyncClient]:
+    monkeypatch.setattr(settings, "public_demo", True)
+
     async def override() -> AsyncIterator[SQLModelAsyncSession]:
         yield session
 

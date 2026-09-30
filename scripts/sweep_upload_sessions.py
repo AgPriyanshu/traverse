@@ -10,8 +10,16 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 
 async def _main() -> int:
+    from api.config.settings import settings
     from api.db.engine import db_session
     from api.pipeline.session_privacy import sweep_expired_upload_sessions
+
+    if not settings.public_demo:
+        print(
+            "sweep_upload_sessions: PUBLIC_DEMO is off, so nothing here is a "
+            "visitor upload and nothing is swept."
+        )
+        return 0
 
     async with db_session() as session:
         result = await sweep_expired_upload_sessions(session)

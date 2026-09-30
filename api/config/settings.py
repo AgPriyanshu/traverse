@@ -13,6 +13,7 @@ class Settings(BaseSettings):
 
     env: str = "development"
     api_port: int = 8000
+    public_demo: bool = False
 
     # Postgres — source of truth.
     postgres_db_string: str = (

@@ -216,6 +216,7 @@ The ones you will touch most:
 | --- | --- |
 | `INFERENCE_MODE` | `local`, `api` or `routed` — where model calls go. |
 | `VLLM_BASE_URL`, `LLM_MODEL` | The local model endpoint. |
+| `PUBLIC_DEMO` | `0` (default): single-user install, no sessions or upload limits. `1`: per-visitor private sessions and the upload guards. |
 | `FRONTIER_MODEL`, `FRONTIER_API_KEY` | Optional frontier model. Blank by default: no data leaves the machine. |
 | `LLM_MAX_CONCURRENCY` | Shared ceiling on in-flight model calls (default 8). |
 | `EMBEDDING_DEVICE` | `cpu` or `cuda` for BGE-M3. |
@@ -501,7 +502,13 @@ invisible to the cost dashboard and the routing policy.
 
 ## 12. Privacy, sessions and quotas
 
-Uploads are private by construction (`api/pipeline/session_privacy.py`).
+This whole section applies in **public-demo mode only** (`PUBLIC_DEMO=1`, set by
+`docker-compose.prod.yml`). With it off — the default — Traverse is a single-user
+install: `POST /api/projects` makes a plain project with no session or token, every
+project is visible and deletable, and none of the upload limits below apply. The
+`UPLOAD_*` settings tune the limits and are passed into the containers from `.env`.
+
+In demo mode, uploads are private by construction (`api/pipeline/session_privacy.py`).
 
 - `POST /api/projects` mints an **upload session** and returns its token in the
   `X-Session-Token` response header; the web client stores it and sends it on every

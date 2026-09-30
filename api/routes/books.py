@@ -19,6 +19,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
+from ..config.settings import settings
 from ..contracts.api import (
     BookOrderUpdate,
     BookOut,
@@ -176,9 +177,11 @@ async def create_project(
     ip: str | None = Depends(_client_ip),
     session: SQLModelAsyncSession = Depends(get_session),
 ) -> ProjectOut:
-    """Create a project, private to the caller's upload session by construction.
+    """Create a project; in public-demo mode, private to the caller's session.
 
-    Every project made through this route is linked 1:1 to an ``UploadSession``
+    Without ``PUBLIC_DEMO`` this is a single-user install: the project is plain
+    and public, with no session, no token and none of the demo limits. With it,
+    every project made through this route is linked 1:1 to an ``UploadSession``
     (ETH-2, migration 0012) — there is no path here that lands a caller's
     upload in a shared or default project. The seeded, public-domain demo
     corpus is the only project anyone can read without a session token, and it
@@ -191,6 +194,22 @@ async def create_project(
     ``X-Session-Token`` header (minted fresh if none was sent) so the client
     can replay it on every later call for this upload.
     """
+    if not settings.public_demo:
+        local_project = await repository.create_project(
+            session, name=body.name, kind=body.kind
+        )
+
+        return ProjectOut(
+            id=local_project.id,
+            name=local_project.name,
+            slug=local_project.slug,
+            kind=local_project.kind,
+            book_count=0,
+            character_count=0,
+            relation_count=0,
+            updated_at=local_project.updated_at,
+        )
+
     upload_session = await session_privacy.get_or_create_upload_session(
         session, x_session_token, ip=ip
     )
@@ -347,7 +366,7 @@ async def upload_book(
                 },
             )
 
-        if owner is not None:
+        if owner is not None and settings.public_demo:
             ip_hash = session_privacy.hash_ip(ip)
             try:
                 if ip_hash is not None:
